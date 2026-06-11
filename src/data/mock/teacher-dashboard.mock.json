@@ -1,0 +1,72 @@
+{
+  "teacherId": "t-pn01",
+  "teacherName": "Ms. Priya Nair",
+  "subject": "Mathematics",
+  "assessmentName": "UT3",
+  "schoolSubjectAverage": 68,
+  "teacherAverage": 76,
+  "classroomPostingDaysExpected": 5,
+  "attentionThresholds": {
+    "performanceWarning": 70,
+    "postingPerfect": 5,
+    "postingWarning": 3,
+    "postingCritical": 2
+  },
+  "assignedClasses": [
+    {
+      "class": "Class 8A",
+      "classPerformancePercent": 71,
+      "classroomPostingDaysCompleted": 5
+    },
+    {
+      "class": "Class 8B",
+      "classPerformancePercent": 74,
+      "classroomPostingDaysCompleted": 4
+    },
+    {
+      "class": "Class 8C",
+      "classPerformancePercent": 68,
+      "classroomPostingDaysCompleted": 3
+    },
+    {
+      "class": "Class 8D",
+      "classPerformancePercent": 76,
+      "classroomPostingDaysCompleted": 5
+    },
+    {
+      "class": "Class 8E",
+      "classPerformancePercent": 72,
+      "classroomPostingDaysCompleted": 5
+    },
+    {
+      "class": "Class 9A",
+      "classPerformancePercent": 79,
+      "classroomPostingDaysCompleted": 5
+    },
+    {
+      "class": "Class 9B",
+      "classPerformancePercent": 82,
+      "classroomPostingDaysCompleted": 2
+    },
+    {
+      "class": "Class 9C",
+      "classPerformancePercent": 65,
+      "classroomPostingDaysCompleted": 3
+    },
+    {
+      "class": "Class 10A",
+      "classPerformancePercent": 84,
+      "classroomPostingDaysCompleted": 5
+    },
+    {
+      "class": "Class 10B",
+      "classPerformancePercent": 81,
+      "classroomPostingDaysCompleted": 4
+    },
+    {
+      "class": "Class 10C",
+      "classPerformancePercent": 73,
+      "classroomPostingDaysCompleted": 3
+    }
+  ]
+}

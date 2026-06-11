@@ -1,0 +1,94 @@
+{
+  "schoolName": "Greenwood K-12 Academy",
+  "schoolCode": "GW-K12-998",
+  "curriculum": "Generic-K12",
+  "academicYear": "AY 2026-27",
+  "sections": ["Gold", "Silver"],
+  "institutionalIdentities": {
+    "academicRepository": "academic-ops",
+    "governance": "superintendent",
+    "classroomAdmin": "lms-admin"
+  },
+  "stages": [
+    {
+      "name": "Elementary School",
+      "classes": ["Grade 1", "Grade 2", "Grade 3"],
+      "subjects": [
+        "Language Arts",
+        "Mathematics",
+        "General Science",
+        "Social Studies",
+        "Visual Arts",
+        "Physical Activities"
+      ]
+    },
+    {
+      "name": "Middle School",
+      "classes": ["Grade 6", "Grade 7", "Grade 8"],
+      "subjects": [
+        "English Literature",
+        "Pre-Algebra",
+        "Life Science",
+        "World History",
+        "Computer Literacy",
+        "Physical Education"
+      ]
+    },
+    {
+      "name": "High School",
+      "classes": ["Grade 10", "Grade 11", "Grade 12"],
+      "subjects": [
+        "Creative Writing",
+        "Calculus",
+        "AP Physics",
+        "US History",
+        "Intro to Programming",
+        "Fitness and Health"
+      ]
+    }
+  ],
+  "artifactFolders": [
+    "01_Syllabus",
+    "02_Lessons",
+    "03_Quizzes",
+    "04_Assignments",
+    "05_Remedial_Docs",
+    "06_Olympiad",
+    "07_Teacher_Guides"
+  ],
+  "governanceFolders": [
+    "01_Compliance",
+    "02_Academic_Audit",
+    "03_HR_Ops",
+    "04_Dashboard_Stats",
+    "05_Standards",
+    "06_Resource_Plans",
+    "07_Committee_Logs",
+    "08_District_Policies"
+  ],
+  "formsIntake": [
+    "01_Weekly_Pacing_Survey",
+    "02_Intervention_Logs",
+    "03_Event_Forms",
+    "04_Board_Submissions"
+  ],
+  "serviceAccounts": [
+    "academic-ops",
+    "superintendent",
+    "lms-admin",
+    "database-sync",
+    "district-office"
+  ],
+  "departmentGroups": [
+    "humanities.dept@",
+    "stem.dept@",
+    "arts.dept@",
+    "athletics.dept@"
+  ],
+  "teacherGroups": [
+    "staff-all@",
+    "elementary-staff@",
+    "middle-staff@",
+    "high-staff@"
+  ]
+}

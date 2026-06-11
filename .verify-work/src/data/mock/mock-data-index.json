@@ -1,0 +1,89 @@
+{
+  "mockDataVersion": "1.0.0",
+  "files": [
+    {
+      "path": "src/data/mock/sdos-school.mock.json",
+      "purpose": "Institutional roster and stage classification schema",
+      "futureConnector": "Google Admin SDK Directory API (Organizational Units & Group Rosters)"
+    },
+    {
+      "path": "src/data/mock/google-workspace.mock.json",
+      "purpose": "Google Drive and Workspace folder hierarchies, files, metadata, and ACLs",
+      "futureConnector": "Google Drive API (v3 Documents & Folders metadata)"
+    },
+    {
+      "path": "src/data/mock/google-classroom.mock.json",
+      "purpose": "Google Classroom Class Courses, rosters, standard topics configuration lists, materials, and submissions",
+      "futureConnector": "Google Classroom API (v1 custom course mapping feeds)"
+    },
+    {
+      "path": "src/data/mock/academic-artifacts.mock.json",
+      "purpose": "Central directory registry of aligned syllabus plans, lesson handouts, worksheets, and rubrics",
+      "futureConnector": "Combined Google Sheet Register index & Unified Firestore Record collection"
+    },
+    {
+      "path": "src/data/mock/forms-monitoring.mock.json",
+      "purpose": "Administrative and educational monitoring records gathered via digital forms",
+      "futureConnector": "Google Forms API & Google Sheets Google Forms Responses listener"
+    },
+    {
+      "path": "src/data/mock/governance-compliance.mock.json",
+      "purpose": "Compliance scores, safety drill certificates catalog, audit trails, and general advisory events logs",
+      "futureConnector": "Google Admin Audit reports logs connector & Google Shared Drive governance storage listener"
+    },
+    {
+      "path": "src/data/mock/sqaa-evidence.mock.json",
+      "purpose": "CBSE SQAA evidence library mapping domains, indicators, and links to actual workspace/classroom items",
+      "futureConnector": "SQAA Evidence Repository database and automated matching index"
+    },
+    {
+      "path": "src/data/mock/nep-alignment.mock.json",
+      "purpose": "Syllabus alignment mapping against NEP 2020 pedagogical areas, stages, and evidence tracking",
+      "futureConnector": "NEP Compliance monitoring algorithms and teacher evaluation indexes"
+    },
+    {
+      "path": "src/data/mock/previous-academic-year.mock.json",
+      "purpose": "Rollover archive of past academic term data, archived classrooms, assessments, and historical score trend comparison datasets",
+      "futureConnector": "Multi-year data warehouse and historical analytical tables"
+    },
+    {
+      "path": "src/data/mock/dashboard-principal.mock.json",
+      "purpose": "Aggregated executive indicators, alerts feed, active planner compliance graphs, and educational metrics",
+      "futureConnector": "Derived backend analytical pipeline resolving from Forms Sheets & Classroom API statistics"
+    },
+    {
+      "path": "src/data/mock/dashboard-role-views.mock.json",
+      "purpose": "Contextual role perspectives restricting visibility according to Principal, Coordinator, Teacher, Admin, and Student roles",
+      "futureConnector": "Client-role context filter & Firebase Auth Custom Claims system"
+    },
+    {
+      "path": "src/data/mock/ai-prompts.mock.json",
+      "purpose": "Editable prompt templates for automated lesson plans, student homework sheets, quizzes compiler, and chaser notifications",
+      "futureConnector": "Google Gemini API / Vertex AI system config payload"
+    }
+  ],
+  "connectorTesting": {
+    "googleWorkspace": [
+      "Fetch Academic Repository sub-folder trees using Google Drive API Files:list",
+      "Assert studentVisible flag is strictly evaluated against files with access scope"
+    ],
+    "googleClassroom": [
+      "List courses matching 'AY 2026-27 | Class X-A | English' using Classroom Course API",
+      "Pull student coursework submissions and flag turned_in vs assigned statuses"
+    ],
+    "forms": [
+      "Load incoming weekly planner checklists via Google Sheets row reading",
+      "Summarize notebook corrective seals completion indices per teacher"
+    ],
+    "dashboardResolver": [
+      "Synthesize metrics values from real-time connector sources to ensure there are no blank zeroes"
+    ],
+    "sqaaEvidence": [
+      "Validate matching indices across active indicators and domains",
+      "Assess approved items rate dynamically against benchmarks"
+    ],
+    "nepAlignment": [
+      "Match experiential toys assembly or art integration logs with CBSE compliance guidelines"
+    ]
+  }
+}

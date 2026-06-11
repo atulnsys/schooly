@@ -1,0 +1,61 @@
+{
+  "academicYear": "AY 2025-26",
+  "archiveStatus": "archived",
+  "classroomArchiveSummary": {
+    "totalClassrooms": 75,
+    "totalStudents": 1120,
+    "lastRosterSync": "2026-03-31T18:00:00Z"
+  },
+  "assessmentSummary": {
+    "avgSecondaryPassingRate": 92.4,
+    "totalTestsConducted": 310,
+    "markedOnTimeRate": 78
+  },
+  "plannerSubmissionSummary": {
+    "overallSubmissionCompliance": 84,
+    "totalOverdueFormWarnings": 45
+  },
+  "complianceSummary": {
+    "committeeRecordsScore": 88,
+    "safetyRecordsScore": 55,
+    "mandatoryFormsScore": 80,
+    "overallComplianceScore": 79,
+    "carryForwardGaps": [
+      "Fire safety certification second quarterly inspection report placeholder missing",
+      "Anti-bullying roster compliance handbook signatures outstanding"
+    ]
+  },
+  "sqaaEvidenceSummary": {
+    "evidenceCompletionScore": 74,
+    "approvedItems": 28,
+    "needsReview": 4
+  },
+  "archivedFiles": [
+    {
+      "id": "arch-doc-001",
+      "name": "AY 2025-26 Lesson Plan chemistry.docx",
+      "mimeType": "application/vnd.google-apps.document",
+      "fileType": "doc",
+      "path": "Academic Repository / AY 2025-26 / Middle / Class VIII / Class VIII-A / Science / 02_Chapter_Resources / Ch01_Energy / Lesson Plan Chemistry.docx",
+      "owner": "academic.repository@school.org"
+    },
+    {
+      "id": "arch-doc-002",
+      "name": "AY 2025-26 SQAA Domain 1 File.doc",
+      "mimeType": "application/msword",
+      "fileType": "doc",
+      "path": "School Governance / AY 2025-26 Archive / SQAA Evidence / Domain 1 - Curricular Aspects / Curricular planning files.doc",
+      "owner": "principal@school.org"
+    }
+  ],
+  "archivedCourses": [
+    {
+      "id": "arch-course-001",
+      "name": "AY 2025-26 | Class VIII-A | Science",
+      "subject": "Science",
+      "className": "Class VIII",
+      "section": "A",
+      "primaryTeacher": "Miss Melissa Green"
+    }
+  ]
+}

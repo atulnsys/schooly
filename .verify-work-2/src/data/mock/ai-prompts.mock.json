@@ -1,0 +1,141 @@
+{
+  "prompts": [
+    {
+      "id": "lessonPlanFromRepositoryArtifact",
+      "title": "Generate Lesson Plan from Repository Resource",
+      "audience": "Teacher",
+      "purpose": "Author a classroom-ready lesson plan starting from a syllabus artifact in the Repo.",
+      "inputDataRequired": ["subject", "stage", "className", "chapterTitle", "referenceContent"],
+      "systemInstruction": "You are Schooly's senior educational syllabus expert.",
+      "userPromptTemplate": "Review the reference artifact '{{referenceContent}}' and construct a 40-minute lesson plan for class {{className}} in subject {{subject}}. Section out Objectives, Spark Question, Core Delivery, and Homework.",
+      "outputFormat": "markdown",
+      "safetyRules": [
+        "Include references to Academic Repository filenames in internal notes, but do not leak URLs to students.",
+        "Cite source artifact titles where available."
+      ]
+    },
+    {
+      "id": "worksheetFromChapterResource",
+      "title": "Develop Chapter Resource Worksheet",
+      "audience": "Teacher",
+      "purpose": "Creates a structured student worksheet from a chapter resource slides or text.",
+      "inputDataRequired": ["className", "subject", "chapter", "sourceMaterial"],
+      "systemInstruction": "You are are an expert CBSE educator.",
+      "userPromptTemplate": "Draft a worksheet containing 3 Fill-in-the-Blanks, 2 short conceptual questions, and 1 higher-order challenge problem on chapter '{{chapter}}' for class {{className}} using information in '{{sourceMaterial}}'.",
+      "outputFormat": "markdown",
+      "safetyRules": [
+        "Ensure content is age-appropriate and aligned with standard curriculum models."
+      ]
+    },
+    {
+      "id": "quizFromAssessmentBank",
+      "title": "Construct Quiz from Question Bank",
+      "audience": "Teacher",
+      "purpose": "Compiles a formative assessment quiz from raw question database files.",
+      "inputDataRequired": ["className", "subject", "maxPoints", "topicsList"],
+      "systemInstruction": "You are Schooly's assessment compiler.",
+      "userPromptTemplate": "Compile a {{maxPoints}}-point quick quiz based on these topics: {{topicsList}}. Assign balanced points for easy, moderate, and hard sections.",
+      "outputFormat": "markdown",
+      "safetyRules": [
+        "Do not invent syllabus topics beyond what is provided.",
+        "Keep language friendly for class-testing environments."
+      ]
+    },
+    {
+      "id": "remedialPlanFromTrackingForm",
+      "title": "Create Remedial Action Plan",
+      "audience": "Teacher",
+      "purpose": "Generates low-stakes corrective action summaries for focus group students based on data.",
+      "inputDataRequired": ["className", "subject", "targetStudent", "gapsIdentified"],
+      "systemInstruction": "You are the school wellbeing and academically inclusive co-pilot.",
+      "userPromptTemplate": "Create a personalized remedial support roadmap for student {{targetStudent}} in {{subject}} addressing these gaps: {{gapsIdentified}}. Focus on encouragement, simplified practice, and constructive feedback loops.",
+      "outputFormat": "markdown",
+      "safetyRules": [
+        "Do not emphasize failure indices. Always phrase as growth steps.",
+        "Maintain confidential records of remedial assignments."
+      ]
+    },
+    {
+      "id": "enrichmentActivityFromRepository",
+      "title": "Formulate Olympiad Enrichment Activity",
+      "audience": "Teacher",
+      "purpose": "Build peer challenges and advanced projects for high-performing students.",
+      "inputDataRequired": ["className", "subject", "advancedTopic"],
+      "systemInstruction": "You are the talent pool facilitator.",
+      "userPromptTemplate": "Design an interesting puzzle project on '{{advancedTopic}}' for our grade {{className}} curriculum to prepare students for Olympiad competitions.",
+      "outputFormat": "markdown",
+      "safetyRules": [
+        "Do not expose Academic Repository folders or paths to students."
+      ]
+    },
+    {
+      "id": "principalAlertSummary",
+      "title": "Draft Principal Urgent Alert Briefing",
+      "audience": "Principal",
+      "purpose": "Synthesizes real-time dashboard alerts into an executive briefing summary.",
+      "inputDataRequired": ["alertsList", "complianceScore", "activePlannersRate"],
+      "systemInstruction": "You are the chief academic advisory officer.",
+      "userPromptTemplate": "Here is our current compliance status: {{complianceScore}} and planner compliance: {{activePlannersRate}}. Please synthesize this alerts list: {{alertsList}} into action points.",
+      "outputFormat": "message",
+      "safetyRules": [
+        "Do not invent submission data or compliance scores.",
+        "Distinguish missing data from zero data explicitly.",
+        "Keep compliance messages highly factual and action-oriented."
+      ]
+    },
+    {
+      "id": "teacherWeeklyPlannerReminder",
+      "title": "Compose Weekly Planner Reminder Message",
+      "audience": "Coordinator",
+      "purpose": "Draft WhatsApp/Chaser follow-up scripts for teachers with pending week planners.",
+      "inputDataRequired": ["teacherName", "subjectName", "className", "dueDate"],
+      "systemInstruction": "You are the supportive class coordinator co-pilot.",
+      "userPromptTemplate": "Draft a gentle but clear and actionable chaser reminder for {{teacherName}} who has an overdue lesson planner for {{subjectName}} ({{className}}) due on {{dueDate}}.",
+      "outputFormat": "message",
+      "safetyRules": [
+        "Maintain a supportive, constructive tone suited for WhatsApp communications."
+      ]
+    },
+    {
+      "id": "classroomInactivityFollowup",
+      "title": "Flag Classroom Inactivity Chaser",
+      "audience": "School Admin",
+      "purpose": "Prompt instructors with empty Google Classroom posts index.",
+      "inputDataRequired": ["teacherName", "className", "subjectName"],
+      "systemInstruction": "You are the academic delivery analytics reporter.",
+      "userPromptTemplate": "Draft an alert flag notifying {{teacherName}} of low posting density on Classroom stream for class {{className}} {{subjectName}}.",
+      "outputFormat": "message",
+      "safetyRules": [
+        "Distinguish lack of posts from lack of attendance or platform errors.",
+        "Keep communication direct and helpful."
+      ]
+    },
+    {
+      "id": "complianceGapFollowup",
+      "title": "Outline Compliance Remediation Step",
+      "audience": "Principal",
+      "purpose": "Design immediate recovery steps for safety or committee compliance gaps.",
+      "inputDataRequired": ["gapCategory", "lastUpdated", "requiredStandard"],
+      "systemInstruction": "You are the school institutional safety auditor.",
+      "userPromptTemplate": "Draft a resolution action item for the safety log gap on '{{gapCategory}}' (Last Checked: {{lastUpdated}}). Must satisfy standards under: {{requiredStandard}}.",
+      "outputFormat": "checklist",
+      "safetyRules": [
+        "Wording must be factual, direct, and specify strict standards bounds."
+      ]
+    },
+    {
+      "id": "studentFriendlyAssignmentSummary",
+      "title": "Create Student-Friendly Homework Guide",
+      "audience": "Student",
+      "purpose": "Reformulates tough coursework descriptions into clear checklists.",
+      "inputDataRequired": ["assignmentTitle", "detailedInstructions", "dueDate"],
+      "systemInstruction": "You are the encouraging primary class teacher helper.",
+      "userPromptTemplate": "Restructure this assignment '{{assignmentTitle}}' and instructions '{{detailedInstructions}}' into a clear student checklist due by {{dueDate}}.",
+      "outputFormat": "checklist",
+      "safetyRules": [
+        "Do not expose Academic Repository paths to students.",
+        "Always use Google Classroom friendly language (materials, materials stream, topics)."
+      ]
+    }
+  ]
+}

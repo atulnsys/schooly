@@ -1,0 +1,142 @@
+{
+  "schoolName": "Demo Public School",
+  "schoolCode": "DEMO-CBSE-001",
+  "curriculum": "CBSE",
+  "academicYear": "AY 2026-27",
+  "sections": ["A", "B", "C", "D"],
+  "institutionalIdentities": {
+    "academicRepository": "academic.repository",
+    "governance": "principal",
+    "classroomAdmin": "classroomadmin"
+  },
+  "stages": [
+    {
+      "name": "Pre-Primary",
+      "classes": ["Nursery", "Kindergarten"],
+      "subjects": [
+        "English",
+        "Hindi",
+        "Numeracy",
+        "Environmental Awareness",
+        "Art and Craft",
+        "Music and Movement",
+        "Physical Development"
+      ]
+    },
+    {
+      "name": "Primary",
+      "classes": ["Class I", "Class II", "Class III", "Class IV", "Class V"],
+      "subjects": [
+        "English",
+        "Hindi",
+        "Mathematics",
+        "Environmental Studies",
+        "Computer Science",
+        "Art and Craft",
+        "Music",
+        "Physical Education"
+      ]
+    },
+    {
+      "name": "Middle",
+      "classes": ["Class VI", "Class VII", "Class VIII"],
+      "subjects": [
+        "English",
+        "Hindi",
+        "Mathematics",
+        "Science",
+        "Social Science",
+        "Sanskrit",
+        "Computer Science",
+        "Art Education",
+        "Physical Education"
+      ]
+    },
+    {
+      "name": "Secondary",
+      "classes": ["Class IX", "Class X"],
+      "subjects": [
+        "English",
+        "Hindi",
+        "Mathematics",
+        "Science",
+        "Social Science",
+        "Information Technology",
+        "Artificial Intelligence",
+        "Physical Education"
+      ]
+    },
+    {
+      "name": "Senior Secondary",
+      "classes": ["Class XI", "Class XII"],
+      "subjects": [
+        "English",
+        "Physics",
+        "Chemistry",
+        "Mathematics",
+        "Biology",
+        "Computer Science",
+        "Economics",
+        "Business Studies",
+        "Accountancy",
+        "Political Science",
+        "History",
+        "Psychology",
+        "Physical Education"
+      ]
+    }
+  ],
+  "artifactFolders": [
+    "01_Annual_Planning",
+    "02_Chapter_Resources",
+    "03_Assessments",
+    "04_Projects",
+    "05_Remedial",
+    "06_Enrichment",
+    "07_Teacher_Resources"
+  ],
+  "governanceFolders": [
+    "01_Compliance",
+    "02_Academic_Audit",
+    "03_HR",
+    "04_Dashboard_Data",
+    "05_SOPs",
+    "06_Strategic_Planning",
+    "07_Meeting_Minutes",
+    "08_School_Improvement_Plans",
+    "09_Committee_Records",
+    "10_Policies"
+  ],
+  "formsIntake": [
+    "01_Weekly_Planner_Form",
+    "02_Notebook_Monitoring_Form",
+    "03_Assessment_Status_Form",
+    "04_Remedial_Tracking_Form",
+    "05_Event_Reporting_Form",
+    "06_Compliance_Evidence_Form"
+  ],
+  "serviceAccounts": [
+    "academic.repository",
+    "principal",
+    "classroomadmin",
+    "erp",
+    "transport",
+    "website"
+  ],
+  "departmentGroups": [
+    "english.department@",
+    "hindi.department@",
+    "mathematics.department@",
+    "science.department@",
+    "sst.department@",
+    "computer.department@"
+  ],
+  "teacherGroups": [
+    "allteachers@",
+    "preprimary.teachers@",
+    "primary.teachers@",
+    "middle.teachers@",
+    "secondary.teachers@",
+    "seniorsecondary.teachers@"
+  ]
+}

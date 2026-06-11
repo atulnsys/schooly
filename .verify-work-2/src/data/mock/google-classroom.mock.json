@@ -1,0 +1,172 @@
+{
+  "classroomAdmin": "classroomadmin@school.org",
+  "standardTopics": [
+    "📌 Important Announcements",
+    "📅 Weekly Planner",
+    "📘 English",
+    "📗 Hindi",
+    "📙 Mathematics",
+    "📕 Science",
+    "📓 Social Science",
+    "📒 Computer / AI",
+    "📝 Homework & Practice",
+    "📚 Assessments & Tests",
+    "🎯 Remedial Support",
+    "🏆 Enrichment & Olympiads",
+    "📂 Study Materials",
+    "📖 Holiday Homework",
+    "🎓 Examination Resources",
+    "📋 Notebook / Project Guidelines",
+    "💬 Counselling & Wellbeing"
+  ],
+  "courses": [
+    {
+      "id": "course-x-a-eng",
+      "name": "AY 2026-27 | Class X-A | English",
+      "academicYear": "AY 2026-27",
+      "className": "Class X",
+      "section": "A",
+      "subject": "English",
+      "stage": "Secondary",
+      "owner": "classroomadmin@school.org",
+      "primaryTeacher": "Mrs. Beatrice Smith",
+      "teachers": ["Mrs. Beatrice Smith", "classroomadmin@school.org"],
+      "studentGroup": "class-x-a-students@school.org",
+      "topics": ["📌 Important Announcements", "📅 Weekly Planner", "📘 English", "📝 Homework & Practice", "🎯 Remedial Support"],
+      "createdBy": "classroomadmin@school.org",
+      "status": "active",
+      "curriculumSource": ["CBSE"],
+      "frameworkAlignment": ["NEP 2020", "SQAA"],
+      "postsThisWeek": 4,
+      "lastPostAt": "2026-06-01T10:00:00Z"
+    },
+    {
+      "id": "course-viii-a-sci",
+      "name": "AY 2026-27 | Class VIII-A | Science",
+      "academicYear": "AY 2026-27",
+      "className": "Class VIII",
+      "section": "A",
+      "subject": "Science",
+      "stage": "Middle",
+      "owner": "classroomadmin@school.org",
+      "primaryTeacher": "Miss Melissa Green",
+      "teachers": ["Miss Melissa Green", "classroomadmin@school.org"],
+      "studentGroup": "class-viii-a-students@school.org",
+      "topics": ["📌 Important Announcements", "📅 Weekly Planner", "📕 Science", "📝 Homework & Practice", "🏆 Enrichment & Olympiads"],
+      "createdBy": "classroomadmin@school.org",
+      "status": "active",
+      "curriculumSource": ["NCERT", "CBSE"],
+      "frameworkAlignment": ["NEP 2020", "SQAA"],
+      "postsThisWeek": 6,
+      "lastPostAt": "2026-06-02T09:30:00Z"
+    },
+    {
+      "id": "course-vii-b-math",
+      "name": "AY 2026-27 | Class VII-B | Mathematics",
+      "academicYear": "AY 2026-27",
+      "className": "Class VII",
+      "section": "B",
+      "subject": "Mathematics",
+      "stage": "Middle",
+      "owner": "classroomadmin@school.org",
+      "primaryTeacher": "Mr. Arjun Das",
+      "teachers": ["Mr. Arjun Das", "classroomadmin@school.org"],
+      "studentGroup": "class-vii-b-students@school.org",
+      "topics": ["📌 Important Announcements", "📅 Weekly Planner", "📙 Mathematics", "📝 Homework & Practice"],
+      "createdBy": "classroomadmin@school.org",
+      "status": "active",
+      "curriculumSource": ["NCERT"],
+      "frameworkAlignment": ["NEP 2020"],
+      "postsThisWeek": 3,
+      "lastPostAt": "2026-05-30T14:00:00Z"
+    },
+    {
+      "id": "course-ix-b-sst",
+      "name": "AY 2026-27 | Class IX-B | Social Science",
+      "academicYear": "AY 2026-27",
+      "className": "Class IX",
+      "section": "B",
+      "subject": "Social Science",
+      "stage": "Secondary",
+      "owner": "classroomadmin@school.org",
+      "primaryTeacher": "Mr. Vijay Kumar",
+      "teachers": ["Mr. Vijay Kumar", "classroomadmin@school.org"],
+      "studentGroup": "class-ix-b-students@school.org",
+      "topics": ["📌 Important Announcements", "📅 Weekly Planner", "📓 Social Science", "📝 Homework & Practice"],
+      "createdBy": "classroomadmin@school.org",
+      "status": "active",
+      "curriculumSource": ["NCERT", "CBSE"],
+      "postsThisWeek": 1,
+      "lastPostAt": "2026-05-28T11:00:00Z"
+    },
+    {
+      "id": "course-viii-a-sci-prev",
+      "name": "AY 2025-26 | Class VIII-A | Science",
+      "academicYear": "AY 2025-26",
+      "className": "Class VIII",
+      "section": "A",
+      "subject": "Science",
+      "stage": "Middle",
+      "owner": "classroomadmin@school.org",
+      "primaryTeacher": "Miss Melissa Green",
+      "teachers": ["Miss Melissa Green", "classroomadmin@school.org"],
+      "studentGroup": "class-viii-a-students-old@school.org",
+      "topics": ["📌 Important Announcements", "📅 Weekly Planner", "📕 Science", "📝 Homework & Practice"],
+      "createdBy": "classroomadmin@school.org",
+      "status": "archived",
+      "curriculumSource": ["NCERT", "CBSE"],
+      "postsThisWeek": 0,
+      "lastPostAt": "2026-03-15T09:30:00Z"
+    }
+  ],
+  "courseTeachers": [
+    { "courseId": "course-x-a-eng", "teacherEmail": "mrs.smith@school.org", "role": "Primary" },
+    { "courseId": "course-viii-a-sci", "teacherEmail": "miss.green@school.org", "role": "Primary" },
+    { "courseId": "course-vii-b-math", "teacherEmail": "mr.das@school.org", "role": "Primary" },
+    { "courseId": "course-ix-b-sst", "teacherEmail": "mr.kumar@school.org", "role": "Primary" }
+  ],
+  "courseStudents": [
+    { "courseId": "course-x-a-eng", "studentEmail": "student1@school.org" },
+    { "courseId": "course-viii-a-sci", "studentEmail": "student1@school.org" }
+  ],
+  "coursework": [
+    {
+      "id": "cw-001",
+      "courseId": "course-viii-a-sci",
+      "title": "Kinetic Energy Project Work",
+      "state": "PUBLISHED",
+      "dueDate": "2026-06-10"
+    }
+  ],
+  "materials": [
+    {
+      "id": "mat-001",
+      "courseId": "course-viii-a-sci",
+      "title": "Lecture Slides on Conservation of Solar Energy"
+    }
+  ],
+  "announcements": [
+    {
+      "id": "ann-001",
+      "courseId": "course-viii-a-sci",
+      "teacher": "Miss Melissa Green",
+      "text": "Please note that the science lab journals for Ch01 must be placed on the evaluation table by Friday morning."
+    }
+  ],
+  "submissions": [
+    {
+      "id": "sub-001",
+      "courseWorkId": "cw-001",
+      "userId": "student1@school.org",
+      "state": "TURNED_IN"
+    }
+  ],
+  "classroomActivity": {
+    "totalClassrooms": 80,
+    "postedThisWeek": 77,
+    "zeroActivityThisWeek": 3,
+    "assignmentsCreatedThisWeek": 234,
+    "avgSubmissionRate": 88,
+    "meetSessionsHeld": 12
+  }
+}

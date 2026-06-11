@@ -1,0 +1,122 @@
+{
+  "framework": {
+    "name": "School Quality Assessment and Assurance",
+    "shortName": "SQAA",
+    "authority": "CBSE",
+    "evidenceLibraryOwner": "principal@school.org"
+  },
+  "domains": [
+    "Curricular Aspects",
+    "Teaching Learning and Assessment",
+    "Learner Progress",
+    "Inclusive Practices",
+    "Leadership and Governance",
+    "Infrastructure and Safety",
+    "Community Participation"
+  ],
+  "indicators": [
+    { "id": "ind-1.1", "domain": "Curricular Aspects", "description": "Curriculum Planning and Execution" },
+    { "id": "ind-2.1", "domain": "Teaching Learning and Assessment", "description": "Teaching-Learning Processes and Assessment Systems" },
+    { "id": "ind-3.1", "domain": "Learner Progress", "description": "Tracking Student Learning Outcomes and Progress" },
+    { "id": "ind-4.1", "domain": "Inclusive Practices", "description": "Support Systems for Diverse Learner Needs" },
+    { "id": "ind-5.1", "domain": "Leadership and Governance", "description": "Governance Models and Leadership Audits" },
+    { "id": "ind-6.1", "domain": "Infrastructure and Safety", "description": "Physical Infrastructure, Safety, and Emergency Preparedness" },
+    { "id": "ind-7.1", "domain": "Community Participation", "description": "Parents Engagement and Community advisory loops" }
+  ],
+  "evidenceItems": [
+    {
+      "id": "sqaa-ev-001",
+      "title": "Middle School Weekly Review & Monthly Compilation - Weekly Planner Form Submission",
+      "academicYear": "AY 2026-27",
+      "domain": "Curricular Aspects",
+      "indicator": "ind-1.1",
+      "evidenceType": "form",
+      "sourceWorld": "Forms Intake",
+      "linkedFormSubmissionId": "wp-sub-003",
+      "status": "approved",
+      "owner": "middle.teachers@school.org",
+      "lastUpdated": "2026-05-28T09:15:00Z",
+      "visibility": "coordinator"
+    },
+    {
+      "id": "sqaa-ev-002",
+      "title": "Secondary School Curricular Delivery - Classroom Alignment & Grade Submissions",
+      "academicYear": "AY 2026-27",
+      "domain": "Teaching Learning and Assessment",
+      "indicator": "ind-2.1",
+      "evidenceType": "classroom_activity",
+      "sourceWorld": "Google Classroom",
+      "linkedClassroomCourseId": "course-x-a-eng",
+      "status": "approved",
+      "owner": "academic.repository@school.org",
+      "lastUpdated": "2026-06-01T14:30:00Z",
+      "visibility": "teacher_contribution"
+    },
+    {
+      "id": "sqaa-ev-003",
+      "title": "UT3 Examination Score Reports - Consolidated Student Grade Results sheet",
+      "academicYear": "AY 2026-27",
+      "domain": "Learner Progress",
+      "indicator": "ind-3.1",
+      "evidenceType": "assessment_record",
+      "sourceWorld": "School Governance",
+      "linkedDriveFileId": "sheet-ut3-results",
+      "status": "approved",
+      "owner": "principal@school.org",
+      "lastUpdated": "2026-05-25T11:00:00Z",
+      "visibility": "leadership"
+    },
+    {
+      "id": "sqaa-ev-004",
+      "title": "Remedial Plan & Student Special Special Focus Handout for English Grade 10",
+      "academicYear": "AY 2026-27",
+      "domain": "Inclusive Practices",
+      "indicator": "ind-4.1",
+      "evidenceType": "document",
+      "sourceWorld": "Academic Repository",
+      "linkedDriveFileId": "doc-rem-eng-clx",
+      "status": "approved",
+      "owner": "english.department@school.org",
+      "lastUpdated": "2026-05-22T10:00:00Z",
+      "visibility": "teacher_contribution"
+    },
+    {
+      "id": "sqaa-ev-005",
+      "title": "Annual Fire Safety Evacuation Drill Certification and Report 2026",
+      "academicYear": "AY 2026-27",
+      "domain": "Infrastructure and Safety",
+      "indicator": "ind-6.1",
+      "evidenceType": "photo",
+      "sourceWorld": "School Governance",
+      "linkedDriveFileId": "pdf-fire-drill-cert",
+      "status": "needs_review",
+      "owner": "principal@school.org",
+      "lastUpdated": "2026-05-30T11:00:00Z",
+      "visibility": "leadership"
+    },
+    {
+      "id": "sqaa-ev-006",
+      "title": "PTM Circular and Parental Feedback Ticket Audit Logs",
+      "academicYear": "AY 2026-27",
+      "domain": "Community Participation",
+      "indicator": "ind-7.1",
+      "evidenceType": "meeting_record",
+      "sourceWorld": "School Governance",
+      "linkedDriveFileId": "pdf-ptm-circ-may",
+      "status": "pending",
+      "owner": "classroomadmin@school.org",
+      "lastUpdated": "2026-05-20T11:00:00Z",
+      "visibility": "student_safe_summary"
+    }
+  ],
+  "evidenceLinks": [
+    { "evidenceId": "sqaa-ev-001", "target": "Forms Intake Planner Submissions Database", "url": "Academic Repository / AY 2026-27" },
+    { "evidenceId": "sqaa-ev-002", "target": "Class X-A Classroom Course", "url": "Classroom Activity" }
+  ],
+  "dashboardSummary": {
+    "overallEvidenceCompletion": 78,
+    "pendingEvidenceItems": 4,
+    "needsReview": 6,
+    "approvedEvidenceItems": 32
+  }
+}
