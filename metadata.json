@@ -1,5 +1,5 @@
 {
-  "name": "Remix: Schooly AI",
+  "name": "Schooly",
   "description": "An AI-powered academic knowledge management and school operations workspace featuring enterprise SSO synchronizers and immutably governed audit trails.",
   "requestFramePermissions": [],
   "majorCapabilities": [

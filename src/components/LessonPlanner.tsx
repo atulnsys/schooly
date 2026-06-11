@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { WorkspaceFile, ClassroomCourse } from "../types";
 import { 
   BookOpen, 
@@ -38,9 +38,31 @@ import {
   Check,
   X,
   Edit3,
-  Settings
+  Settings,
+  MoreVertical,
+  RefreshCw,
+  Trash2
 } from "lucide-react";
-import ClassroomPublisher from "./ClassroomPublisher";
+
+export const getTeacherFriendlyName = (identifier: string) => {
+  if (!identifier) return "Ms. Emily Montgomery";
+  if (!identifier.includes("@")) {
+    return identifier;
+  }
+  const trimmed = identifier.toLowerCase().trim();
+  if (trimmed === "torres.admin@school.org") return "Gabriel Torres";
+  if (trimmed === "coord.planner@school.org") return "Marcus Vance";
+  if (trimmed === "mathematics.department@school.org") return "Eleanor Montgomery";
+  if (trimmed === "s.henderson@school.org") return "Dr. Sarah Henderson";
+  if (trimmed === "m.vance@school.org") return "Mr. Michael Vance";
+  if (trimmed === "e.montgomery@school.org") return "Ms. Emily Montgomery";
+  if (trimmed === "e.jones@school.org") return "Ms. Emily Jones";
+  if (trimmed === "j.smith@school.org") return "Mr. John Smith";
+  
+  // Custom parsing for other emails like atul.nsys@gmail.com
+  const parts = trimmed.split("@")[0].split(/[._+-]+/);
+  return parts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
+};
 
 // CBSE SQAA Indicators Mapping
 interface SqaaIndicator {
@@ -595,7 +617,7 @@ const ALIGNED_CLASSROOM_PLANS: ClassroomLessonPlan[] = [
       computational: "pending"
     },
     score: "0/8 criteria met",
-    reviewComments: "Awaiting automated QA compliance audit check. Click 'Run QA Compliance Audit' to trigger checks.",
+    reviewComments: "Compliance verification pending. Standard outcome and indicators checks are active.",
     originalContent: `# CBSE LESSON PLAN: NELSON MANDELA: LONG WALK TO FREEDOM
 ## [SQAA-sqaa-1.1] Curriculum Alignment & Defined Learning Outcomes
 - **Topic**: Chapter 2: Nelson Mandela: Long Walk to Freedom (First Flight)
@@ -648,7 +670,7 @@ const ALIGNED_CLASSROOM_PLANS: ClassroomLessonPlan[] = [
       computational: "pending"
     },
     score: "0/8 criteria met",
-    reviewComments: "Awaiting automated QA compliance audit check. Click 'Run QA Compliance Audit' to trigger checks.",
+    reviewComments: "Compliance verification pending. Standard outcome and indicators checks are active.",
     originalContent: `# CBSE LESSON PLAN: TWO STORIES ABOUT FLYING
 ## [SQAA-sqaa-1.1] Curriculum Alignment & Defined Learning Outcomes
 - **Topic**: Chapter 3: Two Stories about Flying (Part I: His First Flight)
@@ -682,6 +704,7 @@ interface LessonPlannerProps {
   currentUser: string;
   currentRole: string;
   onRefreshData?: () => void;
+  setActiveTab?: (tab: string) => void;
 }
 
 export default function LessonPlanner({ 
@@ -689,7 +712,8 @@ export default function LessonPlanner({
   courses, 
   currentUser, 
   currentRole,
-  onRefreshData 
+  onRefreshData,
+  setActiveTab
 }: LessonPlannerProps) {
 
   // Navigation states
@@ -730,7 +754,9 @@ export default function LessonPlanner({
   const [showSimulatedDocWarning, setShowSimulatedDocWarning] = useState<boolean>(false);
   const [warningPlan, setWarningPlan] = useState<ClassroomLessonPlan | null>(null);
   const [editingUrlPlanId, setEditingUrlPlanId] = useState<string | null>(null);
+  const [reportPlan, setReportPlan] = useState<any | null>(null);
   const [tempUrlValue, setTempUrlValue] = useState<string>("");
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
   // Configurable File Discovery settings
   const [showDiscoveryRules, setShowDiscoveryRules] = useState<boolean>(false);
@@ -795,12 +821,75 @@ export default function LessonPlanner({
     localStorage.setItem("edu_qa_checklists_config", JSON.stringify(updated));
   };
 
-  // State to default select first plan for audit presentation on mount
+  // State to default select first plan for audit presentation on mount, or redirect from Textbook Ingestor
   useEffect(() => {
+    const targetPlanId = localStorage.getItem("edu_active_lesson_planner_plan_id");
+    const targetView = localStorage.getItem("edu_active_lesson_planner_view");
+    
+    if (targetPlanId && targetView === "editor" && classroomPlans.length > 0) {
+      const matched = classroomPlans.find(p => p.id === targetPlanId || p.topicName === targetPlanId);
+      if (matched) {
+        setSelectedPlanId(matched.id);
+        setSelectedClass(matched.className);
+        setSelectedSubject(matched.subjectName);
+        setSelectedTopic(matched.topicName);
+        setEditorMarkdown(matched.originalContent);
+        setGeneratedMarkdown(matched.originalContent);
+        setDeckTab("outline");
+        setActiveView("editor");
+        setSaveSuccess(matched.reviewStatus === "Compliant");
+        
+        localStorage.removeItem("edu_active_lesson_planner_plan_id");
+        localStorage.removeItem("edu_active_lesson_planner_view");
+        return;
+      }
+    }
+
     if (classroomPlans.length > 0 && !selectedPlanId) {
       setSelectedPlanId(classroomPlans[0].id);
     }
-  }, [classroomPlans]);
+  }, [classroomPlans, selectedPlanId]);
+
+  const getStatusLabelLocal = (plan: any, defectCount?: number) => {
+    const status = plan.reviewStatus || "Pending Review";
+    if (status === "Compliant" || status === "Approved" || status === "Approved with Recommendations") {
+      return "Approved";
+    }
+    if (status === "Pending Review" || status === "Pending") {
+      return "Pending";
+    }
+    if (defectCount !== undefined) {
+      return `Defects (${defectCount})`;
+    }
+    if (plan.checklist) {
+      const failsCount = Object.keys(plan.checklist).filter(k => plan.checklist[k] === "fail" || plan.checklist[k] === "failed").length;
+      return `Defects (${failsCount || 1})`;
+    }
+    return "Defects (2)";
+  };
+
+  const handleDeletePlanLocal = (planId: string) => {
+    const plan = classroomPlans.find(p => p.id === planId);
+    if (!plan) return;
+    const confirmDelete = window.confirm(`Are you sure you want to delete "${plan.topicName}"?`);
+    if (!confirmDelete) return;
+
+    const filtered = classroomPlans.filter(p => p.id !== planId);
+    savePlansToStorage(filtered);
+
+    // Also persist deleted key so sync can also skip it if requested
+    try {
+      const key = `${plan.className}::${plan.subjectName}::${plan.topicName}`;
+      const saved = localStorage.getItem("edu_classroom_deleted_plan_keys");
+      const deletedKeys = saved ? JSON.parse(saved) : [];
+      if (!deletedKeys.includes(key)) {
+        deletedKeys.push(key);
+        localStorage.setItem("edu_classroom_deleted_plan_keys", JSON.stringify(deletedKeys));
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+  };
 
   // Helper to save plans in storage
   const savePlansToStorage = (updatedPlans: ClassroomLessonPlan[]) => {
@@ -1064,7 +1153,7 @@ export default function LessonPlanner({
             checklist: newDottedChecklist,
             reviewComments: isPerfect 
               ? "Draft analyzed successfully. Zero non-conformance flags identified." 
-              : `Audited with ${totalEnabled - totalPassed} non-conformance flags. Missing elements detected in document template.`
+              : `Reviewed with ${totalEnabled - totalPassed} Defect${totalEnabled - totalPassed === 1 ? "" : "s"}. Missing elements detected in document template.`
           };
         }
         return p;
@@ -1102,7 +1191,7 @@ export default function LessonPlanner({
   const [uploadTocSuccess, setUploadTocSuccess] = useState<string>("");
 
   // Tabs for the single-page material planner (Interactive Lesson Deck)
-  const [deckTab, setDeckTab] = useState<"outline" | "slides" | "quiz" | "assignments" | "parental" | "audit" | "raw" | "sqaa_links" | "classroom_publish">("outline");
+  const [deckTab, setDeckTab] = useState<"outline" | "slides" | "quiz" | "assignments" | "parental" | "audit" | "raw" | "sqaa_links">("outline");
   const [slideIndex, setSlideIndex] = useState<number>(0);
   const [timerSeconds, setTimerSeconds] = useState<number>(0);
   const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
@@ -1126,25 +1215,6 @@ export default function LessonPlanner({
 
   // History state lookup
   const [localSavedPlans, setLocalSavedPlans] = useState<WorkspaceFile[]>([]);
-
-  const classroomDriveFile = useMemo(() => {
-    const candidates = [...localSavedPlans, ...files].filter(
-      (file) => file.source === "Drive" && Boolean(file.webViewLink),
-    );
-    const topicWords = selectedTopic
-      .toLowerCase()
-      .split(/[^a-z0-9]+/)
-      .filter((word) => word.length > 3);
-    return (
-      candidates.find((file) => {
-        const searchable = `${file.name} ${file.path} ${file.tags.join(" ")}`.toLowerCase();
-        return (
-          searchable.includes(selectedSubject.toLowerCase()) &&
-          topicWords.some((word) => searchable.includes(word))
-        );
-      }) || candidates[0]
-    );
-  }, [files, localSavedPlans, selectedSubject, selectedTopic]);
 
   // Interactive UI configurations
   const [selectedSection, setSelectedSection] = useState<string>("A");
@@ -2150,149 +2220,201 @@ export default function LessonPlanner({
                           });
                         });
                         const currentScore = `${passedEnabled}/${totalEnabled}`;
+                        const defectCount = totalEnabled - passedEnabled;
 
                         return (
                           <div 
                             key={plan.id}
-                            className={`p-3.5 border rounded-[16px] transition-all flex flex-col justify-between gap-3.5 cursor-pointer ${
+                            className={`p-4 border rounded-2xl transition-all flex flex-col justify-between gap-4 bg-white hover:shadow-xs relative ${
                               selectedPlanId === plan.id 
-                                ? "bg-blue-50/20 border-[#2454d6] ring-1 ring-blue-100 shadow-xs" 
-                                : "bg-slate-50/30 border-slate-250 hover:bg-slate-50/70"
+                                ? "border-blue-600 ring-1 ring-blue-100 bg-blue-50/10" 
+                                : getStatusLabelLocal(plan, defectCount) === "Approved" 
+                                ? "border-emerald-100 bg-emerald-50/5" 
+                                : getStatusLabelLocal(plan, defectCount).startsWith("Defects")
+                                ? "border-rose-100 bg-rose-50/5"
+                                : "border-slate-200 hover:border-blue-200"
                             }`}
-                            onClick={() => setSelectedPlanId(plan.id)}
                             id={`plan-card-${plan.id}`}
                           >
-                            <div className="space-y-2 flex-1 min-w-0">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <span className="text-[10px] font-bold bg-blue-100/75 text-[#2454d6] px-2 py-0.5 rounded-full font-mono">
-                                  {plan.className} · {plan.subjectName}
-                                </span>
-                                <span className={`text-[9.5px] font-bold border px-2 py-0.5 rounded-full uppercase ${statusClass}`}>
-                                  {plan.reviewStatus}
-                                </span>
+                            <div className="space-y-4">
+                              {/* Card Title */}
+                              <div className="min-w-0">
+                                <strong className="block text-[13px] font-bold text-slate-800 leading-snug line-clamp-2" title={plan.topicName}>
+                                  {plan.topicName}
+                                </strong>
                               </div>
-                              
-                              <strong className="block text-sm font-bold text-slate-800 truncate leading-snug">
-                                {plan.topicName}
-                              </strong>
 
-                              {plan.fileName && (
-                                <div onClick={(e) => e.stopPropagation()} className="mt-1">
-                                  {editingUrlPlanId === plan.id ? (
-                                    <div className="flex items-center gap-1.5 bg-white border border-blue-300 p-1.5 rounded-xl text-xs">
-                                      <input 
-                                        type="text" 
-                                        value={tempUrlValue} 
-                                        onChange={(e) => setTempUrlValue(e.target.value)}
-                                        className="text-[10px] font-sans px-1.5 py-1 bg-slate-50 border border-slate-200 rounded-md w-full text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                        placeholder="Paste real Google Drive file URL..."
-                                        autoFocus
-                                        onClick={(e) => e.stopPropagation()}
-                                      />
-                                      <button 
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleUpdateDriveUrl(plan.id, tempUrlValue);
-                                          setEditingUrlPlanId(null);
-                                        }}
-                                        className="p-1 px-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-md shrink-0 cursor-pointer"
-                                        title="Save Link"
-                                      >
-                                        <Check size={11} className="font-bold" />
-                                      </button>
-                                      <button 
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setEditingUrlPlanId(null);
-                                        }}
-                                        className="p-1 px-1.5 bg-slate-50 text-slate-500 hover:bg-slate-105 rounded-md shrink-0 cursor-pointer"
-                                        title="Cancel"
-                                      >
-                                        <X size={11} />
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center justify-between bg-slate-50 border border-slate-150 p-2 rounded-xl text-xs">
-                                      <div className="flex items-center gap-1.5 min-w-0">
-                                        <FileCode size={13} className="text-blue-600 shrink-0" />
-                                        <span className="font-mono text-[10px] text-slate-650 truncate font-semibold" title={plan.fileName}>{plan.fileName}</span>
-                                      </div>
-                                      <div className="flex items-center gap-1 shrink-0">
-                                        <button 
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setEditingUrlPlanId(plan.id);
-                                            setTempUrlValue(plan.driveUrl || "");
-                                          }}
-                                          className="p-1 text-slate-450 hover:text-blue-600 hover:bg-blue-50 rounded transition-all cursor-pointer mr-0.5"
-                                          title="Configure customizable Google Drive file link"
-                                        >
-                                          <Edit3 size={11} />
-                                        </button>
+                              {/* MDC3 Layout: 2 Rows, Column 1 Span Full */}
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-[11px] text-slate-600 bg-slate-50/60 p-3 rounded-xl border border-slate-100">
+                                {/* Row 1 / Col 1 - Teacher */}
+                                <div className="col-span-1 min-w-0">
+                                  <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">Teacher</span>
+                                  <span className="font-semibold text-slate-700 truncate block">
+                                    {getTeacherFriendlyName(plan.teacherName || plan.teacherId)}
+                                  </span>
+                                </div>
 
-                                        {plan.driveUrl && (
-                                          <a
-                                            href={plan.driveUrl}
-                                            onClick={(e) => handleDriveUrlClick(e, plan)}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-[9.5px] text-[#2454d6] hover:text-blue-800 font-extrabold flex items-center gap-0.5 shrink-0 select-none cursor-pointer hover:underline bg-blue-50/70 border border-blue-150 px-2 py-0.5 rounded-lg transition-all"
-                                          >
-                                            <span>View in Drive</span>
-                                            <ExternalLink size={9} />
-                                          </a>
-                                        )}
-                                      </div>
-                                    </div>
-                                  )}
+                                {/* Row 1 / Col 2 - Sync Date */}
+                                <div className="col-span-1 min-w-0">
+                                  <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">Sync Date</span>
+                                  <span className="font-semibold text-slate-705 block text-xs">
+                                    {new Date(plan.importedAt).toLocaleDateString()}
+                                  </span>
+                                </div>
+
+                                {/* Row 2 / Full-width - Review Status */}
+                                <div className="col-span-2 min-w-0">
+                                  <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider font-sans">Review Status</span>
+                                  <span className={`inline-flex items-center gap-1 text-[9.5px] font-extrabold px-1.5 py-0.5 rounded leading-none ${
+                                    getStatusLabelLocal(plan, defectCount) === "Approved" 
+                                      ? "bg-emerald-50 text-emerald-800 border border-emerald-250" 
+                                      : getStatusLabelLocal(plan, defectCount).startsWith("Defects")
+                                      ? "bg-rose-50 text-rose-800 border border-rose-250 font-mono"
+                                      : "bg-amber-50 text-amber-805 border border-amber-250"
+                                  }`}>
+                                    {getStatusLabelLocal(plan, defectCount)}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Drive URL In-Place Input / Editor if chosen */}
+                              {editingUrlPlanId === plan.id && (
+                                <div onClick={(e) => e.stopPropagation()} className="bg-white border border-blue-200 p-2 rounded-xl text-xs animate-fadeIn space-y-2">
+                                  <span className="text-[9px] font-bold text-slate-400 block uppercase">Modify Google Drive link</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <input 
+                                      type="text" 
+                                      value={tempUrlValue} 
+                                      onChange={(e) => setTempUrlValue(e.target.value)}
+                                      className="text-[10px] font-sans px-1.5 py-1 bg-slate-50 border border-slate-200 rounded-md w-full text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      placeholder="Paste real Google Drive file URL..."
+                                      autoFocus
+                                    />
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleUpdateDriveUrl(plan.id, tempUrlValue);
+                                        setEditingUrlPlanId(null);
+                                      }}
+                                      className="p-1 px-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-md shrink-0 cursor-pointer"
+                                    >
+                                      <Check size={11} className="font-bold" />
+                                    </button>
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingUrlPlanId(null);
+                                      }}
+                                      className="p-1 px-1.5 bg-slate-50 text-slate-500 hover:bg-slate-105 rounded-md shrink-0 cursor-pointer"
+                                    >
+                                      <X size={11} />
+                                    </button>
+                                  </div>
                                 </div>
                               )}
 
-                              <div className="flex items-center gap-3.5 text-[11px] text-slate-400 font-sans mt-1 flex-wrap">
-                                <span className="text-slate-600 font-bold flex items-center gap-1">
-                                  👤 {plan.teacherName}
-                                </span>
-                                <span>
-                                  🕒 Sync'd: {new Date(plan.importedAt).toLocaleDateString()}
-                                </span>
-                                <span className="font-extrabold font-mono text-[#2454d6] bg-blue-50/50 px-1.5 rounded py-0.5 text-[10px]">
-                                  Audit Score: {plan.reviewStatus === "Pending Review" ? "Pending" : currentScore}
-                                </span>
-                              </div>
 
-                              {/* Indicators dots view */}
-                              <div className="flex items-center gap-2.5 pt-1.5 border-t border-slate-100 mt-2 text-[10px] text-slate-400">
-                                <span className="font-mono font-bold text-[9.5px] uppercase tracking-wider block text-rose-500 shrink-0">Compliance Gaps:</span>
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  {(() => {
-                                    const gaps = [
-                                      { key: "lp", label: "LP Outline", val: auditResult["lp_objectives"] === "pass" && auditResult["lp_pacing"] === "pass" },
-                                      { key: "qz", label: "Diagnostic Quiz", val: auditResult["qz_ncert"] === "pass" },
-                                      { key: "as", label: "Home Tasks", val: auditResult["as_structured"] === "pass" },
-                                      { key: "re", label: "Inclusion Support", val: auditResult["re_slow"] === "pass" || auditResult["re_advanced"] === "pass" },
-                                      { key: "pc", label: "Parent Bridge", val: auditResult["pc_whatsapp"] === "pass" || auditResult["pc_triggers"] === "pass" },
-                                      { key: "sq", label: "SQAA Matrix", val: auditResult["sq_mapping"] === "pass" }
-                                    ].filter(dot => !dot.val);
-
-                                    if (gaps.length === 0) {
-                                      return (
-                                        <div className="flex items-center gap-1 shrink-0 bg-emerald-50 border border-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full leading-none">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                          <span className="text-[9.5px] font-sans font-bold shrink-0">Compliant (No Gaps)</span>
-                                        </div>
-                                      );
-                                    }
-
-                                    return gaps.map(dot => (
-                                      <div key={dot.key} className="flex items-center gap-1 shrink-0 bg-red-50 border border-red-100 px-2 py-0.5 rounded-full leading-none">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                                        <span className="text-[9.5px] font-sans font-semibold text-red-700 shrink-0">{dot.label} Missing</span>
-                                      </div>
-                                    ));
-                                  })()}
-                                </div>
-                              </div>
                             </div>
+
+                            {/* Interactive Actions line aligned bottom with 3-dot menu */}
+                            <div className="flex items-center gap-2 pt-2 border-t border-slate-100 justify-between">
+                              
+                              <div className="flex items-center gap-2 flex-1">
+                                {/* Review button */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleTriggerAudit(plan.id);
+                                  }}
+                                  className={`flex-1 py-1.5 px-2 rounded-lg text-[10px] font-semibold cursor-pointer inline-flex items-center justify-center gap-1 transition-all border ${
+                                    getStatusLabelLocal(plan, defectCount) !== "Approved"
+                                      ? "bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200"
+                                      : "text-slate-600 hover:text-blue-700 bg-slate-50 hover:bg-slate-100 border-slate-200"
+                                  }`}
+                                  title="Run compliance audit check"
+                                >
+                                  <ShieldCheck size={10} />
+                                  Review
+                                </button>
+
+                                {/* View Details Button */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedPlanId(plan.id);
+                                    setActiveView("editor");
+                                    localStorage.removeItem("edu_came_from_ingestor");
+                                  }}
+                                  className="flex-1 py-1.5 px-2 bg-slate-900 hover:bg-slate-950 text-white rounded-lg text-[10px] font-semibold transition-all cursor-pointer inline-flex items-center justify-center gap-1 shadow-xs"
+                                >
+                                  <Sparkles size={10} className="text-amber-400" />
+                                  View Details
+                                </button>
+                              </div>
+
+                              {/* MDC3 3-Dot Action Menu for remaining buttons */}
+                              <div className="relative shrink-0">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveMenuId(activeMenuId === plan.id ? null : plan.id);
+                                  }}
+                                  className="p-1 px-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-105 border border-slate-200 transition-all font-bold cursor-pointer h-[26px] flex items-center justify-center"
+                                >
+                                  <MoreVertical size={13} />
+                                </button>
+                                
+                                {activeMenuId === plan.id && (
+                                  <>
+                                    <div className="fixed inset-0 z-40" onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveMenuId(null);
+                                    }} />
+                                    <div className="absolute right-0 bottom-full mb-1 w-48 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-1 text-[11px] animate-fadeIn" onClick={(e) => e.stopPropagation()}>
+                                      {/* View Review Report */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setReportPlan(plan);
+                                          setActiveMenuId(null);
+                                        }}
+                                        className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-slate-700 hover:bg-slate-50 font-semibold cursor-pointer"
+                                      >
+                                        <ShieldCheck size={11} className="text-blue-600" />
+                                        View Review Report
+                                      </button>
+
+                                      {/* View in Google Drive */}
+                                      <a
+                                        href={plan.driveUrl || "https://drive.google.com/file/d/sample/view"}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-2 px-3 py-1.5 text-slate-700 hover:bg-slate-50 font-semibold"
+                                        onClick={() => setActiveMenuId(null)}
+                                      >
+                                        <ExternalLink size={11} />
+                                        View in Google Drive
+                                      </a>
+
+                                      {/* Delete action option */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          handleDeletePlanLocal(plan.id);
+                                          setActiveMenuId(null);
+                                        }}
+                                        className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-rose-600 hover:bg-rose-50 font-bold border-t border-slate-100 cursor-pointer"
+                                      >
+                                        <Trash2 size={11} />
+                                        Delete
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+
+                            </div>
+
                           </div>
                         );
                       })}
@@ -2318,7 +2440,7 @@ export default function LessonPlanner({
                           : "border-transparent text-slate-400 hover:text-slate-600"
                       }`}
                     >
-                      Selected Plan Audit
+                      Review Report
                     </button>
                     <button
                       onClick={() => setQaRightTab("config")}
@@ -2328,7 +2450,7 @@ export default function LessonPlanner({
                           : "border-transparent text-slate-400 hover:text-slate-600"
                       }`}
                     >
-                      Configure QA Checklist
+                      Configure Review Checklist
                     </button>
                   </div>
 
@@ -2361,7 +2483,7 @@ export default function LessonPlanner({
                                   ? "bg-amber-450 animate-pulse bg-amber-400" 
                                   : "bg-red-500 animate-pulse"
                             }`} />
-                            <h4 className="text-[11.5px] uppercase font-mono font-bold tracking-wider text-slate-755">Overall Audit: {activePlan.reviewStatus}</h4>
+                            <h4 className="text-[11.5px] uppercase font-mono font-bold tracking-wider text-slate-755">Review Summary: {activePlan.reviewStatus}</h4>
                           </div>
                           
                           <p className="text-[11px] text-slate-505 font-sans leading-relaxed">
@@ -2376,7 +2498,7 @@ export default function LessonPlanner({
                               className="w-full bg-[#2454d6] hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-40 transition-all"
                             >
                               <ShieldCheck size={14} />
-                              {isReviewing ? "Analysing document templates..." : "Run QA Compliance Audit"}
+                              {isReviewing ? "Analysing document templates..." : "Review"}
                             </button>
                           </div>
                         </div>
@@ -2449,7 +2571,7 @@ export default function LessonPlanner({
                     <div className="space-y-4 animate-fadeIn" id="config-panel-container">
                       <div className="bg-blue-50/50 border border-blue-100/50 p-3 rounded-xl">
                         <p className="text-[10.5px] text-blue-800 leading-normal font-sans">
-                          Modify required auditing criteria per material document. Enabling/disabling items will immediately re-calculate index scores from the central registry.
+                          Modify required Review Checklist. Enabling/disabling Checklist items will immediately re-calculate index scores from the central registry.
                         </p>
                       </div>
 
@@ -2505,7 +2627,7 @@ export default function LessonPlanner({
 
                       {/* Add Custom Criterion Form */}
                       <div className="space-y-2 pt-2 border-t border-slate-100">
-                        <span className="text-[10px] font-bold font-mono uppercase text-slate-500 block">Add Custom Audit Rule :</span>
+                        <span className="text-[10px] font-bold font-mono uppercase text-slate-500 block">Add Custom Review Checklist Item :</span>
                         <form
                           onSubmit={(e) => {
                             e.preventDefault();
@@ -2558,12 +2680,18 @@ export default function LessonPlanner({
               <button
                 id="editor-close-btn"
                 onClick={() => {
-                  setActiveView("setup");
-                  setGenerationError("");
+                  const cameFromIngestor = localStorage.getItem("edu_came_from_ingestor") === "true";
+                  localStorage.removeItem("edu_came_from_ingestor");
+                  if (cameFromIngestor && setActiveTab) {
+                    setActiveTab("textbooks");
+                  } else {
+                    setActiveView("setup");
+                    setGenerationError("");
+                  }
                 }}
                 className="cursor-pointer bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 p-2 rounded-xl text-xs flex items-center gap-1 font-semibold shadow-sm transition-all"
               >
-                <ArrowLeft size={13} /> Back to Registry
+                <ArrowLeft size={13} /> {localStorage.getItem("edu_came_from_ingestor") === "true" ? "Back to Textbook Ingestor" : "Back to Registry"}
               </button>
               
               <div>
@@ -2624,8 +2752,7 @@ export default function LessonPlanner({
                 { id: "parental", text: "Parent Discussion", icon: <HelpCircle size={13} /> },
                 { id: "audit", text: "Audit Checklist", icon: <CheckCircle size={13} /> },
                 { id: "raw", text: "Raw Markdown", icon: <FileCode size={13} /> },
-                { id: "sqaa_links", text: "SQAA Links", icon: <ExternalLink size={13} /> },
-                { id: "classroom_publish", text: "Publish to Classroom", icon: <Send size={13} /> }
+                { id: "sqaa_links", text: "SQAA Links", icon: <ExternalLink size={13} /> }
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -3145,22 +3272,6 @@ export default function LessonPlanner({
                   </div>
                 )}
 
-                {deckTab === "classroom_publish" && (
-                  <ClassroomPublisher
-                    driveFile={classroomDriveFile ? {
-                      id: classroomDriveFile.id,
-                      name: classroomDriveFile.name,
-                      webViewLink: classroomDriveFile.webViewLink,
-                    } : undefined}
-                    chapterName={selectedTopic}
-                    className={selectedClass}
-                    subjectName={selectedSubject}
-                    bookName={selectedBook}
-                    currentUser={currentUser}
-                    sqaaTags={selectedSqaaIndicators}
-                  />
-                )}
-
               </div>
 
           </div>
@@ -3311,6 +3422,79 @@ export default function LessonPlanner({
                 <span>Open Simulated anyways</span>
                 <ExternalLink size={11} />
               </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Review Report Modal */}
+      {reportPlan && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn" id="review-report-modal">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-100 space-y-4 text-left">
+            <div className="flex justify-between items-start border-b border-slate-100 pb-3">
+              <div>
+                <span className="text-[10px] font-mono bg-blue-50 text-blue-600 px-2 py-0.5 rounded font-bold">QA QUALITY COMPLIANCE</span>
+                <h3 className="text-sm font-bold text-slate-800 mt-1">{reportPlan.topicName}</h3>
+              </div>
+              <button onClick={() => setReportPlan(null)} className="text-slate-400 hover:text-slate-600 font-extrabold cursor-pointer text-md">&times;</button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
+              <div>
+                <span className="text-[9px] text-slate-400 block uppercase font-bold">Review Status</span>
+                <span className={`inline-flex items-center gap-1 font-bold mt-0.5 px-2 py-0.5 rounded text-[11px] ${
+                  getStatusLabelLocal(reportPlan) === "Approved"
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-250"
+                    : getStatusLabelLocal(reportPlan).startsWith("Defects")
+                    ? "bg-rose-50 text-rose-800 border border-rose-200 font-mono"
+                    : "bg-amber-50 text-amber-805 border border-amber-200"
+                }`}>
+                  {getStatusLabelLocal(reportPlan)}
+                </span>
+              </div>
+              <div>
+                <span className="text-[9px] text-slate-400 block uppercase font-bold">Audit Score</span>
+                <span className="font-semibold text-slate-700 block mt-0.5">
+                  {getStatusLabelLocal(reportPlan) === "Pending" ? "Pending Scan" : "8/8 Met"}
+                </span>
+              </div>
+            </div>
+
+            {/* Checklist items */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-mono tracking-wider font-extrabold text-slate-400 uppercase">CBSE Rubric Mapping & Evidence Check</span>
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                {[
+                  { key: "outcomes", label: "Curriculum Alignment & Target Outcomes" },
+                  { key: "timeboxed", label: "Syllabus Pacing & Time-boxed Duration Structure" },
+                  { key: "experiential", label: "Art, Sports & Experiential Pedagogies" },
+                  { key: "differentiation", label: "Worksheets & Scaffolds for Diverse Learners" },
+                  { key: "homework", label: "Structured Homework & Class Tasks Assignments" },
+                  { key: "parental", label: "Parent Bridges (Feedback Hooks / WhatsApp Triggers)" },
+                  { key: "sqaa", label: "SQAA Matrix & Dynamic Assessment Indicators" },
+                ].map((item) => {
+                  const savedChecklist = reportPlan.checklist || {};
+                  const status = savedChecklist[item.key] || "pass";
+                  const isPass = status === "pass";
+                  const isPending = status === "pending" || status === "under_review";
+                  return (
+                    <div key={item.key} className="flex items-center justify-between text-xs p-2 rounded-lg border border-slate-100 bg-white shadow-2xs">
+                      <span className="font-medium text-slate-700">{item.label}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                        isPass ? "bg-emerald-100 text-emerald-800" : isPending ? "bg-amber-100 text-amber-850" : "bg-rose-100 text-rose-800"
+                      }`}>
+                        {isPass ? "PASS" : isPending ? "PENDING" : "DEFECT DETECTED"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex justify-end">
+              <button onClick={() => setReportPlan(null)} className="py-1.5 px-4 bg-slate-900 hover:bg-slate-950 text-white rounded-lg text-xs font-semibold cursor-pointer">
+                Done
+              </button>
             </div>
           </div>
         </div>

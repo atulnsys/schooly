@@ -57,11 +57,6 @@
       "futureConnector": "Client-role context filter & Firebase Auth Custom Claims system"
     },
     {
-      "path": "src/data/mock/dashboard-role-blueprints.mock.json",
-      "purpose": "Editable role dashboard blueprints for admin, manager, hr, exams, parent, and student views",
-      "futureConnector": "Role dashboard renderer / dashboard rebuild generator"
-    },
-    {
       "path": "src/data/mock/ai-prompts.mock.json",
       "purpose": "Editable prompt templates for automated lesson plans, student homework sheets, quizzes compiler, and chaser notifications",
       "futureConnector": "Google Gemini API / Vertex AI system config payload"

@@ -265,6 +265,116 @@ export interface CoordinatorDashboardMockSchema {
   assessmentCompletion: AssessmentCompletionRow[];
 }
 
+export interface TextbookSource {
+  id: string;
+  tenantId?: string;
+  provider: string; // 'NCERTEbooksProvider' | 'UploadedPdfTextbookProvider' | 'UploadedImageTocProvider' | 'ManualChapterListProvider' | 'MockTextbookSourceProvider'
+  sourceType: string; // 'web_link' | 'pdf' | 'toc_image' | 'chapter_image' | 'manual' | 'mock'
+  sourceUrl?: string;
+  uploadedFileId?: string;
+  originalFileName?: string;
+  classId: string; // e.g. "Class VI-VIII" or class selection
+  subjectId: string;
+  academicYear: string;
+  medium?: string; // 'en' | 'hi'
+  bookName: string;
+  bookCode?: string;
+  sourceStatus: 'pending' | 'processing' | 'completed' | 'failed';
+  copyrightNote?: string;
+  importedBy?: string;
+  importedAt?: string;
+  lastCheckedAt?: string;
+  metadataJson?: string;
+}
+
+export interface TextbookBook {
+  id: string;
+  tenantId?: string;
+  classId: string;
+  subjectId: string;
+  academicYear: string;
+  medium?: string;
+  bookName: string;
+  bookType: 'textbook' | 'supplementary' | 'workbook' | 'rationalised';
+  sourceId: string;
+  ncertBookCode?: string;
+  cbseSubjectCode?: string;
+  status: 'draft' | 'verified';
+  verifiedBy?: string;
+  verifiedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TextbookChapter {
+  id: string;
+  tenantId?: string;
+  bookId: string;
+  chapterNumber: number;
+  chapterCode: string;
+  chapterName: string;
+  unitName?: string;
+  pageStart?: number;
+  pageEnd?: number;
+  sourceTocText?: string;
+  detectedConfidence: number; // 0.0 - 1.0
+  verificationStatus: 'pending' | 'verified';
+  teacherEditedName?: string;
+  artifactGenerationStatus: 'idle' | 'pending' | 'completed' | 'failed';
+  sqaaEvidenceTags?: string[];
+  cbseOutcomeTags?: string[];
+  ncertOutcomeTags?: string[];
+  nepTags?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TextbookImportJob {
+  id: string;
+  tenantId?: string;
+  sourceId: string;
+  importType: string;
+  status: 'queued' | 'running' | 'completed' | 'failed';
+  progressPercent: number;
+  currentStep: string;
+  extractedBookName?: string;
+  extractedChaptersCount: number;
+  warningCount: number;
+  errorCount: number;
+  errorsJson?: string;
+  startedBy?: string;
+  startedAt?: string;
+  completedAt?: string;
+}
+
+export interface TextbookExtractedPage {
+  id: string;
+  tenantId?: string;
+  sourceId: string;
+  bookId?: string;
+  chapterId?: string;
+  pageNumber: number;
+  pageImageFileId?: string;
+  extractedText: string;
+  extractionMethod: 'searchable_pdf' | 'ocr_tesseract' | 'gemini_multimodal' | 'manual';
+  confidenceScore: number;
+  createdAt?: string;
+}
+
+export interface TextbookTocReview {
+  id: string;
+  tenantId?: string;
+  sourceId: string;
+  bookId: string;
+  rawExtractedToc: string;
+  normalizedTocJson: string; // stringified JSON array
+  reviewStatus: 'pending' | 'approved' | 'rejected';
+  reviewedBy?: string;
+  reviewedAt?: string;
+  createdAt?: string;
+}
+
+
 
 
 

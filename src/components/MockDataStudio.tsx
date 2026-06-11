@@ -57,12 +57,6 @@ const CONSTANT_MOCK_FILES: MockFileDescriptor[] = [
     futureConnector: "Firebase Auth Custom RBAC Claims"
   },
   {
-    path: "dashboard-role-blueprints",
-    name: "Editable Role Dashboard Blueprints",
-    purpose: "JSON blueprints for rebuilding admin, manager, hr, exams, parent, and student dashboards",
-    futureConnector: "Role dashboard renderer / static dashboard generator"
-  },
-  {
     path: "teacher-dashboard",
     name: "Teacher Performance & Compliance",
     purpose: "Teacher UT3 class assessment metrics, weekly classroom posting completion tallies, and warning thresholds",

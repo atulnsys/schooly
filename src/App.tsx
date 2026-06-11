@@ -19,6 +19,7 @@ import AcademicRollover from "./components/AcademicRollover";
 import SystemGovernance from "./components/SystemGovernance";
 import MockDataStudio from "./components/MockDataStudio";
 import LessonPlanner from "./components/LessonPlanner";
+import TextbookIngestor from "./components/TextbookIngestor";
 import { 
   GraduationCap, 
   Search, 
@@ -733,13 +734,24 @@ export default function App() {
     const compiled = compileDynamicNavigation(activeRoles, schema, schemaDrivenRendering);
     
     // Resolve proper Lucide React component structures dynamically to maintain 100% type-safety & backwards compatibility
-    return compiled.map(item => ({
+    const items = compiled.map(item => ({
       id: item.id,
       name: item.label,
       icon: IconMap[item.icon] || Command,
       parentGroup: item.parentGroup,
       helperText: item.helperText
     }));
+
+    // Inject Textbook Ingestor Tab
+    items.push({
+      id: "textbooks",
+      name: "NCERT Textbooks",
+      icon: BookOpen,
+      parentGroup: "Teaching & Learning",
+      helperText: "Ingest & manage syllabus units"
+    });
+
+    return items;
   };
 
   const navigationItems = getNavigationItems();
@@ -1262,6 +1274,19 @@ export default function App() {
             currentUser={currentUser}
             currentRole={currentRole}
             onRefreshData={fetchAllData}
+            setActiveTab={setActiveTab}
+          />
+        )}
+
+        {activeTab === "textbooks" && (
+          <TextbookIngestor 
+            files={files}
+            courses={courses}
+            currentUser={currentUser}
+            currentRole={currentRole}
+            isWorkspaceMock={isWorkspaceMock}
+            onRefreshData={fetchAllData}
+            setActiveTab={setActiveTab}
           />
         )}
 
