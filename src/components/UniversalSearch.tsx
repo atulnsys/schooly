@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { WorkspaceFile } from "../types";
 import { schoolyFetch } from "../lib/safeFetch";
+import GenericEntityDetailView from "./generic/GenericEntityDetailView";
 import GenericEntityListView from "./generic/GenericEntityListView";
 import { createWorkspaceFileEntityDefinition } from "../lib/workspaceFileEntityDefinition";
 import { 
@@ -980,38 +981,11 @@ export default function UniversalSearch({
                 </button>
               </div>
 
-              {/* Basic Document Info */}
-              <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-2 text-xs">
-                <h4 className="font-bold text-slate-900 break-words" title={selectedFile.name}>
-                  {sanitizeStudentTerminology(selectedFile.name, currentRole === "Student")}
-                </h4>
-                <div className="grid grid-cols-2 gap-y-2 pt-2 border-t border-slate-200 text-slate-500 font-mono text-[10px]">
-                  <span>Source Platform:</span>
-                  <span className="font-bold text-slate-700 text-right">{selectedFile.source}</span>
-                  <span>Owner/Author:</span>
-                  <span className="font-bold text-slate-700 text-right truncate" title={selectedFile.owner}>{selectedFile.owner}</span>
-                  <span>Sharing Settings:</span>
-                  <span className="font-extrabold text-slate-700 text-right">{selectedFile.sharingRule}</span>
-                  <span>File Size:</span>
-                  <span className="font-bold text-slate-700 text-right">{selectedFile.size}</span>
-
-                  {(() => {
-                    const info = getFileVisibilityDetails(selectedFile);
-                    return (
-                      <>
-                        <span className="pt-1.5 border-t border-slate-100">Verified Source:</span>
-                        <span className="font-bold text-blue-700 text-right pt-1.5 border-t border-slate-100">{info.source}</span>
-                        <span>Access Context:</span>
-                        <span className="font-bold text-emerald-700 text-right">{info.accessContext}</span>
-                        <span>Workspace Area:</span>
-                        <span className="font-bold text-slate-800 text-right">
-                          {sanitizeStudentTerminology(info.schoolArea, currentRole === "Student")}
-                        </span>
-                      </>
-                    );
-                  })()}
-                </div>
-              </div>
+              <GenericEntityDetailView
+                definition={workspaceFileDefinition}
+                row={selectedFile}
+                permissionContext={{ currentRole, activeCapabilities }}
+              />
 
               {/* Tag Management Panel */}
               <div className="space-y-2.5">
