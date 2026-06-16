@@ -6,15 +6,22 @@ import {
   StudentDetails,
   TeacherPerformanceIndicator,
   MonitoringFormFeed,
-  TeacherDashboardMockSchema,
-  CoordinatorDashboardMockSchema
+  TeacherDashboardData,
+  TeacherDashboardSourceReference,
+  CoordinatorDashboardData,
+  HodDashboardData,
+  ManagerDashboardData,
+  ExaminationDashboardData,
+  ParentDashboardData,
+  StudentDashboardData,
+  StudentDashboardTask,
+  StudentTimetableItem
 } from "../types";
 import { 
   FileText, 
   Calendar, 
   GraduationCap, 
   CheckSquare, 
-  Sparkles, 
   AlertTriangle, 
   Star, 
   RefreshCw, 
@@ -31,6 +38,7 @@ import {
   ArrowRight,
   Edit3,
   Settings,
+  ChevronDown,
   Sliders,
   Bell,
   Clock,
@@ -42,7 +50,9 @@ import {
   Send,
   UserCheck,
   Award,
-  LayoutGrid
+  LayoutGrid,
+  FolderOpen,
+  Users
 } from "lucide-react";
 
 import { 
@@ -50,92 +60,52 @@ import {
   ExportableSchoolySchema, 
   Capability 
 } from "../lib/schemaEngine";
+import { loadDashboardData, DashboardSourceState, DashboardBlueprintCard, DashboardRegistrySourceStatus } from "../lib/dashboardDataResolver";
+import { DEFAULT_DASHBOARD_SHEET_URL } from "../lib/dashboardConfig";
+import { DASHBOARD_ROLE_TITLES, getDashboardRoleCards, toDashboardCardModel, type DashboardCardModel, type DashboardRoleKey, type DashboardRoleCardDefinition } from "../lib/dashboardRoleCards";
+import { compareClassLabels, formatClassLabel } from "../lib/classSort";
+import { resetSavedRegistryUrlsToDefaults } from "../lib/seededRegistryConfig";
+import { BootstrapDestinationPreview, BootstrapProposedRow, bootstrapPreviewToCsv, buildRegistryBootstrapPreview } from "../lib/registryBootstrapPreview";
+import { applyRegistryBootstrapWriteback, BootstrapWritebackProgress, BootstrapWritebackResult } from "../lib/registryBootstrapWriteback";
+import { isSafeFirstBatchTab, normalizeHeaderForComparison } from "../lib/registrySchema";
+import {
+  connectGoogleWorkspaceWriteAccess,
+  disconnectGoogleWorkspaceAccess,
+  getGoogleWorkspaceAccessToken,
+  getGoogleWorkspaceAuthState,
+  GOOGLE_WORKSPACE_AUTH_STATE_CHANGED_EVENT
+} from "../lib/googleWorkspaceAuth";
 
-import principalDashboardMock from "../data/mock/dashboard-principal.mock.json";
-import teacherDashboardMock from "../data/mock/teacher-dashboard.mock.json";
-import coordinatorDashboardMock from "../data/mock/coordinator-dashboard.mock.json";
-import teachersIndianExtendedMock from "../data/mock/teachers-indian-extended.mock.json";
-import RoleDashboards from "./RoleDashboards";
 
-export const teacherPerformanceData: TeacherPerformanceIndicator[] = (principalDashboardMock.teacherPerformanceIndicators || []).map((t: any) => ({
-  teacher: t.name,
-  plannerStatus: t.syllabusPlanner.includes("Done") ? "Done" : "Missing",
-  assessmentStatus: t.assessmentsOnTrack === "Complete" ? "Done" : (t.assessmentsOnTrack === "Partial" ? "Partial" : "Missing"),
-  resourceCount: t.remedialActionPlan.includes("8") ? 8 : (t.remedialActionPlan.includes("6") ? 6 : (t.remedialActionPlan.includes("2") ? 2 : 0)),
-  activityStatus: t.classroomActivity,
-  source: t.classroomActivity === "None" ? "Schooly" : "Google Classroom",
-  class: t.name.includes("Nair") ? "Grade X" : (t.name.includes("Kapoor") ? "Grade IX" : (t.name.includes("Mehta") ? "Grade VIII" : "Grade VII")),
-  subject: t.name.includes("Nair") ? "Science" : (t.name.includes("Kapoor") ? "SST" : (t.name.includes("Mehta") ? "Mathematics" : "Social Science")),
-  dateRange: "This Week",
-  lastActive: t.classroomActivity === "None" ? "Inactive" : "Today"
-}));
+const EMPTY_REGISTRY_HEALTH_SUMMARY = {
+  totalRegistries: 0,
+  connectedRegistries: 0,
+  warningRegistries: 0,
+  criticalRegistries: 0,
+  onboardingStatus: "Setup required",
+  lastSyncAt: null,
+  nextRequiredAction: "Open Setup Centre",
+  primaryIssue: "No live data rows were found.",
+  canOpenSetupCentre: true,
+  sourceHealthRows: []
+};
 
-export const monitoringFormsData: MonitoringFormFeed[] = (principalDashboardMock.monitoringFormsDataFeeds || []).map((f: any, idx: number) => {
-  const ids = ["weekly_planner", "notebook_monitoring", "assessment_status", "remedial_tracking", "event_reporting", "compliance_evidence"];
-  const types: ("good" | "warning" | "risk" | "info")[] = ["warning", "warning", "warning", "risk", "info", "warning"];
-  const owners = ["Ms. Sunita Mehta", "Mr. Rahul Kapoor", "Ms. Priya Nair", "Mr. Vijay Kumar", "Ms. Priya Nair", "School Admin"];
-  const sources = ["Google Drive", "Notebook Form submission", "Google Classroom / SIS", "Remedial active lists", "CBSE Activities Buffer", "Governance Root"];
-  const classes = ["Grade X - Section A", "Grade IX - Section B", "Grade XII - Section C", "Grade VII - Section A", "All Sections", "Governance Portfolio"];
-  const links = ["Ingestion Template Drive Link", "Notebook Tracking Spreadsheet", "Assessment Status Sheet", "Remedial Ledger", "Event Calendar", "Compliance Evidence Drive Folders"];
+export const teacherPerformanceData: TeacherPerformanceIndicator[] = [];
+export const monitoringFormsData: MonitoringFormFeed[] = [];
 
-  return {
-    id: ids[idx] || `feed-${idx}`,
-    name: f.form,
-    summary: `${f.submitted} of ${f.total} submitted · ${f.overdue} overdue`,
-    statusLabel: `${f.percent}%`,
-    statusType: types[idx] || "warning",
-    submittedCount: f.submitted,
-    pendingCount: f.total - f.submitted,
-    overdueCount: f.overdue,
-    responsibleOwner: owners[idx] || "School Staff",
-    linkedClassSection: classes[idx] || "All Sections",
-    lastSubmittedDate: "2026-06-01",
-    evidenceLinkLabel: links[idx] || "Drive Link",
-    source: sources[idx] || "Form submission"
-  };
-});
-
-// Seeded Structured Coordinator Dashboard Data (SDOS-24 compliant)
+// Live dashboard placeholders stay empty until registry rows are available.
 export const COORDINATOR_DASHBOARD_SEED = {
-  remedialStudents: [
-    { id: "rem-1", name: "Aarav Mehta", grade: "Class 7A", subject: "Mathematics", status: "Untracked", teacher: "Mr. Rajesh Kumar", lastRiskScore: 92, attendRate: "74%", issue: "Low test average in algebraic expressions", actionPlan: "Schedule weekly 1-on-1 algebra foundation sessions" },
-    { id: "rem-2", name: "Sara Fernandes", grade: "Class 8C", subject: "English", status: "Untracked", teacher: "Ms. Neha Gupta", lastRiskScore: 88, attendRate: "78%", issue: "Weak grammar syntax and essay structuring", actionPlan: "Assign weekly reading diaries and focus-group workshops" },
-    { id: "rem-3", name: "Dev Sharma", grade: "Class 6B", subject: "Hindi & SST", status: "In Progress", teacher: "Mrs. Meenakshi S.", lastRiskScore: 78, attendRate: "88%", issue: "Struggling with history timelines and maps", actionPlan: "Visual mapping guides and bilingual vocabulary aids" },
-    { id: "rem-4", name: "Meher Gupta", grade: "Class 8A", subject: "Science", status: "Tracked", teacher: "Mr. Anil Nair", lastRiskScore: 65, attendRate: "92%", issue: "Improved labs compliance, needs monitoring on physics unit", actionPlan: "Assigned peer mentor, daily tracker checks" },
-    { id: "rem-5", name: "Kabir Nair", grade: "Class 9C", subject: "SST", status: "Tracked", teacher: "Mr. Vikram Rawat", lastRiskScore: 54, attendRate: "95%", issue: "Performance stabilized above target threshold", actionPlan: "Continue bi-weekly checks, encourage group discussions" },
-    { id: "rem-6", name: "Priya Iyer", grade: "Class 7B", subject: "Science", status: "Untracked", teacher: "Mr. Anil Nair", lastRiskScore: 84, attendRate: "80%", issue: "Missed basic conceptual assessments twice", actionPlan: "Parent teacher advisory meeting, fundamental worksheets" },
-    { id: "rem-7", name: "Ananya Sharma", grade: "Class 8B", subject: "Mathematics", status: "In Progress", teacher: "Mr. Rajesh Kumar", lastRiskScore: 72, attendRate: "89%", issue: "Improving homework scores, mid-term prep required", actionPlan: "Review geometry assignments with focus notes" }
-  ],
-  classroomActivity: [
-    { className: "Class 6", activeCount: "5/6", status: "High activity", state: "high", assignments: 22, submissionRate: 88, enrichment: 4 },
-    { className: "Class 7", activeCount: "4/6", status: "Moderate activity", state: "moderate", assignments: 18, submissionRate: 82, enrichment: 2 },
-    { className: "Class 8", activeCount: "6/6", status: "High activity", state: "high", assignments: 25, submissionRate: 91, enrichment: 5 },
-    { className: "Class 9", activeCount: "2/5", status: "Low/inactive", state: "low", assignments: 11, submissionRate: 74, enrichment: 1 },
-    { className: "Class 10", activeCount: "5/5", status: "High activity", state: "high", assignments: 28, submissionRate: 95, enrichment: 6 }
-  ],
-  inactiveSections: [
-    { id: "in-1", className: "Grade IX", section: "Section C", subject: "Mathematics", teacher: "Mr. Ramesh Sharma", lastActive: "10 days ago", inactiveReason: "No assignments posted since term test", studentCount: 38 },
-    { id: "in-2", className: "Grade VII", section: "Section D", subject: "Social Sciences", teacher: "Mrs. Kavita Patel", lastActive: "8 days ago", inactiveReason: "Weekly stream announcements zero", studentCount: 42 },
-    { id: "in-3", className: "Grade VI", section: "Section C", subject: "English", teacher: "Ms. Shalini Iyer", lastActive: "6 days ago", inactiveReason: "Assignments posted but no submissions graded", studentCount: 35 },
-    { id: "in-4", className: "Grade XI", section: "Section B", subject: "Hindi", teacher: "Mr. J. P. Mishra", lastActive: "14 days ago", inactiveReason: "Class stream totally silent", studentCount: 30 }
-  ]
+  remedialStudents: [],
+  classroomActivity: [],
+  inactiveSections: []
 };
 
 // Seeded Structured Principal Dashboard Data Contract (SDOS-23 compliant)
 export const PRINCIPAL_DASHBOARD_SEED = {
   academicMonitoring: {
-    planner: (principalDashboardMock.academicMonitoring?.stages || []).map((s: any) => ({
-      level: s.stage,
-      percentage: s.plannerRate
-    })),
-    syllabus: (principalDashboardMock.academicMonitoring?.syllabus || []).map((s: any) => ({
-      level: s.level,
-      percentage: s.percentage
-    })),
-    assessment: (principalDashboardMock.academicMonitoring?.assessment || []).map((s: any) => ({
-      level: s.level,
-      percentage: s.percentage
-    })),
+    planner: [],
+    syllabus: [],
+    assessment: [],
     summaryLabelText: {
       planner: "Weekly planner submission rate this week",
       syllabus: "Syllabus tracking progress across grade levels",
@@ -143,49 +113,273 @@ export const PRINCIPAL_DASHBOARD_SEED = {
     }
   },
   classroomMonitoring: {
-    totalClassrooms: principalDashboardMock.classroomMonitoring?.totalClassrooms || 80,
-    postedThisWeek: principalDashboardMock.classroomMonitoring?.postedThisWeek || 77,
-    zeroActivityThisWeek: principalDashboardMock.classroomMonitoring?.zeroActivityThisWeek || 3,
-    assignmentsCreatedThisWeek: principalDashboardMock.classroomMonitoring?.assignmentsCreatedThisWeek || 234,
-    averageSubmissionRate: principalDashboardMock.classroomMonitoring?.avgSubmissionRate || 88,
-    meetSessionsHeldThisWeek: principalDashboardMock.classroomMonitoring?.meetSessionsHeld || 12
+    totalClassrooms: 0,
+    postedThisWeek: 0,
+    zeroActivityThisWeek: 0,
+    assignmentsCreatedThisWeek: 0,
+    averageSubmissionRate: 0,
+    meetSessionsHeldThisWeek: 0
   },
   compliance: {
-    items: (principalDashboardMock.compliance?.categories || []).map((cat: any) => {
-      const keys: Record<string, string> = {
-        "Committee records": "committee",
-        "Safety records": "safety",
-        "Mandatory forms": "forms",
-        "Staff CPD records": "cpd",
-        "SQAA evidence": "sqaa"
-      };
-      const owners: Record<string, string> = {
-        "Committee records": "Principal",
-        "Safety records": "Estate Manager",
-        "Mandatory forms": "Registrar",
-        "Staff CPD records": "Academic Coordinator",
-        "SQAA evidence": "Internal Quality Liaison"
-      };
-      const Folders: Record<string, string> = {
-        "Committee records": "SDOS-Drive/Committee-Minutes",
-        "Safety records": "SDOS-Drive/Safety-Inspection",
-        "Mandatory forms": "SDOS-Drive/Ingestion-Forms",
-        "Staff CPD records": "SDOS-Drive/Professional-Dev",
-        "SQAA evidence": "SDOS-Drive/Quality-Assessment"
-      };
-
-      return {
-        label: cat.name,
-        percentage: cat.score,
-        key: keys[cat.name] || "other",
-        owner: owners[cat.name] || "Staff",
-        dueDate: "2026-06-15",
-        hasEvidence: cat.score >= 70,
-        evidenceFolder: Folders[cat.name] || "SDOS-Drive/Other"
-      };
-    })
+    items: []
   }
 };
+
+const EMPTY_PRINCIPAL_DASHBOARD = {
+  academicMonitoring: {
+    stages: [],
+    syllabus: [],
+    assessment: []
+  },
+  classroomMonitoring: {
+    totalClassrooms: 0,
+    postedThisWeek: 0,
+    zeroActivityThisWeek: 0,
+    assignmentsCreatedThisWeek: 0,
+    averageSubmissionRate: 0,
+    avgSubmissionRate: 0,
+    meetSessionsHeldThisWeek: 0,
+    meetSessionsHeld: 0
+  },
+  compliance: {
+    categories: [],
+    overall: 0
+  },
+  teacherPerformanceIndicators: [],
+  monitoringFormsDataFeeds: [],
+  alertsRequiringAttention: [],
+  remedialRisk: []
+};
+
+const EMPTY_TEACHER_DASHBOARD: TeacherDashboardData = {
+  header: {
+    initials: "",
+    name: "",
+    label: "Teacher",
+    subject: "",
+    classes: [],
+    academicSession: "",
+    source: { workbook: "Master Registry", tab: "Staff_Directory", rowCount: 0, lastSyncedAt: null }
+  },
+  kpis: [],
+  timetable: [],
+  pendingTasks: [],
+  quickLinks: [],
+  classPerformance: [],
+  classroomActivity: [],
+  assessmentTracking: [],
+  invigilationDuty: null,
+  renewalStatus: {
+    configured: false,
+    title: "My renewal status",
+    message: "Teacher CPD renewal registry is not configured.",
+    statusLabel: "Setup required"
+  },
+  announcements: [],
+  sourceHealth: [],
+  setupState: {
+    status: "setup_required",
+    title: "Teacher dashboard setup required",
+    message: "Teacher could not be resolved from live data.",
+    messages: []
+  }
+};
+
+const EMPTY_COORDINATOR_DASHBOARD: CoordinatorDashboardData = {
+  coordinatorProfile: {
+    initials: "",
+    name: "",
+    label: "Academic Coordinator",
+    academicSession: "",
+    scopeLabel: "Coordinator scope not configured.",
+    configuredScope: "Coordinator scope not configured.",
+    source: { workbook: "Master Registry", tab: "Staff_Directory", rowCount: 0, lastSyncedAt: null }
+  },
+  kpis: [],
+  plannerStatusMatrix: {
+    headers: ["Class / Section", "Planner", "Notebook", "Assessment", "Classroom", "Attendance"],
+    rows: []
+  },
+  syllabusCoverage: [],
+  remedialTracking: [],
+  classroomActivity: [],
+  assessmentTracking: [],
+  announcements: [],
+  invigilationDuty: {
+    configured: false,
+    title: "Invigilation & olympiads",
+    message: "Invigilation/Olympiad duty registry not configured.",
+    statusLabel: "Setup required"
+  },
+  renewalStatus: {
+    configured: false,
+    title: "Renewal / compliance status",
+    message: "Teacher CPD renewal registry is not configured.",
+    statusLabel: "Setup required"
+  },
+  sourceHealth: [],
+  setupState: {
+    status: "setup_required",
+    title: "Coordinator dashboard setup required",
+    message: "Coordinator could not be resolved from live data.",
+    messages: []
+  }
+};
+
+const EMPTY_HOD_DASHBOARD: HodDashboardData = {
+  hodProfile: {
+    initials: "",
+    name: "",
+    departmentLabel: "HOD scope not configured.",
+    academicSession: "",
+    subjectArea: "",
+    classRange: "",
+    activeTeacherCount: "0",
+    source: { workbook: "Master Registry", tab: "Staff_Directory", rowCount: 0, lastSyncedAt: null }
+  },
+  kpis: [],
+  repositoryHealthByClass: [],
+  teacherActivity: [],
+  assessmentTracking: [],
+  enrichmentOlympiad: {
+    configured: false,
+    title: "Enrichment and Olympiads",
+    message: "Schooly_Enrichment_Olympiad_Registry is not configured.",
+    statusLabel: "Setup required"
+  },
+  remedialStatus: [],
+  announcements: [],
+  complianceAlerts: [],
+  sourceHealth: [],
+  setupState: {
+    status: "setup_required",
+    title: "HOD dashboard setup required",
+    message: "HOD could not be resolved from live data.",
+    messages: []
+  }
+};
+
+const EMPTY_MANAGER_DASHBOARD: ManagerDashboardData = {
+  profile: {
+    initials: "",
+    name: "",
+    roleLabel: "School Manager",
+    academicSession: "",
+    oversightLabel: "Operational oversight",
+    performanceLabel: "Performance review pending",
+    source: { workbook: "Master Registry", tab: "Staff_Directory", rowCount: 0, lastSyncedAt: null }
+  },
+  kpis: [],
+  operationalMetrics: [],
+  complianceChecklist: [],
+  announcements: [],
+  sourceHealth: [],
+  setupState: {
+    status: "setup_required",
+    title: "Manager dashboard setup required",
+    message: "Manager could not be resolved from live data.",
+    messages: []
+  }
+};
+
+const EMPTY_STUDENT_DASHBOARD: StudentDashboardData = {
+  header: {
+    initials: "",
+    name: "",
+    label: "Student Portal",
+    className: "",
+    section: "",
+    academicSession: "",
+    source: { workbook: "Master Registry", tab: "Student_Directory", rowCount: 0, lastSyncedAt: null }
+  },
+  kpis: [],
+  tasks: [],
+  timetable: [],
+  resources: [],
+  announcements: [],
+  sourceHealth: [],
+  setupState: {
+    status: "setup_required",
+    title: "Student dashboard setup required",
+    message: "Student could not be resolved from live data.",
+    messages: []
+  }
+};
+
+const EMPTY_EXAMS_DASHBOARD: ExaminationDashboardData = {
+  header: {
+    initials: "",
+    name: "",
+    label: "Examination Chair",
+    boardScope: "Boards Cell",
+    gradeScope: "Grade Audit Authority",
+    academicSession: "",
+    source: { workbook: "Assessment / Result Registry", tab: "Assessment_Plan", rowCount: 0, lastSyncedAt: null }
+  },
+  kpis: [],
+  boardSubjectStats: [],
+  verificationItems: [],
+  announcements: [],
+  sourceHealth: [],
+  setupState: {
+    status: "setup_required",
+    title: "Examination chair dashboard setup required",
+    message: "Examination chair could not be resolved from live data.",
+    messages: []
+  }
+};
+
+const EMPTY_PARENT_DASHBOARD: ParentDashboardData = {
+  header: {
+    initials: "",
+    name: "",
+    label: "Parent Representative",
+    committeeLabel: "Parent Advisory Committee",
+    liaisonLabel: "Liaison Officer",
+    academicSession: "",
+    source: { workbook: "Master Registry", tab: "Staff_Directory", rowCount: 0, lastSyncedAt: null }
+  },
+  kpis: [],
+  notices: [],
+  safetyItems: [],
+  advisoryTickets: [],
+  sourceHealth: [],
+  setupState: {
+    status: "setup_required",
+    title: "Parent dashboard setup required",
+    message: "Parent liaison could not be resolved from live data.",
+    messages: []
+  }
+};
+
+function parseDashboardDateValue(value: string): Date | null {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const literalMatch = raw.match(/^Date\((\d{4})\s*,\s*(\d{1,2})\s*,\s*(\d{1,2})(?:\s*,.*)?\)$/i);
+  const parsed = literalMatch
+    ? new Date(Number(literalMatch[1]), Number(literalMatch[2]), Number(literalMatch[3]))
+    : new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatDashboardDateValue(value: string): string {
+  const raw = String(value || "").trim();
+  const parsed = parseDashboardDateValue(raw);
+  if (!parsed) return raw;
+  return `${String(parsed.getDate()).padStart(2, "0")}-${parsed.toLocaleString("en-US", { month: "short" })}-${String(parsed.getFullYear()).slice(-2)}`;
+}
+
+function formatTeacherDashboardDate(value: string): string {
+  return formatDashboardDateValue(value);
+}
+function formatTeacherDashboardDateTime(value: string): string {
+  return formatDashboardDateValue(value);
+}
+
+function formatTeacherDashboardSource(source?: TeacherDashboardSourceReference | null): string {
+  if (!source) return "Registry pending";
+  return `${source.workbook} / ${source.tab}`;
+}
 
 interface DashboardOverviewProps {
   files: WorkspaceFile[];
@@ -202,8 +396,11 @@ interface DashboardOverviewProps {
   activeRoles?: string[];
   isWorkspaceMock?: boolean;
   onConfigureWorkspace?: () => void;
-  firebaseUser?: any;
   workspaceUrl?: string;
+  activeAcademicYearLabel?: string;
+  academicYearOptions?: string[];
+  onAcademicYearChange?: (academicYearLabel: string) => void;
+  dashboardView?: "overview" | "role-cards" | "registers" | "settings" | "data-source" | "setup" | "setup-registries" | "registry-detail";
 }
 
 export default function DashboardOverview({
@@ -221,8 +418,11 @@ export default function DashboardOverview({
   activeRoles = ["School Admin"],
   isWorkspaceMock = false,
   onConfigureWorkspace,
-  firebaseUser,
-  workspaceUrl
+  workspaceUrl,
+  activeAcademicYearLabel = "",
+  academicYearOptions = [],
+  onAcademicYearChange,
+  dashboardView = "overview"
 }: DashboardOverviewProps) {
   // Widget capability & role verification helper (Phase 4 dynamic permission binding)
   const isWidgetAuthorized = (widgetId: string): boolean => {
@@ -248,9 +448,7 @@ export default function DashboardOverview({
     }
     return true;
   };
-  const [syncingSis, setSyncingSis] = useState(false);
-  const [syncResult, setSyncResult] = useState<{ message: string; date: string } | null>(null);
-  const [productivityTip, setProductivityTip] = useState<string>("Use the AI Co-Pilot to map active guidelines against core study areas or draft student rosters.");
+  const [productivityTip, setProductivityTip] = useState<string>("Use the AI Assistant to map active guidelines against core study areas or draft student rosters.");
 
   // Google Drive connection status tester states
   const [testingDriveConnection, setTestingDriveConnection] = useState(false);
@@ -270,14 +468,14 @@ export default function DashboardOverview({
       await new Promise(resolve => setTimeout(resolve, 1100));
       
       const driveFiles = files.filter(f => f.source === "Drive" || f.source === "Shared Drive" || f.tags.includes("Synced") || f.tags.includes("Live"));
-      const isConnected = firebaseUser !== null;
+      const isConnected = Boolean(workspaceUrl && workspaceUrl.trim());
       
       setDriveConnectionResult({
         success: isConnected,
         timestamp: new Date().toLocaleTimeString(),
         message: isConnected 
-          ? `Connection verified successfully! Secure OAuth handshake established with workspace folder coordinates: ${workspaceUrl || "Default Root Google Drive"}.`
-          : `Connected with fallback permissions. Authenticate your google profile to authorize real-time workspace index queries.`,
+          ? `Connection verified successfully! Workspace link detected: ${workspaceUrl || "Default Root Google Drive"}.`
+          : `Connected with limited permissions. Configure a Workspace link to authorize live workspace index queries.`,
         retrievedCount: driveFiles.length,
         filesList: driveFiles.slice(0, 4).map(f => f.name)
       });
@@ -327,6 +525,9 @@ export default function DashboardOverview({
   // Principal-only performance and forms states
   const [showTeacherReportsModal, setShowTeacherReportsModal] = useState(false);
   const [selectedFormDetail, setSelectedFormDetail] = useState<any | null>(null);
+  const [coordinatorSearch, setCoordinatorSearch] = useState("");
+  const [coordinatorStatusFilter, setCoordinatorStatusFilter] = useState("all");
+  const [coordinatorClassFilter, setCoordinatorClassFilter] = useState("all");
 
   // principal widgets states (SDOS-23)
   const [principalSandboxState, setPrincipalSandboxState] = useState<"active" | "loading" | "empty" | "partial_permission" | "not_connected" | "error">("active");
@@ -344,6 +545,8 @@ export default function DashboardOverview({
   // Configuration drawer state states
   const [showAcademicConfig, setShowAcademicConfig] = useState<boolean>(false);
   const [showComplianceConfig, setShowComplianceConfig] = useState<boolean>(false);
+  const [selectedRoleCardModel, setSelectedRoleCardModel] = useState<DashboardCardModel | null>(null);
+  const renderClassLabel = (value: string) => formatClassLabel(value) || value;
 
   // In-page drill-down lists state toggles
   const [selectedAcademicLevelDrill, setSelectedAcademicLevelDrill] = useState<string | null>(null);
@@ -422,7 +625,7 @@ export default function DashboardOverview({
     if (name.includes("grade xi") || name.includes("grade xii") || name.includes("senior secondary") || name.includes("sr secondary") || name.includes("honors") || name.includes("ap english")) {
       return "Sr Secondary";
     }
-    return "Middle"; // fallback
+    return "Middle";
   }, []);
 
   const dynamicGlanceCalculations = React.useMemo(() => {
@@ -484,75 +687,170 @@ export default function DashboardOverview({
   const [showInactiveSectionsModal, setShowInactiveSectionsModal] = useState(false);
 
   // --- Principal-specific states (SDOS-23) ---
-  const [principalDashboard, setPrincipalDashboard] = useState<any>(() => {
-    try {
-      const cached = localStorage.getItem("schooly_mock_dashboard-principal");
-      if (cached) {
-        return JSON.parse(cached);
-      }
-    } catch (e) {
-      console.warn("Failed to read schooly_mock_dashboard-principal from localStorage", e);
-    }
-    return principalDashboardMock;
+  const [principalDashboard, setPrincipalDashboard] = useState<any>(EMPTY_PRINCIPAL_DASHBOARD);
+  const [teacherDashboard, setTeacherDashboard] = useState<TeacherDashboardData>(EMPTY_TEACHER_DASHBOARD);
+  const [coordinatorDashboard, setCoordinatorDashboard] = useState<CoordinatorDashboardData>(EMPTY_COORDINATOR_DASHBOARD);
+  const [hodDashboard, setHodDashboard] = useState<HodDashboardData>(EMPTY_HOD_DASHBOARD);
+  const [managerDashboard, setManagerDashboard] = useState<ManagerDashboardData>(EMPTY_MANAGER_DASHBOARD);
+  const [examsDashboard, setExamsDashboard] = useState<ExaminationDashboardData>(EMPTY_EXAMS_DASHBOARD);
+  const [parentDashboard, setParentDashboard] = useState<ParentDashboardData>(EMPTY_PARENT_DASHBOARD);
+  const [studentDashboard, setStudentDashboard] = useState<StudentDashboardData>(EMPTY_STUDENT_DASHBOARD);
+  const [liveDashboardBlueprints, setLiveDashboardBlueprints] = useState<Record<string, { cards: DashboardBlueprintCard[]; rows: any[] }> | null>(null);
+  const [dashboardSourceState, setDashboardSourceState] = useState<DashboardSourceState>({
+    mode: "setup_required",
+    sourceLabel: "Setup required - no live data found",
+    sourceUrl: DEFAULT_DASHBOARD_SHEET_URL,
+    lastSyncedAt: null,
+    warnings: [],
+    setupMessages: ["No live data rows were found."],
+    registries: [],
+    registryHealthSummary: EMPTY_REGISTRY_HEALTH_SUMMARY,
+    localStorageOverrides: {}
   });
+  const [bootstrapRegistryFilter, setBootstrapRegistryFilter] = useState("all");
+  const [bootstrapTabFilter, setBootstrapTabFilter] = useState("all");
+  const [bootstrapSeverityFilter, setBootstrapSeverityFilter] = useState("all");
+  const [expandedBootstrapDestinations, setExpandedBootstrapDestinations] = useState<Record<string, boolean>>({});
+  const [selectedBootstrapGroups, setSelectedBootstrapGroups] = useState<Record<string, boolean>>({});
+  const [bootstrapApprovalChecked, setBootstrapApprovalChecked] = useState(false);
+  const [bootstrapWriteInProgress, setBootstrapWriteInProgress] = useState(false);
+  const [bootstrapWriteResult, setBootstrapWriteResult] = useState<BootstrapWritebackResult | null>(null);
+  const [bootstrapWriteError, setBootstrapWriteError] = useState("");
+  const [bootstrapWriteProgress, setBootstrapWriteProgress] = useState<BootstrapWritebackProgress | null>(null);
+  const [editedBootstrapRows, setEditedBootstrapRows] = useState<Record<string, Record<string, string>>>({});
+  const [bootstrapWizardStep, setBootstrapWizardStep] = useState(0);
+  const [expandedTechnicalRows, setExpandedTechnicalRows] = useState<Record<string, boolean>>({});
+  const [googleWorkspaceAuthState, setGoogleWorkspaceAuthState] = useState(() => getGoogleWorkspaceAuthState());
+  useEffect(() => {
+    const syncAuthState = () => setGoogleWorkspaceAuthState(getGoogleWorkspaceAuthState());
+    window.addEventListener(GOOGLE_WORKSPACE_AUTH_STATE_CHANGED_EVENT, syncAuthState);
+    syncAuthState();
+    return () => window.removeEventListener(GOOGLE_WORKSPACE_AUTH_STATE_CHANGED_EVENT, syncAuthState);
+  }, []);
 
   useEffect(() => {
-    const fetchPrincipalDashboardData = async () => {
+    let cancelled = false;
+    const hydrateDashboardData = async () => {
       try {
-        const res = await fetch("/api/mock/dashboard-principal");
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.metrics) {
-            setPrincipalDashboard(data);
-            localStorage.setItem("schooly_mock_dashboard-principal", JSON.stringify(data));
-          }
-        }
-      } catch (err) {
-        console.error("Error loading dynamic principal dashboard mock data:", err);
+        const dashboardRoleView = currentRole.toLowerCase().includes("teacher")
+          ? "teacher"
+          : currentRole.toLowerCase().includes("hod")
+            ? "hod"
+          : isExamsRole()
+            ? "exams"
+          : isParentRole()
+            ? "parent"
+          : currentRole.toLowerCase().includes("coordinator")
+            ? "coordinator"
+            : isStudentRole()
+              ? "student"
+            : isManagerRole()
+              ? "manager"
+              : "principal";
+        const result: any = await loadDashboardData({
+          roleView: dashboardRoleView,
+          dashboardSheetUrl: workspaceUrl,
+          workspaceUrl,
+          classroomUrl: "",
+          teacherIdentity: currentUser
+        });
+
+        if (cancelled) return;
+
+        setPrincipalDashboard(result.principal || EMPTY_PRINCIPAL_DASHBOARD);
+        setTeacherDashboard(result.teacher || EMPTY_TEACHER_DASHBOARD);
+        setCoordinatorDashboard(result.coordinator || EMPTY_COORDINATOR_DASHBOARD);
+        setManagerDashboard(result.manager || EMPTY_MANAGER_DASHBOARD);
+        setExamsDashboard(result.exams || EMPTY_EXAMS_DASHBOARD);
+        setParentDashboard(result.parent || EMPTY_PARENT_DASHBOARD);
+        setStudentDashboard(result.student || EMPTY_STUDENT_DASHBOARD);
+        setHodDashboard(result.hod || EMPTY_HOD_DASHBOARD);
+        setLiveDashboardBlueprints(result.blueprints || null);
+        setDashboardSourceState(result.sourceState);
+      } catch (error: any) {
+        if (cancelled) return;
+        setPrincipalDashboard(EMPTY_PRINCIPAL_DASHBOARD);
+        setTeacherDashboard(EMPTY_TEACHER_DASHBOARD);
+        setCoordinatorDashboard(EMPTY_COORDINATOR_DASHBOARD);
+        setManagerDashboard(EMPTY_MANAGER_DASHBOARD);
+        setExamsDashboard(EMPTY_EXAMS_DASHBOARD);
+        setParentDashboard(EMPTY_PARENT_DASHBOARD);
+        setStudentDashboard(EMPTY_STUDENT_DASHBOARD);
+        setHodDashboard(EMPTY_HOD_DASHBOARD);
+        setLiveDashboardBlueprints(null);
+        setDashboardSourceState({
+          mode: "error",
+          sourceLabel: "Live data read failed",
+          sourceUrl: DEFAULT_DASHBOARD_SHEET_URL,
+          lastSyncedAt: null,
+          warnings: [error?.message || "Unable to resolve dashboard data."],
+          setupMessages: ["Unable to read the configured live data sheets."],
+          registries: [],
+          registryHealthSummary: EMPTY_REGISTRY_HEALTH_SUMMARY,
+          localStorageOverrides: {}
+        });
       }
     };
-    fetchPrincipalDashboardData();
-  }, []);
+
+    hydrateDashboardData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceUrl, currentUser, currentRole]);
 
   // --- Shadow static state properties with dynamic computed values inside the component scope ---
   const teacherPerformanceData = React.useMemo<TeacherPerformanceIndicator[]>(() => {
-    return (principalDashboard?.teacherPerformanceIndicators || []).map((t: any) => ({
-      teacher: t.name,
-      plannerStatus: t.syllabusPlanner.includes("Done") ? "Done" : "Missing",
-      assessmentStatus: t.assessmentsOnTrack === "Complete" ? "Done" : (t.assessmentsOnTrack === "Partial" ? "Partial" : "Missing"),
-      resourceCount: t.remedialActionPlan.includes("12") ? 12 : (t.remedialActionPlan.includes("8") ? 8 : (t.remedialActionPlan.includes("6") ? 6 : (t.remedialActionPlan.includes("4") ? 4 : (t.remedialActionPlan.includes("2") ? 2 : 0)))),
-      activityStatus: t.classroomActivity,
-      source: t.classroomActivity === "None" ? "Schooly" : "Google Classroom",
-      class: t.name.includes("Nair") ? "Grade X" : (t.name.includes("Kapoor") ? "Grade IX" : (t.name.includes("Mehta") ? "Grade VIII" : "Grade VII")),
-      subject: t.name.includes("Nair") ? "Science" : (t.name.includes("Kapoor") ? "SST" : (t.name.includes("Mehta") ? "Mathematics" : "Social Science")),
-      dateRange: "This Week",
-      lastActive: t.classroomActivity === "None" ? "Inactive" : "Today"
+    return (principalDashboard?.teacherPerformanceIndicators || []).map((t: any, idx: number) => ({
+      teacher: t.name || `Teacher ${idx + 1}`,
+      plannerStatus: t.syllabusPlanner === "Done" || t.syllabusPlanner === "Partial" || t.syllabusPlanner === "Missing"
+        ? t.syllabusPlanner
+        : "Missing",
+      assessmentStatus: t.assessmentsOnTrack === "Done" || t.assessmentsOnTrack === "Partial" || t.assessmentsOnTrack === "Missing"
+        ? t.assessmentsOnTrack
+        : "Missing",
+      resourceCount: Number(t.resourceCount ?? 0),
+      activityStatus: t.classroomActivity === "Active" || t.classroomActivity === "Low" || t.classroomActivity === "Inactive"
+        ? t.classroomActivity
+        : "Inactive",
+      source: t.source === "Google Drive" || t.source === "Google Classroom" || t.source === "Schooly"
+        ? t.source
+        : "Schooly",
+      class: t.class || "",
+      subject: t.subject || "",
+      dateRange: t.dateRange || "",
+      lastActive: t.lastActive || ""
     }));
   }, [principalDashboard]);
 
   const monitoringFormsData = React.useMemo<MonitoringFormFeed[]>(() => {
     return (principalDashboard?.monitoringFormsDataFeeds || []).map((f: any, idx: number) => {
-      const ids = ["weekly_planner", "notebook_monitoring", "assessment_status", "remedial_tracking", "event_reporting", "compliance_evidence"];
-      const types: ("good" | "warning" | "risk" | "info")[] = ["warning", "warning", "warning", "risk", "info", "warning"];
-      const owners = ["Ms. Sunita Mehta", "Mr. Rahul Kapoor", "Ms. Priya Nair", "Mr. Vijay Kumar", "Ms. Priya Nair", "School Admin"];
-      const sources = ["Google Drive", "Notebook Form submission", "Google Classroom / SIS", "Remedial active lists", "CBSE Activities Buffer", "Governance Root"];
-      const classes = ["Grade X - Section A", "Grade IX - Section B", "Grade XII - Section C", "Grade VII - Section A", "All Sections", "Governance Portfolio"];
-      const links = ["Ingestion Template Drive Link", "Notebook Tracking Spreadsheet", "Assessment Status Sheet", "Remedial Ledger", "Event Calendar", "Compliance Evidence Drive Folders"];
+      const submitted = Number(f.submitted ?? f.submittedCount ?? 0);
+      const total = Number(f.total ?? 0);
+      const overdue = Number(f.overdue ?? f.overdueCount ?? 0);
+      const percent = Number(f.percent ?? Number(f.statusLabel?.replace(/[%]/g, "") || 0));
+      const statusType: MonitoringFormFeed["statusType"] = overdue > 0
+        ? "risk"
+        : percent >= 80
+          ? "good"
+          : percent >= 50
+            ? "warning"
+            : "info";
 
       return {
-        id: ids[idx] || `feed-${idx}`,
-        name: f.form,
-        summary: `${f.submitted} of ${f.total} submitted · ${f.overdue} overdue`,
-        statusLabel: `${f.percent}%`,
-        statusType: types[idx] || "warning",
-        submittedCount: f.submitted,
-        pendingCount: f.total - f.submitted,
-        overdueCount: f.overdue,
-        responsibleOwner: owners[idx] || "School Staff",
-        linkedClassSection: classes[idx] || "All Sections",
-        lastSubmittedDate: "2026-06-01",
-        evidenceLinkLabel: links[idx] || "Drive Link",
-        source: sources[idx] || "Form submission"
+        id: f.id || `feed-${idx}`,
+        name: f.form || f.name || `Feed ${idx + 1}`,
+        summary: f.summary || `${submitted} of ${total} submitted${overdue ? ` | ${overdue} overdue` : ""}`,
+        statusLabel: f.statusLabel || `${percent}%`,
+        statusType,
+        submittedCount: submitted,
+        pendingCount: Math.max(0, total - submitted),
+        overdueCount: overdue,
+        responsibleOwner: f.responsibleOwner || "",
+        linkedClassSection: f.linkedClassSection || "",
+        lastSubmittedDate: f.lastSubmittedDate || "",
+        evidenceLinkLabel: f.evidenceLinkLabel || "",
+        source: f.source || ""
       };
     });
   }, [principalDashboard]);
@@ -579,12 +877,12 @@ export default function DashboardOverview({
         }
       },
       classroomMonitoring: {
-        totalClassrooms: principalDashboard?.classroomMonitoring?.totalClassrooms || 80,
-        postedThisWeek: principalDashboard?.classroomMonitoring?.postedThisWeek || 77,
-        zeroActivityThisWeek: principalDashboard?.classroomMonitoring?.zeroActivityThisWeek || 3,
-        assignmentsCreatedThisWeek: principalDashboard?.classroomMonitoring?.assignmentsCreatedThisWeek || 234,
-        averageSubmissionRate: principalDashboard?.classroomMonitoring?.avgSubmissionRate || 88,
-        meetSessionsHeldThisWeek: principalDashboard?.classroomMonitoring?.meetSessionsHeld || 12
+        totalClassrooms: principalDashboard?.classroomMonitoring?.totalClassrooms || 0,
+        postedThisWeek: principalDashboard?.classroomMonitoring?.postedThisWeek || 0,
+        zeroActivityThisWeek: principalDashboard?.classroomMonitoring?.zeroActivityThisWeek || 0,
+        assignmentsCreatedThisWeek: principalDashboard?.classroomMonitoring?.assignmentsCreatedThisWeek || 0,
+        averageSubmissionRate: principalDashboard?.classroomMonitoring?.averageSubmissionRate || principalDashboard?.classroomMonitoring?.avgSubmissionRate || 0,
+        meetSessionsHeldThisWeek: principalDashboard?.classroomMonitoring?.meetSessionsHeldThisWeek || principalDashboard?.classroomMonitoring?.meetSessionsHeld || 0
       },
       compliance: {
         items: (principalDashboard?.compliance?.categories || []).map((cat: any) => {
@@ -624,68 +922,6 @@ export default function DashboardOverview({
     };
   }, [principalDashboard]);
 
-  // --- Teacher-specific states (SDOS-25) ---
-  const [teacherDashboard, setTeacherDashboard] = useState<TeacherDashboardMockSchema>(() => {
-    try {
-      const cached = localStorage.getItem("schooly_mock_teacher-dashboard");
-      if (cached) {
-        return JSON.parse(cached);
-      }
-    } catch (e) {
-      console.warn("Failed to read schooly_mock_teacher-dashboard from localStorage", e);
-    }
-    return teacherDashboardMock;
-  });
-
-  useEffect(() => {
-    const fetchTeacherDashboardData = async () => {
-      try {
-        const res = await fetch("/api/mock/teacher-dashboard");
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.assignedClasses) {
-            setTeacherDashboard(data);
-            localStorage.setItem("schooly_mock_teacher-dashboard", JSON.stringify(data));
-          }
-        }
-      } catch (err) {
-        console.error("Error loading dynamic teacher dashboard mock data:", err);
-      }
-    };
-    fetchTeacherDashboardData();
-  }, []);
-
-  // --- Coordinator-specific overview states ---
-  const [coordinatorDashboard, setCoordinatorDashboard] = useState<CoordinatorDashboardMockSchema>(() => {
-    try {
-      const cached = localStorage.getItem("schooly_mock_coordinator-dashboard");
-      if (cached) {
-        return JSON.parse(cached);
-      }
-    } catch (e) {
-      console.warn("Failed to read schooly_mock_coordinator-dashboard from localStorage", e);
-    }
-    return coordinatorDashboardMock;
-  });
-
-  useEffect(() => {
-    const fetchCoordinatorDashboardData = async () => {
-      try {
-        const res = await fetch("/api/mock/coordinator-dashboard");
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.plannerStatusMatrix) {
-            setCoordinatorDashboard(data);
-            localStorage.setItem("schooly_mock_coordinator-dashboard", JSON.stringify(data));
-          }
-        }
-      } catch (err) {
-        console.error("Error loading dynamic coordinator dashboard mock data:", err);
-      }
-    };
-    fetchCoordinatorDashboardData();
-  }, []);
-
   const [activeTeacherNotificationOpen, setActiveTeacherNotificationOpen] = useState(false);
   const [showPlannerForm, setShowPlannerForm] = useState(false);
   const [showLeaveForm, setShowLeaveForm] = useState(false);
@@ -693,14 +929,8 @@ export default function DashboardOverview({
   const [showResourceUploadForm, setShowResourceUploadForm] = useState(false);
   
   // Forms & Interactive workflows state
-  const [selectedGradingAssignment, setSelectedGradingAssignment] = useState<string>("Class 8A (Ch 6 Triangles Assignment)");
-  const [gradingScores, setGradingScores] = useState<Record<string, number>>({
-    "Aarav Mehta": 22,
-    "Ananya Sharma": 24,
-    "Dev Sharma": 19,
-    "Meher Gupta": 23,
-    "Priya Iyer": 18
-  });
+  const [selectedGradingAssignment, setSelectedGradingAssignment] = useState<string>("");
+  const [gradingScores, setGradingScores] = useState<Record<string, number>>({});
   const [gradingSuccessMsg, setGradingSuccessMsg] = useState("");
   const [leaveType, setLeaveType] = useState("Casual Leave");
   const [leaveStart, setLeaveStart] = useState("2026-06-05");
@@ -708,37 +938,25 @@ export default function DashboardOverview({
   const [leaveReason, setLeaveReason] = useState("");
   const [leaveSuccessMsg, setLeaveSuccessMsg] = useState("");
   
-  const [plannerClass, setPlannerClass] = useState("Class 8A");
-  const [plannerWeek, setPlannerWeek] = useState("Week 22");
-  const [plannerSyllabusCovered, setPlannerSyllabusCovered] = useState("Triangles similarity theorems proof and exercises.");
+  const [plannerClass, setPlannerClass] = useState("");
+  const [plannerWeek, setPlannerWeek] = useState("");
+  const [plannerSyllabusCovered, setPlannerSyllabusCovered] = useState("");
   const [plannerSuccessMsg, setPlannerSuccessMsg] = useState("");
 
   const [resourceTitle, setResourceTitle] = useState("");
-  const [resourceClass, setResourceClass] = useState("Class 8A");
+  const [resourceClass, setResourceClass] = useState("");
   const [resourceSuccessMsg, setResourceSuccessMsg] = useState("");
-  const [resourceUploadCount, setResourceUploadCount] = useState(8);
-  const [plannerStatusValue, setPlannerStatusValue] = useState<"Posted" | "Missing" | "Partial">("Posted");
-  const [teachingTimetable, setTeachingTimetable] = useState([
-    { period: 1, classSubject: "Class 8A — Mathematics", topic: "Ch 6 Triangles", room: "Room B-201", status: "Done", time: "8:00–8:45" },
-    { period: 2, classSubject: "Class 9A — Mathematics", topic: "Ch 4 Quadratic Eq", room: "Room B-204", status: "Done", time: "8:50–9:35" },
-    { period: 3, classSubject: "Class 8B — Mathematics", topic: "Ch 6 Triangles", room: "Room B-203", status: "Done", time: "9:40–10:25" },
-    { period: 4, classSubject: "Class 9B — Mathematics", topic: "Ch 4 Quadratic Eq", room: "Room B-205", status: "Now", time: "10:30–11:15", meetLink: "https://meet.google.com/abc-defg-hij" },
-    { period: 5, classSubject: "Free period", topic: "Available for doubt session", room: "Staff Room", status: "Free Period", time: "11:20–12:05" },
-    { period: 6, classSubject: "Class 8C — Mathematics", topic: "Ch 6 Triangles", room: "Room B-203", status: "Next", time: "1:00–1:45" }
-  ]);
-  const [teachingTasks, setTeachingTasks] = useState([
-    { id: "task-1", type: "ungraded", title: "47 ungraded submissions", detail: "Class 8A: 12 · 8B: 9 · 8C: 11 · 9A: 8 · 9B: 7", status: "Overdue", actionLabel: "Grade" },
-    { id: "task-2", type: "lesson_plan", title: "2 lesson plans not uploaded", detail: "Class 8C Week 22 · Class 9B Week 22", status: "Due today", actionLabel: "Due today" },
-    { id: "task-3", type: "exam_paper", title: "UT4 question paper due Friday", detail: "Ch 5–7 · 25 marks · Submit to Exam Cell", status: "Due soon", actionLabel: "Fri 30 May" },
-    { id: "task-4", type: "planner_posted", title: "Weekly planner posted — all 6 classes", detail: "Posted Monday 7:45 AM", status: "Completed", actionLabel: "Completed" }
-  ]);
+  const [resourceUploadCount, setResourceUploadCount] = useState(0);
+  const [plannerStatusValue, setPlannerStatusValue] = useState<"Posted" | "Missing" | "Partial">("Missing");
+  const [teachingTimetable, setTeachingTimetable] = useState<any[]>([]);
+  const [teachingTasks, setTeachingTasks] = useState<any[]>([]);
 
   const [activeCallSim, setActiveCallSim] = useState(false);
 
   // HOD Dashboard state hooks
   const [hodDepartment, setHodDepartment] = useState<string>("Mathematics");
   const [hodAcademicYear, setHodAcademicYear] = useState<string>("2026-27");
-  const [hodClassRange, setHodClassRange] = useState<string>("Class 6–12");
+  const [hodClassRange, setHodClassRange] = useState<string>("Class 6-12");
   const [hodPeriod, setHodPeriod] = useState<string>("UT3");
   const [hodDate, setHodDate] = useState<string>("Mon 25 May 2026");
   const [showHODGapDrilldown, setShowHODGapDrilldown] = useState<boolean>(false);
@@ -750,375 +968,177 @@ export default function DashboardOverview({
 
   // Interactive stats and list states for newly introduced dashboards (School Admin, Manager, HR, Exams, Parent, Student)
   const [studentCheckedTasks, setStudentCheckedTasks] = useState<string[]>([]);
-  const [parentAdvisoryTickets, setParentAdvisoryTickets] = useState<any[]>([
-    { id: "t-1", subject: "Grade 8 AP Preparatory Classes Coordination", status: "Resolved", date: "May 10" },
-    { id: "t-2", subject: "School Bus Transport Route 4 GPS Sync", status: "Resolved", date: "May 15" },
-    { id: "t-3", subject: "CBSE Mathematics UT4 Syllabus Alignment Clarification", status: "Open", date: "May 24" }
-  ]);
+  const [parentAdvisoryTickets, setParentAdvisoryTickets] = useState<any[]>([]);
   const [parentNewTicketSubject, setParentNewTicketSubject] = useState<string>("");
   const [activeAdminSyncCount, setActiveAdminSyncCount] = useState<number>(0);
-  const [hrLeaveReview, setHrLeaveReview] = useState<any[]>([
-    { id: "lv-1", name: "Ms. Sunita Mehta", type: "Sick Leave", date: "Wed 27 May", status: "Review Required" },
-    { id: "lv-2", name: "Mr. Rahul Kapoor", type: "Casual Leave", date: "Fri 29 May", status: "Approved" }
-  ]);
-  const [studentTasksList, setStudentTasksList] = useState<any[]>([
-    { id: "s-task-1", title: "AP Chemistry assignment 6: Molecular bonding quiz", deadline: "Overdue (Due Monday)", classSec: "Chemistry AP", completed: false },
-    { id: "s-task-2", title: "Algebra Chapter 5 Workbook equations 1-20", deadline: "Due Friday", classSec: "Mathematics", completed: false },
-    { id: "s-task-3", title: "SST Project submission CBSE Syllabus Stage 1", deadline: "Due in 3 days", classSec: "History / Civics", completed: true }
-  ]);
+  const [hrLeaveReview, setHrLeaveReview] = useState<any[]>([]);
+  const [studentTasksList, setStudentTasksList] = useState<StudentDashboardTask[]>([]);
 
   // Get logged-in teacher details dynamically (SDOS-25)
-  const getActiveTeacherProfile = () => {
-    const email = (currentUser || "").toLowerCase().trim();
-    if (email === "s.henderson@school.org" || email.includes("priya")) {
-      return {
-        name: "Ms. Priya Nair",
-        initials: "PN",
-        subject: "Mathematics",
-        classes: "Class 8A · 8B · 8C · 8D · 9A · 9B",
-        classTeacher: "8A",
-        session: "2026–27"
-      };
-    }
-    if (email === "m.vance@school.org" || email.includes("rajesh")) {
-      return {
-        name: "Dr. Rajesh Kumar",
-        initials: "RK",
-        subject: "Science",
-        classes: "Class 9A · 9B · 9C · Class 10A · 10B",
-        classTeacher: "10A",
-        session: "2026–27"
-      };
-    }
-    if (email === "e.montgomery@school.org" || email.includes("meenakshi")) {
-      return {
-        name: "Ms. Meenakshi Sharma",
-        initials: "MS",
-        subject: "English",
-        classes: "Class 8A · 8B · Class 9A · 9B · 9C",
-        classTeacher: "9B",
-        session: "2026–27"
-      };
-    }
-    // Fallback default: Ms. Priya Nair
-    return {
-      name: "Ms. Priya Nair",
-      initials: "PN",
-      subject: "Mathematics",
-      classes: "Class 8A · 8B · 8C · 8D · 9A · 9B",
-      classTeacher: "8A",
-      session: "2026–27"
-    };
-  };
+  const getActiveTeacherProfile = () => ({
+    name: "",
+    initials: "TR",
+    subject: "Teacher",
+    classes: "No live teacher allocation rows found",
+    classTeacher: "",
+    session: "Live data"
+  });
 
   const teacherProfile = getActiveTeacherProfile();
 
-  // Dynamically synchronize teacher states (timetable, tasks, and count summary trackers) with current active persona values
   useEffect(() => {
-    if (isTeacherRole()) {
-      const email = (currentUser || "").toLowerCase().trim();
-      const match = teachersIndianExtendedMock.teachers.find(
-        (t) => t.email.toLowerCase().trim() === email
-      );
-      if (match) {
-        if (match.timetable) {
-          setTeachingTimetable(match.timetable);
-        }
-        if (match.pendingTasks) {
-          setTeachingTasks(match.pendingTasks);
-        }
-        if (match.resourceSummary) {
-          setResourceUploadCount(match.resourceSummary.uploadedThisWeek);
-        }
-      }
-    }
+    setTeachingTimetable([]);
+    setTeachingTasks([]);
+    setResourceUploadCount(0);
   }, [currentUser, currentRole]);
 
-  const getDisplayName = (email: string, roleName: string) => {
-    const trimmedEmail = (email || "").toLowerCase().trim();
-    if (trimmedEmail === "torres.admin@school.org" || roleName === "Principal") {
-      return "Gabriel Torres";
-    }
-    if (trimmedEmail === "coord.planner@school.org" || roleName === "School Coordinator" || roleName === "Coordinator") {
-      return "Marcus Vance";
-    }
-    if (trimmedEmail === "mathematics.department@school.org" || roleName === "HOD") {
-      return "Eleanor Montgomery";
-    }
-    if (roleName === "Teacher" || trimmedEmail === "s.henderson@school.org" || trimmedEmail === "m.vance@school.org" || trimmedEmail === "e.montgomery@school.org") {
-      const tProfile = getActiveTeacherProfile();
-      if (tProfile?.name) {
-        return tProfile.name.replace(/^(Dr\.|Mr\.|Ms\.|Mrs\.)\s+/i, "");
-      }
-    }
-    if (!email) return "User";
-    const part = email.split('@')[0];
-    const words = part.split(/[._-]/);
-    return words.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  useEffect(() => {
+    setStudentTasksList(studentDashboard.tasks || []);
+    setStudentCheckedTasks((studentDashboard.tasks || []).filter((task) => task.completed).map((task) => task.id));
+  }, [studentDashboard.tasks]);
+
+  const formatAcademicSessionLabel = (value: string) => {
+    const trimmed = String(value || "").trim();
+    if (!trimmed) return "Session not configured";
+    const normalized = trimmed.replace(/(\d)\s*-\s*(\d)/g, "$1\u2013$2");
+    const prefixed = /^session\b/i.test(normalized) ? normalized : `Session ${normalized}`;
+    return prefixed.replace(/(\d{4})\u2013(\d{2,4})/, (_match, start, end) => `${start}\u2013${String(end).slice(-2)}`);
   };
+
+  const getHeroTitle = () => {
+    if (isPrincipalRole()) return "Principal\u2019s Dashboard";
+    if (isTeacherRole()) return "Teacher\u2019s Dashboard";
+    if (isCoordinatorRole()) return "Coordinator\u2019s Dashboard";
+    if (isHodRole()) return "HOD Dashboard";
+    if (isManagerRole()) return "Manager Dashboard";
+    if (isExamsRole()) return "Exams Dashboard";
+    if (isParentRole()) return "Parent Dashboard";
+    if (isStudentRole()) return "Student Dashboard";
+    if (isAdminRole()) return "School Admin Dashboard";
+    return `${currentRole || "User"} Dashboard`;
+  };
+
+  const getHeroSessionLabel = () => formatAcademicSessionLabel(activeAcademicYearLabel || dashboardSourceState.activeAcademicYearLabel || "");
+
+  const getHeroAlertCount = () => {
+    if (isPrincipalRole()) return (principalDashboard?.alertsRequiringAttention || []).length;
+    if (isTeacherRole()) return (teacherDashboard?.pendingTasks || []).length;
+    if (isCoordinatorRole()) return (coordinatorDashboard?.remedialTracking || []).length;
+    if (isHodRole()) return (hodDashboard?.complianceAlerts || []).length;
+    if (isManagerRole()) {
+      const checklist = managerDashboard?.complianceChecklist || [];
+      return checklist.filter((item) => /critical|high|warning/i.test(item.severity) || !/resolved|approved|complete|done/i.test(item.statusLabel)).length || checklist.length;
+    }
+    if (isExamsRole()) {
+      const items = examsDashboard?.verificationItems || [];
+      return items.filter((item) => !/verified|approved|locked|final|done|complete/i.test(item.statusLabel)).length || items.length;
+    }
+    if (isParentRole()) {
+      const tickets = parentDashboard?.advisoryTickets || [];
+      return tickets.filter((ticket) => !/resolved|closed|done|complete/i.test(ticket.statusLabel) && !/resolved/i.test(ticket.actionLabel)).length || tickets.length;
+    }
+    if (isStudentRole()) return (studentDashboard?.tasks || []).filter((task) => !task.completed).length;
+    if (isAdminRole()) {
+      const summary = dashboardSourceState.registryHealthSummary || EMPTY_REGISTRY_HEALTH_SUMMARY;
+      return summary.warningRegistries + summary.criticalRegistries;
+    }
+    return 0;
+  };
+
+  const DASHBOARD_ROW_LIMIT = 5;
 
   const renderWelcomeHeader = () => {
     let accentBgColor = "bg-blue-600";
     let avatarBg = "bg-blue-50 border-blue-100 text-blue-600";
     let initials = "U";
-    let roleLabel = currentRole;
-    let sessionLabel = "Session 2026-27";
-    let metadataSpans: React.ReactNode = null;
-    let dateValue = "Mon 25 May 2026";
 
     if (isHodRole()) {
       accentBgColor = "bg-blue-600";
       avatarBg = "bg-blue-50 border-blue-250 text-blue-700";
-      initials = "HOD";
-      roleLabel = `${hodDepartment} Head of Department`;
-      sessionLabel = `${hodAcademicYear} Academic Year`;
-      metadataSpans = (
-        <>
-          <span>Subject Area: {hodDepartment}</span>
-          <span>·</span>
-          <span>{hodClassRange}</span>
-          <span>·</span>
-          <span>8 teachers active</span>
-        </>
-      );
-      dateValue = hodDate || "Mon 25 May 2026";
+      initials = hodDashboard?.hodProfile?.initials || "HOD";
     } else if (isTeacherRole()) {
       accentBgColor = "bg-indigo-650";
       avatarBg = "bg-indigo-50 border-indigo-200 text-indigo-700";
       initials = teacherProfile.initials || "TR";
-      roleLabel = `${teacherProfile.subject} Instructor`;
-      sessionLabel = `Session ${teacherProfile.session || "2026–27"}`;
-      metadataSpans = (
-        <>
-          <span>Teaching: {teacherProfile.classes}</span>
-          {teacherProfile.classTeacher && (
-            <>
-              <span>·</span>
-              <span className="px-1.5 py-0.5 rounded bg-amber-150 text-amber-850 text-[10px] font-bold uppercase tracking-wider">
-                Class Teacher: {teacherProfile.classTeacher}
-              </span>
-            </>
-          )}
-        </>
-      );
     } else if (isCoordinatorRole()) {
       accentBgColor = "bg-teal-650";
       avatarBg = "bg-teal-50 border-teal-200 text-teal-850";
       initials = coordinatorDashboard?.coordinatorProfile?.initials || "MC";
-      roleLabel = "Academic Coordinator";
-      sessionLabel = "Session 2026-27";
-      metadataSpans = (
-        <>
-          <span className="font-extrabold">{coordinatorDashboard?.coordinatorProfile?.title || "Middle School (Class 6–8)"}</span>
-          <span>·</span>
-          <span>{coordinatorDashboard?.coordinatorProfile?.subtitle || "18 classrooms · 54 sections"}</span>
-        </>
-      );
-      dateValue = coordinatorDashboard?.coordinatorProfile?.dateValue || "Mon 25 May 2026";
     } else if (isExamsRole()) {
       accentBgColor = "bg-violet-650";
       avatarBg = "bg-violet-50 border-violet-200 text-violet-850";
-      initials = "EC";
-      roleLabel = "Examination Chair";
-      sessionLabel = "Session 2026-27";
-      metadataSpans = (
-        <>
-          <span className="font-extrabold font-sans">CBSE & AP Boards Cell</span>
-          <span>·</span>
-          <span>Grade Audit Authority</span>
-        </>
-      );
-      dateValue = "Mon 25 May 2026";
+      initials = examsDashboard?.header?.initials || "EC";
     } else if (isPrincipalRole()) {
       accentBgColor = "bg-amber-550";
       avatarBg = "bg-amber-50 border-amber-200 text-amber-700";
       initials = "PR";
-      roleLabel = "Principal";
-      sessionLabel = "Session 2026-27";
-      metadataSpans = (
-        <div className="flex items-center gap-2 flex-wrap">
-          <span>Institution: CBSE Affiliated Sr. Sec. School</span>
-          <span>·</span>
-          <span>Governance monitors synced</span>
-          <span>·</span>
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-lg select-none">
-            <RefreshCw size={11} className={`text-slate-400 ${syncingSis ? "animate-spin" : ""}`} />
-            <span className="text-[10px] text-slate-505 font-mono">PowerSchool SIS</span>
-            {syncResult?.date ? (
-              <span className="text-[9.5px] text-emerald-600 font-bold font-mono">Synced {syncResult.date}</span>
-            ) : (
-              <span className="text-[9.5px] text-slate-400 font-mono font-bold">Today</span>
-            )}
-            <button
-              type="button"
-              onClick={handleSisSync}
-              disabled={syncingSis}
-              className="text-[9.5px] text-amber-600 hover:text-amber-700 font-bold hover:underline bg-transparent border-none cursor-pointer p-0 ml-1"
-            >
-              [Sync Now]
-            </button>
-          </div>
-        </div>
-      );
     } else if (isAdminRole()) {
       accentBgColor = "bg-red-550";
       avatarBg = "bg-red-50 border-red-200 text-red-700";
       initials = "SA";
-      roleLabel = "School Admin";
-      sessionLabel = "Session 2026-27";
-      metadataSpans = (
-        <div className="flex items-center gap-2 flex-wrap text-xs select-none">
-          <span>Enterprise System Operator</span>
-          <span>·</span>
-          <span>API Gateways Synced</span>
-          <span>·</span>
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-lg">
-            <RefreshCw size={11} className={`text-slate-400 ${syncingSis ? "animate-spin" : ""}`} />
-            <span className="text-[10px] text-slate-505 font-mono font-bold">System Config</span>
-            <span className="text-[9.5px] text-emerald-600 font-bold font-mono">ONLINE</span>
-          </div>
-        </div>
-      );
     } else if (isManagerRole()) {
       accentBgColor = "bg-blue-650";
       avatarBg = "bg-blue-50 border-blue-200 text-blue-700";
-      initials = "MG";
-      roleLabel = "School Manager";
-      sessionLabel = "Session 2026-27";
-      metadataSpans = (
-        <>
-          <span className="font-extrabold font-sans">Operational Oversight</span>
-          <span>·</span>
-          <span>Performance & Budgetary Council</span>
-        </>
-      );
+      initials = managerDashboard?.profile?.initials || "MG";
     } else if (isHrRole()) {
       accentBgColor = "bg-rose-550";
       avatarBg = "bg-rose-50 border-rose-200 text-rose-700";
       initials = "HR";
-      roleLabel = "HR Manager";
-      sessionLabel = "Session 2026-27";
-      metadataSpans = (
-        <>
-          <span className="font-extrabold font-sans">Workforce Coordinating</span>
-          <span>·</span>
-          <span>54 registered instructors</span>
-        </>
-      );
     } else if (isParentRole()) {
       accentBgColor = "bg-emerald-550";
       avatarBg = "bg-emerald-50 border-emerald-200 text-emerald-700";
-      initials = "PT";
-      roleLabel = "Parent Representative";
-      sessionLabel = "Session 2026-27";
-      metadataSpans = (
-        <>
-          <span className="font-extrabold font-sans">Parent Advisory Committee</span>
-          <span>·</span>
-          <span>Liaison Officer</span>
-        </>
-      );
+      initials = parentDashboard?.header?.initials || "PT";
     } else if (isStudentRole()) {
       accentBgColor = "bg-cyan-550";
       avatarBg = "bg-cyan-50 border-cyan-200 text-cyan-800";
-      initials = "ST";
-      roleLabel = "Student Portal";
-      sessionLabel = "Session 2026-27";
-      metadataSpans = (
-        <>
-          <span className="font-extrabold font-sans">Class VIII-A Student</span>
-          <span>·</span>
-          <span>David Chen</span>
-        </>
-      );
+      initials = studentDashboard?.header?.initials || "ST";
     } else {
       accentBgColor = "bg-slate-400";
       avatarBg = "bg-slate-50 border-slate-200 text-slate-600";
       initials = currentRole ? currentRole.split(' ').map(w => w.charAt(0)).join('').toUpperCase().slice(0, 2) : "UR";
-      roleLabel = currentRole || "User Profile";
-      sessionLabel = "Session 2026-27";
-      metadataSpans = (
-        <>
-          <span>General Access Portal</span>
-        </>
-      );
     }
 
-    const displayName = getDisplayName(currentUser, currentRole);
+    const heroTitle = getHeroTitle();
+    const heroSessionLabel = getHeroSessionLabel();
+    const heroAlertCount = getHeroAlertCount();
+    const hasAcademicYearOptions = academicYearOptions.length > 0;
 
     return (
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm relative overflow-hidden" id="dashboard-hero">
+      <div className="bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-sm relative overflow-hidden" id="dashboard-hero">
         <div className={`absolute top-0 left-0 w-2 h-full ${accentBgColor} rounded-l-2xl`}></div>
-        <div className="absolute top-0 right-0 p-8 text-slate-100 opacity-20 pointer-events-none">
-          <GraduationCap size={160} />
-        </div>
-        
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10 animate-fade-in">
-          <div className="flex items-center gap-4 min-w-0">
-            <div className={`w-14 h-14 rounded-full border-2 ${avatarBg} flex items-center justify-center font-bold text-lg shadow-sm font-sans shrink-0 select-none`}>
+        <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between min-w-0">
+          <div className={`w-12 h-12 rounded-full border-2 ${avatarBg} flex items-center justify-center font-bold text-base shadow-sm font-sans shrink-0 select-none`}>
               {initials}
             </div>
-            <div className="space-y-1.5 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold font-sans uppercase tracking-wider bg-slate-50 border border-slate-200 text-slate-755 shadow-2xs">
-                  {roleLabel}
-                </span>
-                <span className="text-[11px] text-slate-400">•</span>
-                <span className="text-xs font-mono text-slate-500 font-semibold">{sessionLabel}</span>
-              </div>
-              
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900 font-sans">
-                Welcome back, {displayName}
-              </h1>
-              
-              <div className="text-xs text-slate-505 font-mono flex items-center gap-2 flex-wrap">
-                {metadataSpans}
-              </div>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between flex-1 min-w-0">
+                        <h1 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-lg sm:text-xl font-black tracking-tight text-slate-900 font-sans leading-tight">
+              <span className="truncate">{heroTitle}</span>
+              <span className="text-slate-300" aria-hidden="true">·</span>
+              {hasAcademicYearOptions ? (
+                <label className="relative inline-flex items-center">
+                  <span className="sr-only">Academic year</span>
+                  <select
+                    value={activeAcademicYearLabel || academicYearOptions[0] || ""}
+                    onChange={(event) => onAcademicYearChange?.(event.target.value)}
+                    className="appearance-none rounded-full border border-slate-200 bg-slate-50 pl-3 pr-8 py-1 text-sm sm:text-base font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                  >
+                    {academicYearOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {formatAcademicSessionLabel(option)}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown size={12} className="pointer-events-none absolute right-2.5 text-slate-400" />
+                </label>
+              ) : (
+                <span className="text-sm sm:text-base font-semibold text-slate-600">{heroSessionLabel}</span>
+              )}
+            </h1>
+            <div className="flex justify-start lg:justify-end">
+              <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wider border ${heroAlertCount > 0 ? "border-rose-200 bg-rose-50 text-rose-700" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
+                Alerts ({heroAlertCount})
+              </span>
             </div>
-          </div>
-
-          <div className="flex flex-col items-end gap-1.5 self-start lg:self-center pr-1" id="header-controls-stack">
-            <button
-              type="button"
-              onClick={() => onToggleTab("ai-assistant")}
-              className="flex items-center gap-3 bg-slate-100 border border-slate-200 hover:bg-slate-150 active:bg-slate-200 text-slate-800 p-3 rounded-xl select-none shadow-2xs transition-colors duration-150 cursor-pointer w-44 h-[56px] justify-center group"
-              id="header-copilot-btn"
-            >
-              <Sparkles size={14} className="text-amber-600 shrink-0 fill-amber-500/25 animate-pulse" />
-              <div className="text-left leading-none font-sans flex flex-col shrink-0">
-                <span className="text-[9px] uppercase font-mono font-semibold text-slate-500 block tracking-wider leading-none">Co-Pilot</span>
-                <span className="text-xs font-bold font-sans flex items-center gap-0.5 mt-1 text-slate-800">
-                  Configure <ArrowUpRight size={11} className="text-slate-550 shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                </span>
-              </div>
-            </button>
-
-            {isWorkspaceMock && (
-              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200/75 p-2.5 rounded-xl select-none shadow-3xs w-44 justify-start text-left animate-fade-in" id="header-fallback-alert">
-                <AlertTriangle size={13} className="text-amber-600 shrink-0 animate-pulse" />
-                <div className="flex flex-col min-w-0 flex-1 leading-none">
-                  <span className="text-[8px] uppercase font-mono font-black text-amber-800 tracking-wider">Simulated Workspace</span>
-                  <span className="text-[9.5px] font-sans font-extrabold text-amber-900 mt-0.5 truncate">Fallback Data Active</span>
-                  
-                  {/* Connect Workspace setup instructions only for Principal & School Admin */}
-                  {(currentRole === "Principal" || currentRole === "School Admin" || activeRoles.includes("Principal") || activeRoles.includes("School Admin")) ? (
-                    <button
-                      type="button"
-                      onClick={onConfigureWorkspace}
-                      className="text-[9px] font-black text-blue-600 hover:text-blue-800 hover:underline bg-transparent border-none cursor-pointer p-0 text-left mt-1 inline-flex items-center gap-0.5 animate-pulse"
-                      title="Setup live Google Workspace synchronizer"
-                    >
-                      <span>Connect Setup</span>
-                      <ArrowUpRight size={8} className="shrink-0" />
-                    </button>
-                  ) : (
-                    <span className="text-[8px] font-semibold text-amber-600/75 tracking-tight mt-1">
-                      Read-Only Mode
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -1126,74 +1146,10 @@ export default function DashboardOverview({
   };
 
   useEffect(() => {
-    const email = (currentUser || "").toLowerCase().trim();
-    if (email === "s.henderson@school.org") {
-      setTeachingTimetable([
-        { period: 1, classSubject: "Grade 8 Science", topic: "Ch 5 Science Cell Division", room: "Lab A-102", status: "Done", time: "8:00–8:45" },
-        { period: 2, classSubject: "AP Chemistry", topic: "Ch 8 Organic Esterification", room: "Lab C-301", status: "Done", time: "8:50–9:35" },
-        { period: 3, classSubject: "Grade 8 Science", topic: "Ch 5 Science Cell Division", room: "Lab A-102", status: "Done", time: "9:40–10:25" },
-        { period: 4, classSubject: "AP Biology", topic: "Ch 12 Photosynthesis cycle", room: "Room A-202", status: "Now", time: "10:30–11:15", meetLink: "https://meet.google.com/sci-hend-bio" },
-        { period: 5, classSubject: "Free period", topic: "Prep time for lab materials", room: "Prep Lab", status: "Free Period", time: "11:20–12:05" },
-        { period: 6, classSubject: "AP Chemistry", topic: "Organic Esterification Practical", room: "Lab C-301", status: "Next", time: "1:00–1:45" }
-      ]);
-      setTeachingTasks([
-        { id: "task-1", type: "ungraded", title: "32 ungraded lab reports", detail: "AP Chemistry: 15 · AP Biology: 17", status: "Overdue", actionLabel: "Grade" },
-        { id: "task-2", type: "lesson_plan", title: "1 lesson plan missing", detail: "AP Chemistry Week 22", status: "Due today", actionLabel: "Due today" },
-        { id: "task-3", type: "exam_paper", title: "AP Chemistry mid-term draft review", detail: "Submit draft to Academic Dean", status: "Due soon", actionLabel: "Fri 30 May" },
-        { id: "task-4", type: "planner_posted", title: "Weekly planner posted — all chemistry blocks", detail: "Posted Monday 8:00 AM", status: "Completed", actionLabel: "Completed" }
-      ]);
-      setResourceUploadCount(5);
-    } else if (email === "m.vance@school.org") {
-      setTeachingTimetable([
-        { period: 1, classSubject: "Algebra I", topic: "Linear equations graphing", room: "Room B-105", status: "Done", time: "8:00–8:45" },
-        { period: 2, classSubject: "AP Calculus", topic: "Integration fundamentals", room: "Room B-110", status: "Done", time: "8:50–9:35" },
-        { period: 3, classSubject: "Algebra I", topic: "Slope intercept formula", room: "Room B-105", status: "Done", time: "9:40–10:25" },
-        { period: 4, classSubject: "AP Calculus", topic: "U-Substitution methods", room: "Room B-110", status: "Now", time: "10:30–11:15", meetLink: "https://meet.google.com/mth-vance-calc" },
-        { period: 5, classSubject: "Free period", topic: "Standard doubt hours", room: "Doubt Desk", status: "Free Period", time: "11:20–12:05" },
-        { period: 6, classSubject: "Algebra I", topic: "Practice Worksheet 8", room: "Room B-105", status: "Next", time: "1:00–1:45" }
-      ]);
-      setTeachingTasks([
-        { id: "task-1", type: "ungraded", title: "25 ungraded homework sheets", detail: "Algebra I: 18 · AP Calculus: 7", status: "Overdue", actionLabel: "Grade" },
-        { id: "task-2", type: "lesson_plan", title: "No missing lesson plans", detail: "All uploaded to drive folder", status: "Completed", actionLabel: "Completed" },
-        { id: "task-3", type: "exam_paper", title: "Calculus diagnostic blueprint", detail: "Submit to Examination chair", status: "Due soon", actionLabel: "Fri 30 May" },
-        { id: "task-4", type: "planner_posted", title: "Weekly planner posted", detail: "Posted Monday 9:00 AM", status: "Completed", actionLabel: "Completed" }
-      ]);
-      setResourceUploadCount(12);
-    } else if (email === "e.montgomery@school.org") {
-      setTeachingTimetable([
-        { period: 1, classSubject: "AP English Literature", topic: "Shakespeare Hamlet Act II", room: "Room C-101", status: "Done", time: "8:00–8:45" },
-        { period: 2, classSubject: "Creative Writing", topic: "Short story outline workshop", room: "Room C-102", status: "Done", time: "8:50–9:35" },
-        { period: 3, classSubject: "AP English Literature", topic: "Hamlet Act II analysis", room: "Room C-101", status: "Done", time: "9:40–10:25" },
-        { period: 4, classSubject: "Creative Writing", topic: "Character building prompts", room: "Room C-102", status: "Now", time: "10:30–11:15", meetLink: "https://meet.google.com/eng-mont-write" },
-        { period: 5, classSubject: "Free period", topic: "Review student creative diaries", room: "Reading Deck", status: "Free Period", time: "11:20–12:05" },
-        { period: 6, classSubject: "AP English Literature", topic: "Hamlet Soliloquy Recitation", room: "Room C-101", status: "Next", time: "1:00–1:45" }
-      ]);
-      setTeachingTasks([
-        { id: "task-1", type: "ungraded", title: "38 ungraded essays", detail: "Hamlet Character Analysis essays", status: "Overdue", actionLabel: "Grade" },
-        { id: "task-2", type: "lesson_plan", title: "1 lesson plan not uploaded", detail: "Creative Writing Week 22", status: "Due today", actionLabel: "Due today" },
-        { id: "task-3", type: "exam_paper", title: "Term 1 Drama exam paper review", detail: "Due this Friday", status: "Due soon", actionLabel: "Fri 30 May" },
-        { id: "task-4", type: "planner_posted", title: "Weekly planner posted", detail: "Posted Monday 8:15 AM", status: "Completed", actionLabel: "Completed" }
-      ]);
-      setResourceUploadCount(6);
-    } else {
-      // Default / Priya Nair
-      setTeachingTimetable([
-        { period: 1, classSubject: "Class 8A — Mathematics", topic: "Ch 6 Triangles", room: "Room B-201", status: "Done", time: "8:00–8:45" },
-        { period: 2, classSubject: "Class 9A — Mathematics", topic: "Ch 4 Quadratic Eq", room: "Room B-204", status: "Done", time: "8:50–9:35" },
-        { period: 3, classSubject: "Class 8B — Mathematics", topic: "Ch 6 Triangles", room: "Room B-203", status: "Done", time: "9:40–10:25" },
-        { period: 4, classSubject: "Class 9B — Mathematics", topic: "Ch 4 Quadratic Eq", room: "Room B-205", status: "Now", time: "10:30–11:15", meetLink: "https://meet.google.com/abc-defg-hij" },
-        { period: 5, classSubject: "Free period", topic: "Available for doubt session", room: "Staff Room", status: "Free Period", time: "11:20–12:05" },
-        { period: 6, classSubject: "Class 8C — Mathematics", topic: "Ch 6 Triangles", room: "Room B-203", status: "Next", time: "1:00–1:45" }
-      ]);
-      setTeachingTasks([
-        { id: "task-1", type: "ungraded", title: "47 ungraded submissions", detail: "Class 8A: 12 · 8B: 9 · 8C: 11 · 9A: 8 · 9B: 7", status: "Overdue", actionLabel: "Grade" },
-        { id: "task-2", type: "lesson_plan", title: "2 lesson plans not uploaded", detail: "Class 8C Week 22 · Class 9B Week 22", status: "Due today", actionLabel: "Due today" },
-        { id: "task-3", type: "exam_paper", title: "UT4 question paper due Friday", detail: "Ch 5–7 · 25 marks · Submit to Exam Cell", status: "Due soon", actionLabel: "Fri 30 May" },
-        { id: "task-4", type: "planner_posted", title: "Weekly planner posted — all 6 classes", detail: "Posted Monday 7:45 AM", status: "Completed", actionLabel: "Completed" }
-      ]);
-      setResourceUploadCount(8);
-    }
-    setPlannerStatusValue("Posted");
+    setTeachingTimetable([]);
+    setTeachingTasks([]);
+    setResourceUploadCount(0);
+    setPlannerStatusValue("Missing");
   }, [currentUser]);
 
   const isPrincipalOrAdmin = (): boolean => {
@@ -1263,11 +1219,11 @@ export default function DashboardOverview({
       else if (period === "Term 1") { deptAvg = 68; schoolAvg = 65; }
       else if (period === "Term 2") { deptAvg = 74; schoolAvg = 70; }
 
-      if (classes === "Class 6–8") {
+      if (classes === "Class 6-8") {
         repoResources = Math.round(repoResources * 0.51);
         chaptersResourced = Math.min(100, chaptersResourced + 4);
         qbQuestions = Math.round(qbQuestions * 0.48);
-      } else if (classes === "Class 9–12") {
+      } else if (classes === "Class 9-12") {
         repoResources = Math.round(repoResources * 0.49);
         chaptersResourced = Math.max(0, chaptersResourced - 4);
         qbQuestions = Math.round(qbQuestions * 0.52);
@@ -1283,11 +1239,11 @@ export default function DashboardOverview({
       else if (period === "Term 1") { deptAvg = 71; schoolAvg = 68; }
       else if (period === "Term 2") { deptAvg = 77; schoolAvg = 73; }
 
-      if (classes === "Class 6–8") {
+      if (classes === "Class 6-8") {
         repoResources = Math.round(repoResources * 0.49);
         chaptersResourced = Math.min(100, chaptersResourced + 3);
         qbQuestions = Math.round(qbQuestions * 0.46);
-      } else if (classes === "Class 9–12") {
+      } else if (classes === "Class 9-12") {
         repoResources = Math.round(repoResources * 0.51);
         chaptersResourced = Math.max(0, chaptersResourced - 3);
         qbQuestions = Math.round(qbQuestions * 0.54);
@@ -1303,11 +1259,11 @@ export default function DashboardOverview({
       else if (period === "Term 1") { deptAvg = 76; schoolAvg = 73; }
       else if (period === "Term 2") { deptAvg = 83; schoolAvg = 79; }
 
-      if (classes === "Class 6–8") {
+      if (classes === "Class 6-8") {
         repoResources = Math.round(repoResources * 0.52);
         chaptersResourced = Math.min(100, chaptersResourced + 2);
         qbQuestions = Math.round(qbQuestions * 0.50);
-      } else if (classes === "Class 9–12") {
+      } else if (classes === "Class 9-12") {
         repoResources = Math.round(repoResources * 0.48);
         chaptersResourced = Math.max(0, chaptersResourced - 2);
         qbQuestions = Math.round(qbQuestions * 0.50);
@@ -1323,31 +1279,31 @@ export default function DashboardOverview({
 
     const baseData: Record<string, { className: string; completion: number }[]> = {
       Mathematics: [
-        { className: "Class 6", completion: 90 },
-        { className: "Class 7", completion: 85 },
-        { className: "Class 8", completion: 78 },
-        { className: "Class 9", completion: 72 },
-        { className: "Class 10", completion: 88 },
-        { className: "Class 11", completion: 61 },
-        { className: "Class 12", completion: 80 },
+        { className: "Class VI", completion: 90 },
+        { className: "Class VII", completion: 85 },
+        { className: "Class VIII", completion: 78 },
+        { className: "Class IX", completion: 72 },
+        { className: "Class X", completion: 88 },
+        { className: "Class XI", completion: 61 },
+        { className: "Class XII", completion: 80 },
       ],
       Science: [
-        { className: "Class 6", completion: 85 },
-        { className: "Class 7", completion: 80 },
-        { className: "Class 8", completion: 72 },
-        { className: "Class 9", completion: 68 },
-        { className: "Class 10", completion: 85 },
-        { className: "Class 11", completion: 65 },
-        { className: "Class 12", completion: 78 },
+        { className: "Class VI", completion: 85 },
+        { className: "Class VII", completion: 80 },
+        { className: "Class VIII", completion: 72 },
+        { className: "Class IX", completion: 68 },
+        { className: "Class X", completion: 85 },
+        { className: "Class XI", completion: 65 },
+        { className: "Class XII", completion: 78 },
       ],
       English: [
-        { className: "Class 6", completion: 95 },
-        { className: "Class 7", completion: 92 },
-        { className: "Class 8", completion: 85 },
-        { className: "Class 9", completion: 88 },
-        { className: "Class 10", completion: 91 },
-        { className: "Class 11", completion: 76 },
-        { className: "Class 12", completion: 84 },
+        { className: "Class VI", completion: 95 },
+        { className: "Class VII", completion: 92 },
+        { className: "Class VIII", completion: 85 },
+        { className: "Class IX", completion: 88 },
+        { className: "Class X", completion: 91 },
+        { className: "Class XI", completion: 76 },
+        { className: "Class XII", completion: 84 },
       ]
     };
 
@@ -1357,9 +1313,9 @@ export default function DashboardOverview({
       rows = rows.map(r => ({ ...r, completion: Math.max(40, r.completion - 5) }));
     }
 
-    if (hodClassRange === "Class 6–8") {
+    if (hodClassRange === "Class 6-8") {
       return rows.filter(r => ["Class 6", "Class 7", "Class 8"].includes(r.className));
-    } else if (hodClassRange === "Class 9–12") {
+    } else if (hodClassRange === "Class 9-12") {
       return rows.filter(r => ["Class 9", "Class 10", "Class 11", "Class 12"].includes(r.className));
     }
     return rows;
@@ -1542,7 +1498,7 @@ export default function DashboardOverview({
     // Subtitle
     ctx.fillStyle = "#475569";
     ctx.font = "normal 14px Inter, sans-serif";
-    ctx.fillText(`Registry Scope: ${cardData.sourceLabel} • Live Database Synchronization`, 40, 220);
+    ctx.fillText(`Registry Scope: ${cardData.sourceLabel} - Live Database Synchronization`, 40, 220);
 
     // Separator line
     ctx.strokeStyle = "#e2e8f0";
@@ -1757,5067 +1713,3713 @@ export default function DashboardOverview({
     totalComplianceWeights
   );
 
-  // Trigger PowerSchool SIS manual sync
-  const handleSisSync = async () => {
-    setSyncingSis(true);
+  const hasSavedRegistryOverrides = Object.keys(dashboardSourceState.localStorageOverrides || {}).length > 0;
+  const registryHealthSummary = dashboardSourceState.registryHealthSummary || EMPTY_REGISTRY_HEALTH_SUMMARY;
+  const openSetupCentre = () => onToggleTab("setup-registries");
+
+  const handleResetRegistryUrls = () => {
+    resetSavedRegistryUrlsToDefaults();
+    window.location.reload();
+  };
+
+  const renderDashboardSourcePanel = () => {
+    const summaryRows = registryHealthSummary.sourceHealthRows.slice(0, DASHBOARD_ROW_LIMIT);
+    return (
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4" id="dashboard-live-registry-source-status">
+        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+          <div className="space-y-1 min-w-0">
+            <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Live Registry Connections</div>
+            <h2 className="text-base font-extrabold text-slate-900">{dashboardSourceState.sourceLabel}</h2>
+            <div className="text-xs text-slate-500 break-all">Registry source active</div>
+            <div className="text-xs text-slate-500">
+              Last successful read: {dashboardSourceState.lastSyncedAt ? new Date(dashboardSourceState.lastSyncedAt).toLocaleString() : "No successful live read yet"}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleResetRegistryUrls}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-100"
+          >
+            <RefreshCw size={14} />
+            Reset saved registry URLs
+          </button>
+        </div>
+
+        {hasSavedRegistryOverrides && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 font-semibold">
+            Saved browser registry URLs are overriding one or more app defaults. Use reset to clear only Schooly registry/source URL keys.
+          </div>
+        )}
+
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
+            <div>
+              <div className="text-[10px] uppercase tracking-wider font-mono text-slate-500 font-black">Source Logs / Sync Logs</div>
+              <h3 className="text-sm font-extrabold text-slate-900">Live status and sync history</h3>
+            </div>
+            <span className="text-[10px] font-sans font-black rounded-full bg-white text-slate-700 border border-slate-200 px-2 py-1">
+              {registryHealthSummary.connectedRegistries}/{registryHealthSummary.totalRegistries} connected
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2 text-[11px]">
+            <div className="rounded-xl border border-white bg-white p-3">
+              <div className="text-[10px] uppercase font-mono text-slate-400 font-black">Warnings</div>
+              <div className="mt-1 text-sm font-extrabold text-amber-700">{registryHealthSummary.warningRegistries}</div>
+            </div>
+            <div className="rounded-xl border border-white bg-white p-3">
+              <div className="text-[10px] uppercase font-mono text-slate-400 font-black">Critical</div>
+              <div className="mt-1 text-sm font-extrabold text-rose-700">{registryHealthSummary.criticalRegistries}</div>
+            </div>
+            <div className="rounded-xl border border-white bg-white p-3">
+              <div className="text-[10px] uppercase font-mono text-slate-400 font-black">Onboarding</div>
+              <div className="mt-1 text-sm font-extrabold text-slate-900">{registryHealthSummary.onboardingStatus}</div>
+            </div>
+            <div className="rounded-xl border border-white bg-white p-3">
+              <div className="text-[10px] uppercase font-mono text-slate-400 font-black">Next action</div>
+              <div className="mt-1 text-sm font-extrabold text-slate-900">{registryHealthSummary.nextRequiredAction}</div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {summaryRows.map((registry) => (
+              <div key={registry.key} className="rounded-xl border border-white bg-white px-3 py-2.5 flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
+                <div className="min-w-0">
+                  <div className="text-xs font-extrabold text-slate-900 truncate">{registry.label}</div>
+                  <div className="text-[10px] text-slate-500 truncate">{registry.url || "No registry URL configured"}</div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-wider">
+                  <span className={`rounded-full px-2 py-1 ${registry.connected ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                    {registry.connected ? "Connected" : "Not connected"}
+                  </span>
+                  <span className="rounded-full px-2 py-1 bg-slate-50 text-slate-700 border border-slate-200">
+                    {registry.rowCount} rows
+                  </span>
+                  {registry.warning ? (
+                    <span className="rounded-full px-2 py-1 bg-amber-50 text-amber-700 border border-amber-100">
+                      {registry.warning}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {registryHealthSummary.primaryIssue !== "All registry connections are healthy." && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+            {registryHealthSummary.primaryIssue}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const bootstrapPreview = React.useMemo(() => buildRegistryBootstrapPreview(dashboardSourceState, files), [dashboardSourceState, files]);
+  const getBootstrapDestinationId = React.useCallback((destination: Pick<BootstrapDestinationPreview, "spreadsheet" | "tab" | "primaryKeyColumn">) =>
+    `${destination.spreadsheet}::${destination.tab}::${destination.primaryKeyColumn}`, []);
+  const isSafeFirstBatchBootstrapGroup = React.useCallback((destination: Pick<BootstrapDestinationPreview, "spreadsheet" | "tab">) => {
+    return isSafeFirstBatchTab(destination.spreadsheet, destination.tab);
+  }, []);
+  const selectedBootstrapDestinations = React.useMemo(() =>
+    bootstrapPreview.destinations.filter((destination) =>
+      isSafeFirstBatchBootstrapGroup(destination) &&
+      selectedBootstrapGroups[getBootstrapDestinationId(destination)] &&
+      destination.rows.some((row) => !row.skippedBecauseKeyExists)
+    ), [bootstrapPreview.destinations, getBootstrapDestinationId, isSafeFirstBatchBootstrapGroup, selectedBootstrapGroups]);
+  const editableBootstrapFieldsByTab: Record<string, string[]> = {
+    School_Profile: ["school_name", "board", "medium", "academic_year", "principal_name", "city", "state", "country"],
+    Academic_Years: ["academic_year", "start_date", "end_date", "term_name", "term_start", "term_end", "status"],
+    Classes_Sections: ["class_teacher_staff_id", "status"],
+    Subjects: ["is_core_subject", "status"],
+    QA_Checklist_Config: ["severity", "required", "status"],
+    KPI_Definitions: ["dashboard_role", "target_value", "status"]
+  };
+  const fieldLabelByName: Record<string, string> = {
+    school_name: "School Name",
+    board: "Board",
+    medium: "Medium",
+    academic_year: "Academic Year",
+    principal_name: "Principal Name",
+    city: "City",
+    state: "State",
+    country: "Country",
+    start_date: "Start Date",
+    end_date: "End Date",
+    term_name: "Term Name",
+    term_start: "Term Start",
+    term_end: "Term End",
+    status: "Status",
+    class_teacher_staff_id: "Class Teacher Staff ID",
+    is_core_subject: "Core Subject",
+    severity: "Severity",
+    required: "Required",
+    dashboard_role: "Dashboard Role",
+    target_value: "Target Value"
+  };
+  const friendlyFieldLabel = (field: string) => fieldLabelByName[field] || field.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+  const isCoreIdentityField = (tab: string, field: string) =>
+    (tab === "School_Profile" && ["school_name", "board", "academic_year"].includes(field)) ||
+    (tab === "Academic_Years" && field === "academic_year");
+  const getReviewedBootstrapRow = React.useCallback((row: BootstrapProposedRow) => ({
+    ...row,
+    row: {
+      ...row.row,
+      ...(editedBootstrapRows[row.id] || {})
+    }
+  }), [editedBootstrapRows]);
+  const selectedReviewedBootstrapDestinations = React.useMemo(() =>
+    selectedBootstrapDestinations.map((destination) => ({
+      ...destination,
+      rows: destination.rows.map(getReviewedBootstrapRow)
+    })), [getReviewedBootstrapRow, selectedBootstrapDestinations]);
+  const selectedBootstrapSummary = React.useMemo(() => ({
+    groups: selectedReviewedBootstrapDestinations.length,
+    rowsToCreate: selectedReviewedBootstrapDestinations.reduce((sum, destination) => sum + destination.rows.filter((row) => !row.skippedBecauseKeyExists).length, 0),
+    skippedRows: selectedReviewedBootstrapDestinations.reduce((sum, destination) => sum + destination.skippedExistingCount, 0),
+    reviewRows: selectedReviewedBootstrapDestinations.reduce((sum, destination) => sum + destination.rows.filter((row) => row.reviewRequired && !row.skippedBecauseKeyExists).length, 0),
+    tabs: selectedReviewedBootstrapDestinations.map((destination) => `${destination.spreadsheet} / ${destination.tab}`)
+  }), [selectedReviewedBootstrapDestinations]);
+  const selectedBootstrapHeaderIssues = React.useMemo(() => {
+    return selectedReviewedBootstrapDestinations.flatMap((destination) => {
+      const registry = dashboardSourceState.registries.find((item) => item.label === destination.spreadsheet);
+      const headers = registry?.tabHeaders?.[destination.tab] || [];
+      const normalizedHeaders = new Set(headers.map(normalizeHeaderForComparison));
+      const missingHeaders = registry?.missingHeaders?.[destination.tab] || [];
+      const missingPrimaryKey = !normalizedHeaders.has(normalizeHeaderForComparison(destination.primaryKeyColumn));
+      const issues = [
+        ...missingHeaders.map((header) => `${destination.spreadsheet} / ${destination.tab}: missing ${header}`),
+        ...(missingPrimaryKey ? [`${destination.spreadsheet} / ${destination.tab}: missing primary key ${destination.primaryKeyColumn}`] : [])
+      ];
+      return Array.from(new Set(issues));
+    });
+  }, [dashboardSourceState.registries, selectedReviewedBootstrapDestinations]);
+  const isCorePlaceholderValue = React.useCallback((value: string) => {
+    const normalized = String(value || "").trim().toLowerCase();
+    return !normalized || normalized === "review required" || normalized === "setup required" || normalized === "draft - setup required";
+  }, []);
+  const selectedBootstrapPlaceholderIssues = React.useMemo(() => {
+    const coreFields: Record<string, string[]> = {
+      School_Profile: ["school_name", "board", "academic_year"],
+      Academic_Years: ["academic_year"]
+    };
+    return selectedReviewedBootstrapDestinations.flatMap((destination) =>
+      destination.rows.flatMap((row) =>
+        (coreFields[destination.tab] || [])
+          .filter((field) => isCorePlaceholderValue(row.row[field]))
+          .map((field) => `${destination.spreadsheet} / ${destination.tab} / ${row.primaryKeyValue}: resolve ${field}`)
+      )
+    );
+  }, [isCorePlaceholderValue, selectedReviewedBootstrapDestinations]);
+  useEffect(() => {
+    const defaults: Record<string, boolean> = {};
+    bootstrapPreview.destinations.forEach((destination) => {
+      defaults[getBootstrapDestinationId(destination)] = isSafeFirstBatchBootstrapGroup(destination);
+    });
+    setSelectedBootstrapGroups(defaults);
+    setBootstrapApprovalChecked(false);
+  }, [bootstrapPreview.generatedAt, bootstrapPreview.destinations, getBootstrapDestinationId, isSafeFirstBatchBootstrapGroup]);
+  const bootstrapRegistryOptions = Array.from(new Set(bootstrapPreview.destinations.map((destination) => destination.spreadsheet))).sort();
+  const bootstrapTabOptions = Array.from(new Set(bootstrapPreview.destinations.map((destination) => destination.tab))).sort();
+  const visibleBootstrapDestinations = bootstrapPreview.destinations
+    .map((destination) => ({
+      ...destination,
+      rows: destination.rows.filter((row) =>
+        (bootstrapRegistryFilter === "all" || row.spreadsheet === bootstrapRegistryFilter) &&
+        (bootstrapTabFilter === "all" || row.tab === bootstrapTabFilter) &&
+        (bootstrapSeverityFilter === "all" || row.severity === bootstrapSeverityFilter)
+      )
+    }))
+    .filter((destination) => destination.rows.length > 0);
+  const safeFoundationDestinations = bootstrapPreview.destinations.filter(isSafeFirstBatchBootstrapGroup);
+  const selectableSafeFoundationDestinations = safeFoundationDestinations.filter((destination) =>
+    destination.rows.some((row) => !row.skippedBecauseKeyExists)
+  );
+  const showAdminSetupDetails = isPrincipalRole() || isAdminRole() || isManagerRole();
+  const foundationHasLiveRegistryRows = ["Master Registry", "QA/SQAA Registry", "Dashboard Data Source"].every((label) =>
+    (dashboardSourceState.registries.find((registry) => registry.label === label)?.rowCount || 0) > 0
+  );
+  const safeFoundationSetupComplete = foundationHasLiveRegistryRows || (selectableSafeFoundationDestinations.length === 0 && safeFoundationDestinations.length > 0);
+  const deferredBootstrapDestinations = bootstrapPreview.destinations.filter((destination) => !isSafeFirstBatchBootstrapGroup(destination));
+  const wizardVisibleBootstrapDestinations = (bootstrapWizardStep === 4 ? deferredBootstrapDestinations : safeFoundationDestinations)
+    .map((destination) => ({
+      ...destination,
+      rows: destination.rows.filter((row) =>
+        (bootstrapRegistryFilter === "all" || row.spreadsheet === bootstrapRegistryFilter) &&
+        (bootstrapTabFilter === "all" || row.tab === bootstrapTabFilter) &&
+        (bootstrapSeverityFilter === "all" || row.severity === bootstrapSeverityFilter)
+      )
+    }))
+    .filter((destination) => destination.rows.length > 0);
+  const requiredRegistriesReadable = dashboardSourceState.registries.length > 0 &&
+    dashboardSourceState.registries.every((registry) => !registry.error && String(registry.url || "").trim());
+  const safeFoundationHeaderIssues = safeFoundationDestinations.flatMap((destination) => {
+    const registry = dashboardSourceState.registries.find((item) => item.label === destination.spreadsheet);
+    return [
+      ...(registry?.missingTabs.includes(destination.tab) ? [`${destination.spreadsheet} / ${destination.tab}: missing tab`] : []),
+      ...((registry?.missingHeaders?.[destination.tab] || []).map((header) => `${destination.spreadsheet} / ${destination.tab}: missing ${header}`))
+    ];
+  });
+  const canContinueBootstrapWizard = (step: number) => {
+    if (step === 0) return requiredRegistriesReadable;
+    if (step === 1) return safeFoundationHeaderIssues.length === 0;
+    if (step === 2) return selectedBootstrapPlaceholderIssues.length === 0;
+    return true;
+  };
+  const bootstrapWizardSteps = [
+    { title: "Registry Connection Check", mode: "Read-only" },
+    { title: "Registry Health Check", mode: "Read-only" },
+    { title: "School Identity Review", mode: "Read-only" },
+    { title: "Safe Foundation Data", mode: "Read-only" },
+    { title: "Deferred Setup Items", mode: "Read-only" },
+    { title: "Approval and Apply", mode: "Approval required" },
+    { title: "Completion", mode: "Read-only" }
+  ];
+
+  const copyBootstrapPreview = async (format: "json" | "csv") => {
+    const payload = format === "json" ? JSON.stringify(bootstrapPreview, null, 2) : bootstrapPreviewToCsv(bootstrapPreview);
     try {
-      const res = await fetch("/api/sis/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user: currentUser, role: currentRole, system: "PowerSchool SIS" })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSyncResult({
-          message: data.message,
-          date: new Date().toLocaleTimeString()
-        });
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setSyncingSis(false);
+      await navigator.clipboard.writeText(payload);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = payload;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
     }
   };
 
-  return (
-    <div className="space-y-6" id="dashboard-cockpit">
-      {/* Welcome Hero Banner Unified with Profile Cards for All Roles */}
-      {isHodRole() && renderWelcomeHeader()}
+  const refreshDashboardAfterBootstrapWrite = async () => {
+    const result: any = await loadDashboardData({
+      roleView: "all",
+      dashboardSheetUrl: workspaceUrl,
+      workspaceUrl,
+      classroomUrl: ""
+    });
+    setPrincipalDashboard(result.principal || EMPTY_PRINCIPAL_DASHBOARD);
+    setTeacherDashboard(result.teacher || EMPTY_TEACHER_DASHBOARD);
+    setCoordinatorDashboard(result.coordinator || EMPTY_COORDINATOR_DASHBOARD);
+    setManagerDashboard(result.manager || EMPTY_MANAGER_DASHBOARD);
+    setExamsDashboard(result.exams || EMPTY_EXAMS_DASHBOARD);
+    setParentDashboard(result.parent || EMPTY_PARENT_DASHBOARD);
+    setLiveDashboardBlueprints(result.blueprints || null);
+    setDashboardSourceState(result.sourceState);
+  };
+  const currentDashboardView = dashboardView;
 
-      {isTeacherRole() && renderWelcomeHeader()}
+  const handleConnectGoogleWorkspaceWriteAccess = async () => {
+    setBootstrapWriteError("");
+    try {
+      await connectGoogleWorkspaceWriteAccess();
+      setGoogleWorkspaceAuthState(getGoogleWorkspaceAuthState());
+    } catch (error: any) {
+      setGoogleWorkspaceAuthState(getGoogleWorkspaceAuthState());
+      setBootstrapWriteError(error?.message || "Google Sheets write access could not be established.");
+    }
+  };
 
-      {isCoordinatorRole() && (
-        <div className="space-y-6" id="coordinator-top-overview-container">
-          {/* Header Card */}
-          {renderWelcomeHeader()}
+  const handleDisconnectGoogleWorkspaceWriteAccess = () => {
+    disconnectGoogleWorkspaceAccess();
+    setGoogleWorkspaceAuthState(getGoogleWorkspaceAuthState());
+    setBootstrapWriteError("");
+  };
 
-          {/* TOP SECTION: Middle School Overview (Class 6-8) */}
-          <div className="space-y-6" id="middle-school-coordinator-top-overview">
-            {/* Section Heading */}
-            <div className="flex items-center gap-2 pt-2" id="coordinator-glance-title">
-              <LayoutGrid className="text-indigo-650" size={18} />
-              <h2 className="text-base font-extrabold text-slate-905 font-sans tracking-tight">Middle School at a Glance</h2>
+  const applySelectedBootstrapRows = async () => {
+    if (
+      selectedBootstrapDestinations.length === 0 ||
+      selectedBootstrapHeaderIssues.length > 0 ||
+      selectedBootstrapPlaceholderIssues.length > 0 ||
+      !bootstrapApprovalChecked ||
+      !googleWorkspaceAuthState.connected ||
+      bootstrapWriteInProgress
+    ) return;
+    setBootstrapWriteInProgress(true);
+    setBootstrapWriteError("");
+    setBootstrapWriteResult(null);
+    setBootstrapWriteProgress({
+      phase: "preparing",
+      message: "Starting safe foundation setup. Schooly is preparing the selected rows for Google Sheets.",
+      groupTotal: selectedReviewedBootstrapDestinations.length
+    });
+    try {
+      const accessToken = getGoogleWorkspaceAccessToken();
+      if (!accessToken) {
+        setGoogleWorkspaceAuthState(getGoogleWorkspaceAuthState());
+        throw new Error("Connect Google Sheets Write Access before applying setup rows.");
+      }
+      const result = await applyRegistryBootstrapWriteback({
+        sourceState: dashboardSourceState,
+        destinations: selectedReviewedBootstrapDestinations,
+        approvedBy: currentUser || "Schooly user",
+        accessToken,
+        onProgress: setBootstrapWriteProgress
+      });
+      setBootstrapWriteResult(result);
+      setBootstrapWriteProgress({
+        phase: "complete",
+        message: "Rows written. Schooly is refreshing the live data dashboard.",
+        groupTotal: selectedReviewedBootstrapDestinations.length,
+        created: result.totalCreated,
+        skipped: result.totalSkipped
+      });
+      await refreshDashboardAfterBootstrapWrite();
+      setBootstrapApprovalChecked(false);
+      setBootstrapWizardStep(6);
+    } catch (error: any) {
+      setBootstrapWriteProgress(null);
+      setBootstrapWriteError(error?.message || "Approved bootstrap writeback failed.");
+    } finally {
+      setBootstrapWriteInProgress(false);
+    }
+  };
+
+  const renderRegistryBootstrapPreview = () => (
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-5" id="registry-bootstrap-preview">
+      <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4">
+        <div className="space-y-1 min-w-0">
+          <h2 className="text-lg font-extrabold text-slate-900">School Setup Onboarding Wizard</h2>
+          <p className="text-sm text-slate-600">
+            {safeFoundationSetupComplete
+              ? "Foundation setup is complete. Next, map NCERT textbooks and chapters."
+              : "Review and initialize safe foundation registry data."}
+          </p>
+          {showAdminSetupDetails && (
+            <p className="text-[11px] text-slate-500 font-mono">Generated: {new Date(bootstrapPreview.generatedAt).toLocaleString()}</p>
+          )}
+        </div>
+        {showAdminSetupDetails && (
+        <div className="flex flex-wrap gap-2 items-start">
+          <button type="button" onClick={() => copyBootstrapPreview("json")} className="px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-extrabold text-slate-700 hover:bg-slate-100">Copy JSON</button>
+          <button type="button" onClick={() => copyBootstrapPreview("csv")} className="px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-extrabold text-slate-700 hover:bg-slate-100">Copy CSV</button>
+        </div>
+        )}
+      </div>
+
+      {hasSavedRegistryOverrides && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 font-semibold">
+          Browser-saved registry URLs are overriding app defaults. Use "Reset saved registry URLs" above before approving future writeback.
+        </div>
+      )}
+
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+        <div className="rounded-xl border border-blue-200 bg-white p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div>
+            <div className={`inline-flex px-2 py-1 rounded-lg text-[10px] uppercase font-mono font-black ${bootstrapWizardStep === 5 ? "bg-rose-50 text-rose-700" : "bg-blue-50 text-blue-700"}`}>
+              {bootstrapWizardSteps[bootstrapWizardStep]?.mode}
             </div>
-
-            {/* 4 KPIs grid (4 col on desktop, 2 col on tablet, 1 col on mobile) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="coordinator-kpis-grid">
-              {(coordinatorDashboard?.kpis || []).map((kpi) => {
-                let valueColorClass = "text-slate-800";
-                let subtextColorClass = "text-slate-500";
-                let borderColorClass = "border-slate-200";
-
-                if (kpi.status === "warning") {
-                  valueColorClass = "text-amber-600";
-                  subtextColorClass = "text-amber-500 font-semibold";
-                } else if (kpi.status === "attention" || kpi.status === "danger") {
-                  valueColorClass = "text-rose-600";
-                  subtextColorClass = "text-rose-500 font-semibold";
-                } else if (kpi.status === "success") {
-                  valueColorClass = "text-emerald-600";
-                  subtextColorClass = "text-emerald-500 font-semibold";
-                }
-
-                return (
-                  <div 
-                    key={kpi.id} 
-                    className={`p-4 bg-white border ${borderColorClass} rounded-2xl space-y-1.5 transition-all hover:border-blue-300 hover:shadow-xs`}
-                    id={`coordinator-kpi-${kpi.id}`}
-                  >
-                    <span className="text-[10px] uppercase font-mono font-black text-slate-400 block tracking-wider select-none">
-                      {kpi.title}
-                    </span>
-                    <div className={`text-xl font-black tracking-tight ${valueColorClass}`}>
-                      {kpi.value}
-                    </div>
-                    <div className={`text-[10px] sm:text-[11px] font-mono leading-none ${subtextColorClass}`}>
-                      {kpi.subtext}
-                    </div>
-                  </div>
-                );
-              })}
+            <h3 className="text-base font-extrabold text-slate-900 mt-2">Step {bootstrapWizardStep + 1}: {bootstrapWizardSteps[bootstrapWizardStep]?.title}</h3>
+            <p className="text-xs text-slate-600 mt-1">
+              {safeFoundationSetupComplete
+                ? "Safe foundation setup is complete. The next useful step is NCERT textbook and chapter mapping."
+                : "This wizard writes only approved foundation setup rows. Textbooks, lesson workspaces, Classroom, assessments, and SQAA evidence come later."}
+            </p>
+          </div>
+          <div className="flex flex-col sm:items-end gap-2">
+            <div className="text-[11px] font-bold text-slate-600">
+              {safeFoundationSetupComplete ? "Ready for textbook setup" : "Ready for guided setup"}
             </div>
+            {safeFoundationSetupComplete && (
+              <button
+                type="button"
+                onClick={() => onToggleTab("textbooks")}
+                className="px-3 py-2 rounded-xl bg-blue-600 text-white text-xs font-extrabold hover:bg-blue-700 inline-flex items-center justify-center gap-2"
+              >
+                Continue to NCERT Textbooks <ArrowRight size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-7 gap-2">
+          {bootstrapWizardSteps.map((step, index) => (
+            <button
+              key={step.title}
+              type="button"
+              onClick={() => setBootstrapWizardStep(index)}
+              className={`text-left rounded-xl border px-3 py-2 ${bootstrapWizardStep === index ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-white hover:bg-slate-100"}`}
+            >
+              <div className="text-[10px] uppercase font-mono font-black text-slate-400">Step {index + 1}</div>
+              <div className="text-xs font-extrabold text-slate-900">{step.title}</div>
+              <div className={`text-[10px] font-mono font-black mt-1 ${step.mode === "Approval required" ? "text-rose-600" : step.mode === "Deferred setup" ? "text-amber-600" : "text-blue-600"}`}>{step.mode}</div>
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setBootstrapWizardStep((step) => Math.max(0, step - 1))}
+            disabled={bootstrapWizardStep === 0}
+            className={`px-3 py-2 rounded-xl text-xs font-extrabold ${bootstrapWizardStep === 0 ? "bg-slate-100 text-slate-400 cursor-not-allowed" : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"}`}
+          >
+            Back
+          </button>
+          <div className="text-[11px] font-bold text-slate-600">Write-enabled action appears only in Step 6. No operational data.</div>
+          <button
+            type="button"
+            onClick={() => setBootstrapWizardStep((step) => Math.min(bootstrapWizardSteps.length - 1, step + 1))}
+            disabled={bootstrapWizardStep >= bootstrapWizardSteps.length - 1 || !canContinueBootstrapWizard(bootstrapWizardStep)}
+            className={`px-3 py-2 rounded-xl text-xs font-extrabold ${bootstrapWizardStep < bootstrapWizardSteps.length - 1 && canContinueBootstrapWizard(bootstrapWizardStep) ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-slate-200 text-slate-400 cursor-not-allowed"}`}
+          >
+            Continue
+          </button>
+        </div>
+      </div>
 
-            {/* Double Column Row: Matrix & Coverage */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" id="coordinator-matrix-coverage-grid">
-              {/* Card A: Weekly Planner Status */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between" id="coordinator-planner-matrix-card">
-                <div>
-                  <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-4 select-none">
-                    <CheckSquare className="text-indigo-650 shrink-0" size={16} />
-                    <h3 className="text-xs font-black text-slate-900 tracking-tight uppercase font-sans">
-                      Weekly Planner Status — This Week
-                    </h3>
-                  </div>
+      {showAdminSetupDetails && bootstrapWizardStep >= 3 && (
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="text-[10px] uppercase font-mono text-slate-400 font-black">Proposed rows</div><div className="text-xl font-black text-slate-900">{bootstrapPreview.summary.proposedRows}</div></div>
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-3"><div className="text-[10px] uppercase font-mono text-rose-500 font-black">Blockers</div><div className="text-xl font-black text-rose-700">{bootstrapPreview.summary.blockers}</div></div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3"><div className="text-[10px] uppercase font-mono text-amber-600 font-black">Warnings</div><div className="text-xl font-black text-amber-700">{bootstrapPreview.summary.warnings}</div></div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="text-[10px] uppercase font-mono text-slate-400 font-black">Skipped existing</div><div className="text-xl font-black text-slate-900">{bootstrapPreview.summary.skippedExistingRows}</div></div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="text-[10px] uppercase font-mono text-slate-400 font-black">Rejected inference</div><div className="text-xl font-black text-slate-900">{bootstrapPreview.summary.rejectedInferenceCandidates}</div></div>
+      </div>
+      )}
 
-                  {/* Scrollable table container */}
-                  <div className="overflow-x-auto rounded-xl border border-slate-100 bg-slate-50/20">
-                    <table className="w-full text-center border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-100">
-                          {coordinatorDashboard?.plannerStatusMatrix?.headers?.map((header) => (
-                            <th 
-                              key={header} 
-                              className="p-2.5 text-[10px] uppercase font-mono font-black text-slate-400 tracking-wider text-center first:text-left first:pl-4"
-                            >
-                              {header}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 bg-white">
-                        {coordinatorDashboard?.plannerStatusMatrix?.rows?.map((row, idx) => {
-                          const statusDot = (status: string) => {
-                            let dotBg = "bg-slate-300 border-slate-400";
-                            if (status === "Done") {
-                              dotBg = "bg-emerald-500 border-emerald-600";
-                            } else if (status === "Partial") {
-                              dotBg = "bg-amber-500 border-amber-600";
-                            } else if (status === "Missing") {
-                              dotBg = "bg-rose-500 border-rose-600";
-                            }
-                            return (
-                              <div className="flex items-center justify-center">
-                                <span className={`w-3 h-3 rounded-full border ${dotBg}`} title={status} />
-                              </div>
-                            );
-                          };
+      {showAdminSetupDetails && bootstrapWizardStep >= 3 && (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-3"><div className="text-[10px] uppercase font-mono text-blue-500 font-black">Can auto prepare</div><div className="text-lg font-black text-blue-700">{bootstrapPreview.classifications.can_auto_prepare}</div></div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3"><div className="text-[10px] uppercase font-mono text-amber-600 font-black">Needs review</div><div className="text-lg font-black text-amber-700">{bootstrapPreview.classifications.requires_human_review}</div></div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="text-[10px] uppercase font-mono text-slate-500 font-black">External connection</div><div className="text-lg font-black text-slate-700">{bootstrapPreview.classifications.requires_external_connection}</div></div>
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-3"><div className="text-[10px] uppercase font-mono text-rose-500 font-black">Cannot infer</div><div className="text-lg font-black text-rose-700">{bootstrapPreview.classifications.cannot_infer}</div></div>
+      </div>
+      )}
 
-                          return (
-                            <tr key={idx} className="hover:bg-slate-50/40 transition-colors">
-                              <td className="p-2.5 text-[11px] font-black text-slate-700 text-left pl-4 font-sans">{row.class}</td>
-                              <td className="p-2.5">{statusDot(row.six)}</td>
-                              <td className="p-2.5">{statusDot(row.seven)}</td>
-                              <td className="p-2.5">{statusDot(row.eight)}</td>
-                              <td className="p-2.5">{statusDot(row.assess)}</td>
-                              <td className="p-2.5">{statusDot(row.nb)}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+      {bootstrapWizardStep === 0 && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+          <div>
+            <div className="text-[10px] uppercase font-mono text-blue-600 font-black">Read-only</div>
+            <h3 className="text-base font-extrabold text-slate-900">Start School Setup</h3>
+            <p className="text-sm text-slate-600 mt-1">This wizard checks registry connections, validates headers, lets you review safe foundation rows, and writes only after approval.</p>
+          </div>
+          {hasSavedRegistryOverrides && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 font-semibold">
+              Browser-saved registry URLs are overriding app defaults.
+              <button type="button" onClick={handleResetRegistryUrls} className="ml-2 underline font-black">Reset saved registry URLs to defaults</button>
+            </div>
+          )}
+          {showAdminSetupDetails ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {dashboardSourceState.registries.map((registry) => (
+              <div key={registry.key} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm font-extrabold text-slate-900">{registry.label}</div>
+                  <span className={`text-[10px] font-sans font-black px-2 py-0.5 rounded-full ${registry.error ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>{registry.error ? "Read failed" : "Readable"}</span>
                 </div>
-
-                {/* Legend below table */}
-                <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-start gap-4 select-none">
-                  <span className="text-[10px] text-slate-400 font-mono font-black uppercase tracking-wider">Legend:</span>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full border border-emerald-600 bg-emerald-500" />
-                    <span className="text-[10.5px] font-sans font-bold text-slate-600">Done</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full border border-amber-600 bg-amber-500" />
-                    <span className="text-[10.5px] font-sans font-bold text-slate-600">Partial</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full border border-rose-600 bg-rose-500" />
-                    <span className="text-[10.5px] font-sans font-bold text-slate-600">Missing</span>
-                  </div>
-                </div>
+                <div className="text-[10px] text-slate-500 mt-1">Source connected</div>
+                {registry.error && <div className="text-[11px] text-rose-700 mt-1">{registry.error}</div>}
               </div>
-
-              {/* Card B: Syllabus Coverage & Assessment Completion */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between" id="coordinator-syllabus-assessment-card">
-                <div className="space-y-6">
-                  {/* Syllabus Section */}
-                  <div className="space-y-3.5">
-                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100 select-none">
-                      <BookOpen className="text-indigo-650 shrink-0" size={16} />
-                      <h3 className="text-xs font-black text-slate-900 tracking-tight uppercase font-sans">
-                        Syllabus Coverage — This Term
-                      </h3>
-                    </div>
-
-                    <div className="space-y-3">
-                      {(coordinatorDashboard?.syllabusCoverage || []).map((item) => {
-                        const val = item.coverage;
-                        const isLow = val < 80;
-                        const barColorClass = isLow ? "bg-amber-500" : "bg-emerald-500";
-                        const textColorClass = isLow ? "text-amber-600 font-semibold" : "text-emerald-600 font-semibold";
-                        return (
-                          <div key={item.class} className="space-y-1" id={`syllabus-row-${item.class.toLowerCase().replace(/\s+/g, '-')}`}>
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="font-extrabold text-slate-705 font-sans">{item.class}</span>
-                              <span className={`font-mono ${textColorClass}`}>{val}%</span>
-                            </div>
-                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full rounded-full transition-all duration-550 ease-out ${barColorClass}`}
-                                style={{ width: `${val}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Assessment Completion Section */}
-                  <div className="space-y-3.5">
-                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100 select-none">
-                      <Award className="text-indigo-650 shrink-0" size={16} />
-                      <h3 className="text-xs font-black text-slate-900 tracking-tight uppercase font-sans">
-                        Assessment Completion
-                      </h3>
-                    </div>
-
-                    <div className="space-y-3">
-                      {(coordinatorDashboard?.assessmentCompletion || []).map((item) => {
-                        const val = item.completion;
-                        const isLow = val < 80;
-                        const barColorClass = isLow ? "bg-amber-500" : "bg-emerald-500";
-                        const textColorClass = isLow ? "text-amber-600 font-semibold" : "text-emerald-600 font-semibold";
-                        return (
-                          <div key={item.subject} className="space-y-1" id={`assessment-comp-row-${item.subject.toLowerCase()}`}>
-                            <div className="flex items-center justify-between text-xs font-medium text-slate-500">
-                              <span className="font-extrabold text-slate-705 font-sans">{item.subject}</span>
-                              <span className={`font-mono ${textColorClass}`}>{val}%</span>
-                            </div>
-                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full rounded-full transition-all duration-550 ease-out ${barColorClass}`}
-                                style={{ width: `${val}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </div>
+            ))}
+          </div>
+          ) : (
+            <div className={`rounded-xl border px-3 py-3 text-sm font-semibold ${requiredRegistriesReadable ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+              {requiredRegistriesReadable
+                ? "Schooly can read the school registries. An administrator can manage detailed registry settings if needed."
+                : "A school administrator needs to connect the required registries before setup can continue."}
             </div>
+          )}
+          {!requiredRegistriesReadable && <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">One or more required registries are not readable yet.</div>}
+        </div>
+      )}
+
+      {!showAdminSetupDetails && bootstrapWizardStep === 1 && (
+        <div className={`rounded-xl border p-4 space-y-2 ${safeFoundationHeaderIssues.length === 0 ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
+          <div className={`text-[10px] uppercase font-mono font-black ${safeFoundationHeaderIssues.length === 0 ? "text-emerald-700" : "text-amber-700"}`}>Setup check</div>
+          <h3 className="text-sm font-extrabold text-slate-900">
+            {safeFoundationHeaderIssues.length === 0 ? "School setup checks are clear" : "School admin review needed"}
+          </h3>
+          <p className="text-sm text-slate-700">
+            {safeFoundationHeaderIssues.length === 0
+              ? "The foundation registries are readable and ready for the next setup step."
+              : "Some registry settings need admin attention before setup can continue."}
+          </p>
+        </div>
+      )}
+
+      {showAdminSetupDetails && bootstrapWizardStep === 1 && (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
+          <div className="text-xs font-black text-rose-800 mb-2">Blockers</div>
+          {bootstrapPreview.blockers.length > 0 ? bootstrapPreview.blockers.slice(0, 8).map((item) => <div key={item} className="text-[11px] text-rose-700 leading-relaxed">{item}</div>) : <div className="text-[11px] text-rose-700">No blockers detected.</div>}
+        </div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+          <div className="text-xs font-black text-amber-800 mb-2">Warnings</div>
+          {bootstrapPreview.warnings.length > 0 ? bootstrapPreview.warnings.slice(0, 8).map((item) => <div key={item} className="text-[11px] text-amber-700 leading-relaxed">{item}</div>) : <div className="text-[11px] text-amber-700">No warnings detected.</div>}
+        </div>
+      </div>
+      )}
+
+      {showAdminSetupDetails && bootstrapWizardStep === 1 && bootstrapPreview.rejectedInferenceCandidates.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-3">
+          <div>
+            <div className="text-[10px] uppercase font-mono text-amber-600 font-black">Rejected inference candidates</div>
+            <div className="text-xs text-amber-800">These values were not used for setup proposals because they did not pass class/subject validation.</div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[11px] min-w-[760px]">
+              <thead className="text-amber-700 uppercase font-mono border-b border-amber-200"><tr><th className="py-2">Source path</th><th>Field</th><th>Rejected value</th><th>Reason</th><th>Suggested action</th></tr></thead>
+              <tbody className="divide-y divide-amber-100">
+                {bootstrapPreview.rejectedInferenceCandidates.slice(0, 25).map((item) => (
+                  <tr key={`${item.sourcePath}-${item.field}-${item.rejectedValue}`}>
+                    <td className="py-2 text-slate-700 max-w-xs truncate" title={item.sourcePath}>{item.sourcePath}</td>
+                    <td className="font-mono text-slate-600">{item.field}</td>
+                    <td className="font-bold text-amber-900 max-w-xs truncate" title={item.rejectedValue}>{item.rejectedValue}</td>
+                    <td className="text-amber-800">{item.reason}</td>
+                    <td className="text-slate-600">{item.suggestedAction}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
 
-      {isPrincipalRole() && renderWelcomeHeader()}
+      {bootstrapWizardStep === 2 && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+          <div>
+            <div className="text-[10px] uppercase font-mono text-blue-600 font-black">Review required</div>
+            <h3 className="text-sm font-extrabold text-slate-900">School Identity Review</h3>
+            <p className="text-xs text-slate-600 mt-1">Edit only the school and academic-year fields needed to initialize the foundation safely. Placeholders disappear when you click into a field.</p>
+          </div>
+          {selectedReviewedBootstrapDestinations.filter((destination) => ["School_Profile", "Academic_Years"].includes(destination.tab)).length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {selectedReviewedBootstrapDestinations
+                .filter((destination) => ["School_Profile", "Academic_Years"].includes(destination.tab))
+                .map((destination) => {
+                  const editableFields = editableBootstrapFieldsByTab[destination.tab] || [];
+                  return (
+                    <div key={`identity-${getBootstrapDestinationId(destination)}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <div className="text-xs font-black text-slate-800">{destination.spreadsheet} / {destination.tab}</div>
+                          <div className="text-[11px] text-slate-500">Complete the core identity fields for this setup tab.</div>
+                        </div>
+                        <span className={`text-[10px] font-sans font-black px-2 py-1 rounded-full ${selectedBootstrapPlaceholderIssues.some((issue) => issue.includes(`${destination.spreadsheet} / ${destination.tab}`)) ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>
+                          {selectedBootstrapPlaceholderIssues.some((issue) => issue.includes(`${destination.spreadsheet} / ${destination.tab}`)) ? "Needs review" : "Ready"}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {destination.rows.filter((row) => !row.skippedBecauseKeyExists).map((row) => (
+                          <div key={`identity-row-${row.id}`} className="rounded-xl border border-slate-200 bg-white p-3 space-y-3">
+                            <div className="text-[10px] uppercase font-mono font-black text-slate-400">Row {row.primaryKeyValue}</div>
+                            <div className="grid grid-cols-1 gap-3">
+                              {editableFields.map((field) => {
+                                const rawValue = row.row[field] || "";
+                                const unresolved = isCoreIdentityField(destination.tab, field) && isCorePlaceholderValue(rawValue);
+                                const placeholderText = unresolved ? `Enter ${friendlyFieldLabel(field)}` : friendlyFieldLabel(field);
+                                return (
+                                  <label key={`${row.id}-${field}`} className="block space-y-1">
+                                    <span className="text-[10px] uppercase font-mono font-black text-slate-500">{friendlyFieldLabel(field)}</span>
+                                    <input
+                                      value={unresolved ? "" : rawValue}
+                                      placeholder={placeholderText}
+                                      onChange={(event) => {
+                                        const value = event.target.value;
+                                        setEditedBootstrapRows((current) => ({
+                                          ...current,
+                                          [row.id]: {
+                                            ...(current[row.id] || {}),
+                                            [field]: value
+                                          }
+                                        }));
+                                        setBootstrapApprovalChecked(false);
+                                      }}
+                                      className={`w-full rounded-xl border px-3 py-2 text-sm bg-white text-slate-800 ${unresolved ? "border-rose-300" : "border-slate-200"}`}
+                                    />
+                                  </label>
+                                );
+                              })}
+                            </div>
+                            {selectedBootstrapPlaceholderIssues.filter((issue) => issue.includes(`${destination.spreadsheet} / ${destination.tab} / ${row.primaryKeyValue}`)).map((issue) => (
+                              <div key={issue} className="text-[11px] text-rose-700 font-semibold">{issue}</div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-600">Select School_Profile and Academic_Years safe foundation rows to review identity fields.</div>
+          )}
+        </div>
+      )}
 
-      {/* School at a Glance Card */}
-      {isPrincipalRole() && (
+      {showAdminSetupDetails && bootstrapWizardStep === 1 && (
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <div className="text-[10px] uppercase font-mono text-slate-400 font-black">Registry Health</div>
+            <div className="text-xs text-slate-600">Tabs, headers, row counts, duplicates, placeholders, and Drive reference checks.</div>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-[11px] min-w-[820px]">
+            <thead className="text-slate-400 uppercase font-mono border-b border-slate-200"><tr><th className="py-2">Registry</th><th>Tab</th><th>Rows</th><th>Missing headers</th><th>Duplicates</th><th>Placeholders</th><th>Invalid Drive refs</th></tr></thead>
+            <tbody className="divide-y divide-slate-200">
+              {bootstrapPreview.health.map((item) => (
+                <tr key={`${item.spreadsheet}-${item.tab}`}>
+                  <td className="py-2 font-bold text-slate-700">{item.spreadsheet}</td>
+                  <td className="font-mono text-slate-600">{item.tab}{item.missingTab ? " (missing)" : item.emptyTab ? " (empty)" : ""}</td>
+                  <td>{item.rowCount}</td>
+                  <td className="text-rose-700">{item.missingHeaders.join(", ") || "-"}</td>
+                  <td className="text-rose-700">{item.duplicatePrimaryIds.join(", ") || "-"}</td>
+                  <td>{item.placeholderRows || "-"}</td>
+                  <td className="text-rose-700">{item.invalidDriveReferences.join(", ") || "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      )}
+
+      {!showAdminSetupDetails && bootstrapWizardStep === 5 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+          <div>
+            <div className="text-[10px] uppercase font-mono text-amber-700 font-black">Admin action</div>
+            <h3 className="text-sm font-extrabold text-slate-900">Approval is handled by the school admin team</h3>
+            <p className="text-sm text-slate-700 mt-1">
+              Only approved foundation setup rows can be written here. Existing rows are preserved, and no operational teaching data is invented.
+            </p>
+          </div>
+          {safeFoundationSetupComplete && (
+            <button
+              type="button"
+              onClick={() => onToggleTab("textbooks")}
+              className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-extrabold hover:bg-blue-700 inline-flex items-center justify-center gap-2"
+            >
+              Continue to NCERT Textbooks <ArrowRight size={14} />
+            </button>
+          )}
+        </div>
+      )}
+
+      {showAdminSetupDetails && bootstrapWizardStep === 5 && (
+      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <div className="text-[10px] uppercase font-mono text-blue-600 font-black">Approval required</div>
+            <h3 className="text-sm font-extrabold text-slate-900">Selected safe foundation rows only</h3>
+            <p className="text-xs text-slate-600 mt-1">Existing rows will not be overwritten. Rows will be appended only if primary keys do not already exist. No operational data will be invented.</p>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+            <div className="rounded-lg border border-blue-200 bg-white px-3 py-2"><div className="text-[10px] uppercase font-mono text-slate-400 font-black">Groups</div><div className="text-lg font-black text-slate-900">{selectedBootstrapSummary.groups}</div></div>
+            <div className="rounded-lg border border-blue-200 bg-white px-3 py-2"><div className="text-[10px] uppercase font-mono text-slate-400 font-black">Rows to create</div><div className="text-lg font-black text-slate-900">{selectedBootstrapSummary.rowsToCreate}</div></div>
+            <div className="rounded-lg border border-blue-200 bg-white px-3 py-2"><div className="text-[10px] uppercase font-mono text-slate-400 font-black">Skipped</div><div className="text-lg font-black text-slate-900">{selectedBootstrapSummary.skippedRows}</div></div>
+            <div className="rounded-lg border border-blue-200 bg-white px-3 py-2"><div className="text-[10px] uppercase font-mono text-slate-400 font-black">Needs review</div><div className="text-lg font-black text-amber-700">{selectedBootstrapSummary.reviewRows}</div></div>
+          </div>
+        </div>
+        <div className="rounded-lg border border-blue-100 bg-white px-3 py-2 text-[11px] text-slate-600">
+          <span className="font-black text-slate-800">Registries/tabs selected:</span> {selectedBootstrapSummary.tabs.length > 0 ? selectedBootstrapSummary.tabs.join("; ") : "None selected."}
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-3">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <div className="text-[10px] uppercase font-mono text-blue-600 font-black">Google Sheets write access</div>
+              <h4 className="text-sm font-extrabold text-slate-900">Connect Google Sheets Write Access</h4>
+              <p className="text-xs text-slate-600 mt-1">This is separate from the Workspace URL. It authorizes approved registry writes to Google Sheets only.</p>
+            </div>
+            <div className="text-right text-[10px] font-mono space-y-1">
+              <div>Current app origin: {googleWorkspaceAuthState.currentOrigin || "Unavailable"}</div>
+              <div>OAuth Client ID: {googleWorkspaceAuthState.clientIdConfigured ? "Configured" : "Missing"}</div>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[10px] font-mono">
+            <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+              <div className="uppercase font-black text-slate-400">Write access</div>
+              <div className={`font-bold ${googleWorkspaceAuthState.connected ? "text-emerald-700" : "text-amber-700"}`}>{googleWorkspaceAuthState.connected ? "Connected" : "Not connected"}</div>
+            </div>
+            <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+              <div className="uppercase font-black text-slate-400">Required scope</div>
+              <div className="font-bold text-slate-700 break-all">{googleWorkspaceAuthState.requiredScope}</div>
+            </div>
+            <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+              <div className="uppercase font-black text-slate-400">Connected account</div>
+              <div className="font-bold text-slate-700">{googleWorkspaceAuthState.connected ? "unavailable" : "Not connected"}</div>
+            </div>
+            <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+              <div className="uppercase font-black text-slate-400">Token expiry</div>
+              <div className="font-bold text-slate-700">{googleWorkspaceAuthState.expiresInSecondsRemaining === null ? "Not connected" : `${googleWorkspaceAuthState.expiresInSecondsRemaining}s remaining`}</div>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleConnectGoogleWorkspaceWriteAccess}
+              className="px-3 py-2 rounded-xl bg-blue-600 text-white text-xs font-extrabold hover:bg-blue-700"
+            >
+              Connect Google Sheets Write Access
+            </button>
+            <button
+              type="button"
+              onClick={handleDisconnectGoogleWorkspaceWriteAccess}
+              className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-extrabold text-slate-700 hover:bg-slate-100"
+            >
+              Disconnect Write Access
+            </button>
+          </div>
+          {!googleWorkspaceAuthState.clientIdConfigured && (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+              Google OAuth client ID is not configured.
+            </div>
+          )}
+          {googleWorkspaceAuthState.errorMessage && (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+              {googleWorkspaceAuthState.errorMessage}
+              <div className="mt-1 text-[10px] font-mono text-rose-600">Current origin: {googleWorkspaceAuthState.currentOrigin || "Unavailable"}</div>
+            </div>
+          )}
+        </div>
+        {selectedBootstrapHeaderIssues.length > 0 && (
+          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+            Fix selected header issues before writeback: {selectedBootstrapHeaderIssues.join("; ")}
+          </div>
+        )}
+        {selectedBootstrapPlaceholderIssues.length > 0 && (
+          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+            Core identity placeholders must be resolved before writeback: {selectedBootstrapPlaceholderIssues.join("; ")}
+          </div>
+        )}
+        {selectedBootstrapSummary.rowsToCreate === 0 && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs font-semibold text-amber-800 space-y-2">
+            <div className="font-black">
+              {selectableSafeFoundationDestinations.length > 0
+                ? "No safe foundation groups are currently selected."
+                : "No safe foundation rows are available to apply."}
+            </div>
+            <div>
+              {selectableSafeFoundationDestinations.length > 0
+                ? "Go back to Step 4 and select the safe foundation groups, or use the button below to select all available safe foundation groups."
+                : "This usually means the safe foundation rows have already been written or there are no missing setup rows left in the selected safe tabs. Continue to Books and NCERT Mapping for the next setup phase."}
+            </div>
+            {selectableSafeFoundationDestinations.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedBootstrapGroups((current) => ({
+                    ...current,
+                    ...Object.fromEntries(selectableSafeFoundationDestinations.map((destination) => [getBootstrapDestinationId(destination), true]))
+                  }));
+                  setBootstrapApprovalChecked(false);
+                }}
+                className="inline-flex rounded-lg border border-amber-300 bg-white px-3 py-2 text-[11px] font-extrabold text-amber-800 hover:bg-amber-100"
+              >
+                Select available safe foundation groups
+              </button>
+            )}
+            {selectableSafeFoundationDestinations.length === 0 && (
+              <button
+                type="button"
+                onClick={() => onToggleTab("textbooks")}
+                className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
+              >
+                Continue to NCERT Textbooks <ArrowRight size={13} />
+              </button>
+            )}
+          </div>
+        )}
+        <label className="flex items-start gap-2 text-xs font-bold text-slate-700">
+          <input
+            type="checkbox"
+            checked={bootstrapApprovalChecked}
+            onChange={(event) => setBootstrapApprovalChecked(event.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600"
+          />
+          <span>I approve writing the selected safe foundation rows to Google Sheets.</span>
+        </label>
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={applySelectedBootstrapRows}
+            disabled={selectedBootstrapSummary.rowsToCreate === 0 || selectedBootstrapHeaderIssues.length > 0 || selectedBootstrapPlaceholderIssues.length > 0 || !bootstrapApprovalChecked || !googleWorkspaceAuthState.connected || bootstrapWriteInProgress}
+            className={`px-4 py-2 rounded-xl text-xs font-extrabold ${selectedBootstrapSummary.rowsToCreate > 0 && selectedBootstrapHeaderIssues.length === 0 && selectedBootstrapPlaceholderIssues.length === 0 && bootstrapApprovalChecked && googleWorkspaceAuthState.connected && !bootstrapWriteInProgress ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-slate-200 text-slate-400 cursor-not-allowed"}`}
+          >
+            {bootstrapWriteInProgress ? "Applying selected rows..." : "Apply Safe Foundation Setup"}
+          </button>
+          <div className="flex items-center gap-2 text-[10px] font-mono font-black uppercase">
+            <span className="px-2 py-1 rounded-lg bg-white text-blue-700 border border-blue-200">No overwrite</span>
+            <span className="px-2 py-1 rounded-lg bg-white text-slate-700 border border-slate-200">No operational data</span>
+            <span className="px-2 py-1 rounded-lg bg-white text-rose-700 border border-rose-200">Approval required</span>
+          </div>
+        </div>
+        {(bootstrapWriteInProgress || bootstrapWriteProgress) && (
+          <div className={`rounded-lg border px-3 py-3 text-xs font-semibold space-y-2 ${
+            bootstrapWriteProgress?.phase === "group_error"
+              ? "border-rose-200 bg-rose-50 text-rose-800"
+              : bootstrapWriteProgress?.phase === "complete"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : "border-blue-200 bg-blue-50 text-blue-800"
+          }`}>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <div className="text-[10px] uppercase font-mono font-black opacity-75">
+                  {bootstrapWriteInProgress ? "Applying safe foundation setup" : "Latest writeback status"}
+                </div>
+                <div className="text-sm font-extrabold">{bootstrapWriteProgress?.message || "Preparing writeback."}</div>
+              </div>
+              {bootstrapWriteProgress?.groupIndex && bootstrapWriteProgress?.groupTotal && (
+                <div className="rounded-full bg-white/80 border border-current/15 px-3 py-1 text-[10px] font-mono font-black">
+                  Group {bootstrapWriteProgress.groupIndex} of {bootstrapWriteProgress.groupTotal}
+                </div>
+              )}
+            </div>
+            {bootstrapWriteProgress?.spreadsheet && bootstrapWriteProgress?.tab && (
+              <div className="rounded-md bg-white/80 border border-current/10 px-2 py-1 font-mono text-[10px]">
+                Current target: {bootstrapWriteProgress.spreadsheet} / {bootstrapWriteProgress.tab}
+              </div>
+            )}
+            {bootstrapWriteInProgress && (
+              <div className="text-[11px] leading-relaxed">
+                Please keep this tab open. Google Sheets may take a little while while Schooly checks headers, appends missing rows, writes the audit log, and refreshes live data counts.
+              </div>
+            )}
+            {bootstrapWriteProgress?.error && (
+              <div className="rounded-md bg-white/80 border border-rose-200 px-2 py-1 text-rose-700">
+                {bootstrapWriteProgress.error}
+              </div>
+            )}
+          </div>
+        )}
+        {!googleWorkspaceAuthState.connected && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+            Connect Google Sheets Write Access before applying setup rows.
+          </div>
+        )}
+        {bootstrapWriteError && <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">{bootstrapWriteError}</div>}
+        {bootstrapWriteResult && (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 space-y-1">
+            <div className="font-black">Writeback complete: {bootstrapWriteResult.totalCreated} created, {bootstrapWriteResult.totalSkipped} skipped.</div>
+            {bootstrapWriteResult.errors.length > 0 && <div className="text-rose-700 font-semibold">Errors: {bootstrapWriteResult.errors.join(" ")}</div>}
+          </div>
+        )}
+      </div>
+      )}
+
+      {!showAdminSetupDetails && (bootstrapWizardStep === 3 || bootstrapWizardStep === 4) && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-3">
+          <div>
+            <div className="text-[10px] uppercase font-mono font-black text-blue-700">{bootstrapWizardStep === 4 ? "Next phase" : "Foundation setup"}</div>
+            <h3 className="text-sm font-extrabold text-slate-900">
+              {safeFoundationSetupComplete ? "Foundation setup is ready" : "School admin setup is in progress"}
+            </h3>
+            <p className="text-sm text-slate-700 mt-1">
+              {safeFoundationSetupComplete
+                ? "Teachers can continue once books and chapters are mapped in the NCERT Textbooks area."
+                : "A school administrator reviews and applies foundation rows here. No marks, attendance, or classroom activity is created by this wizard."}
+            </p>
+          </div>
+          {safeFoundationSetupComplete && (
+            <button
+              type="button"
+              onClick={() => onToggleTab("textbooks")}
+              className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-extrabold hover:bg-blue-700 inline-flex items-center justify-center gap-2"
+            >
+              Continue to NCERT Textbooks <ArrowRight size={14} />
+            </button>
+          )}
+        </div>
+      )}
+
+      {showAdminSetupDetails && (bootstrapWizardStep === 3 || bootstrapWizardStep === 4) && (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <div className={`text-[10px] uppercase font-mono font-black ${bootstrapWizardStep === 4 ? "text-amber-600" : "text-blue-600"}`}>{bootstrapWizardStep === 4 ? "Deferred setup" : "Safe foundation setup"}</div>
+            <div className="text-xs text-slate-600">{bootstrapWizardStep === 4 ? "Future setup items are shown read-only and cannot be applied from the foundation wizard." : "This step writes setup/configuration rows only. Existing rows will not be overwritten."}</div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <select value={bootstrapRegistryFilter} onChange={(event) => setBootstrapRegistryFilter(event.target.value)} className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white"><option value="all">All registries</option>{bootstrapRegistryOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select>
+            <select value={bootstrapTabFilter} onChange={(event) => setBootstrapTabFilter(event.target.value)} className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white"><option value="all">All tabs</option>{bootstrapTabOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select>
+            <select value={bootstrapSeverityFilter} onChange={(event) => setBootstrapSeverityFilter(event.target.value)} className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white"><option value="all">All severities</option><option value="blocker">Blockers</option><option value="warning">Warnings</option><option value="info">Info</option></select>
+          </div>
+        </div>
+
+        {bootstrapWizardStep === 4 && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 font-semibold">
+            Deferred groups require NCERT book confirmation, Drive folder URL confirmation, Classroom course IDs, assessment calendar details, or real evidence/artifact data.
+          </div>
+        )}
+
+        {wizardVisibleBootstrapDestinations.length > 0 ? wizardVisibleBootstrapDestinations.map((destination) => {
+          const destinationId = getBootstrapDestinationId(destination);
+          const expanded = expandedBootstrapDestinations[destinationId] || false;
+          const isDeferred = bootstrapWizardStep === 4;
+          const selected = !isDeferred && Boolean(selectedBootstrapGroups[destinationId]);
+          const destinationConfidence = Array.from(new Set(destination.rows.map((row) => row.confidence))).join(", ");
+          const destinationSources = Array.from(new Set(destination.rows.map((row) => row.source))).slice(0, 3).join("; ");
+          const reviewRequiredCount = destination.rows.filter((row) => row.reviewRequired && !row.skippedBecauseKeyExists).length;
+          return (
+            <div key={destinationId} className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+              <button type="button" onClick={() => setExpandedBootstrapDestinations((current) => ({ ...current, [destinationId]: !expanded }))} className="w-full flex items-start justify-between gap-3 px-4 py-3 text-left bg-slate-50 hover:bg-slate-100">
+                <div className="flex items-start gap-3 min-w-0">
+                  <input
+                    type="checkbox"
+                    checked={selected}
+                    disabled={isDeferred}
+                    onClick={(event) => event.stopPropagation()}
+                    onChange={(event) => {
+                      if (isDeferred) return;
+                      const checked = event.target.checked;
+                      setSelectedBootstrapGroups((current) => ({ ...current, [destinationId]: checked }));
+                      setBootstrapApprovalChecked(false);
+                    }}
+                    className={`mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 ${isDeferred ? "cursor-not-allowed opacity-50" : ""}`}
+                    aria-label={`Select ${destination.spreadsheet} ${destination.tab}`}
+                  />
+                  <div className="min-w-0">
+                    <div className="text-sm font-extrabold text-slate-900">{destination.spreadsheet} / {destination.tab}</div>
+                    <div className="text-[11px] text-slate-500 font-mono">Primary key: {destination.primaryKeyColumn}  |  Rows to create: {destination.proposedRowCount}  |  Skipped existing: {destination.skippedExistingCount}</div>
+                    <div className="text-[11px] text-slate-600 mt-1">Validation: {destinationConfidence || "-"}  |  Review required: {reviewRequiredCount}  |  Source: {destinationSources || "-"}</div>
+                    {destination.warnings.length > 0 && <div className="text-[11px] text-amber-700 mt-1">Warnings: {destination.warnings.slice(0, 3).join("; ")}</div>}
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className={`text-[10px] uppercase font-sans font-black px-2 py-0.5 rounded-full ${expanded ? "bg-slate-200 text-slate-700" : "bg-blue-50 text-blue-700"}`}>
+                        {expanded ? "Hide technical rows" : "Review rows"}
+                      </span>
+                      {isDeferred && <span className="text-[10px] uppercase font-mono font-black text-amber-600">Deferred - cannot be applied in first foundation setup</span>}
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight size={16} className={`text-slate-400 transition-transform shrink-0 mt-1 ${expanded ? "rotate-90" : ""}`} />
+              </button>
+              {expanded && (
+                <div className="border-t border-slate-100">
+                  <div className="px-4 pt-3 text-[10px] uppercase font-mono font-black text-slate-400">Technical rows</div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-[11px] min-w-[760px]">
+                      <thead className="text-slate-400 uppercase font-mono border-b border-slate-100"><tr><th className="px-4 py-2">Key</th><th>Severity</th><th>Confidence</th><th>Review</th><th>Source</th><th>Reason</th><th>Warnings</th><th>Preview row</th></tr></thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {destination.rows.map((row) => (
+                          <tr key={row.id}>
+                            <td className="px-4 py-2 font-mono text-slate-700">{row.primaryKeyValue}</td>
+                            <td><span className={`px-2 py-0.5 rounded-full font-bold ${row.severity === "blocker" ? "bg-rose-50 text-rose-700" : row.severity === "warning" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700"}`}>{row.severity}</span></td>
+                            <td className="font-bold text-slate-600">{row.confidence}</td>
+                            <td className={row.reviewRequired ? "text-amber-700 font-bold" : "text-emerald-700 font-bold"}>{row.reviewRequired ? "Required" : "No"}</td>
+                            <td className="text-slate-600">{row.source}</td>
+                            <td className="text-slate-600 max-w-xs">{row.reason}</td>
+                            <td className="text-amber-700">{row.warnings.join("; ") || "-"}</td>
+                            <td className="font-mono text-slate-500 max-w-md truncate" title={JSON.stringify(row.row)}>{JSON.stringify(row.row)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        }) : (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-600">No proposed rows match the current filters.</div>
+        )}
+      </div>
+      )}
+
+      {bootstrapWizardStep === 6 && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+          <div>
+            <div className="text-[10px] uppercase font-mono text-emerald-700 font-black">Read-only</div>
+            <h3 className="text-sm font-extrabold text-slate-900">Completion</h3>
+            <p className="text-xs text-slate-700 mt-1">
+              {safeFoundationSetupComplete
+                ? "Foundation setup is ready. Continue to NCERT textbooks, books, and chapter mapping."
+                : "After apply, Schooly re-reads the live registries and shows write results by registry and tab."}
+            </p>
+          </div>
+          {bootstrapWriteResult ? (
+            <div className="space-y-3">
+              <div className={`rounded-lg border px-3 py-2 text-xs font-semibold ${
+                bootstrapWriteResult.errors.length > 0
+                  ? "border-amber-200 bg-amber-50 text-amber-800"
+                  : "border-emerald-200 bg-white text-emerald-800"
+              }`}>
+                {bootstrapWriteResult.errors.length > 0
+                  ? "Writeback finished with errors. Review the registry/tab table below before retrying."
+                  : "Safe foundation setup applied successfully. Schooly appended missing rows, preserved existing rows, and refreshed live data counts."}
+              </div>
+              <div className="rounded-lg border border-blue-200 bg-white px-3 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="text-[10px] uppercase font-mono text-blue-600 font-black">Next step</div>
+                  <div className="text-sm font-extrabold text-slate-900">Continue to NCERT Textbooks</div>
+                  <div className="text-xs text-slate-600 mt-1">Map books, chapter files, and the lesson-planning source for teachers.</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onToggleTab("textbooks")}
+                  className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-extrabold hover:bg-blue-700 inline-flex items-center justify-center gap-2"
+                >
+                  Open NCERT Textbooks <ArrowRight size={14} />
+                </button>
+              </div>
+              {showAdminSetupDetails && (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                <div className="rounded-lg border border-emerald-200 bg-white px-3 py-2"><div className="text-[10px] uppercase font-mono text-slate-400 font-black">Created</div><div className="text-lg font-black text-emerald-700">{bootstrapWriteResult.totalCreated}</div></div>
+                <div className="rounded-lg border border-emerald-200 bg-white px-3 py-2"><div className="text-[10px] uppercase font-mono text-slate-400 font-black">Skipped</div><div className="text-lg font-black text-slate-900">{bootstrapWriteResult.totalSkipped}</div></div>
+                <div className="rounded-lg border border-emerald-200 bg-white px-3 py-2"><div className="text-[10px] uppercase font-mono text-slate-400 font-black">Errors</div><div className="text-lg font-black text-rose-700">{bootstrapWriteResult.errors.length}</div></div>
+              </div>
+              )}
+              {showAdminSetupDetails && (
+              <div className="overflow-x-auto rounded-xl border border-emerald-200 bg-white">
+                <table className="w-full text-left text-[11px] min-w-[720px]">
+                  <thead className="text-slate-400 uppercase font-mono border-b border-emerald-100"><tr><th className="px-3 py-2">Registry</th><th>Tab</th><th>Created</th><th>Skipped</th><th>Errors</th></tr></thead>
+                  <tbody className="divide-y divide-emerald-100">
+                    {bootstrapWriteResult.groups.map((group) => (
+                      <tr key={group.groupId}>
+                        <td className="px-3 py-2 font-bold text-slate-700">{group.spreadsheet}</td>
+                        <td className="font-mono text-slate-600">{group.tab}</td>
+                        <td>{group.created}</td>
+                        <td>{group.skipped}</td>
+                        <td className="text-rose-700">{group.errors.join("; ") || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              )}
+              {showAdminSetupDetails && (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                {dashboardSourceState.registries.map((registry) => (
+                  <div key={`completion-${registry.key}`} className="rounded-lg border border-emerald-200 bg-white px-3 py-2">
+                    <div className="text-[10px] uppercase font-mono text-slate-400 font-black">{registry.label}</div>
+                    <div className="text-sm font-black text-slate-900">{registry.rowCount} live rows</div>
+                  </div>
+                ))}
+              </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-slate-200 bg-white px-3 py-3 text-xs font-semibold text-slate-700 space-y-3">
+              <div>
+                {safeFoundationSetupComplete
+                  ? "Foundation setup rows already exist. Continue to NCERT Textbooks for the next setup phase."
+                  : "No writeback has been run in this session. Complete Step 6 after reviewing and approving safe foundation rows."}
+              </div>
+              {safeFoundationSetupComplete && (
+                <button
+                  type="button"
+                  onClick={() => onToggleTab("textbooks")}
+                  className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-extrabold hover:bg-blue-700 inline-flex items-center justify-center gap-2"
+                >
+                  Continue to NCERT Textbooks <ArrowRight size={14} />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 flex items-center justify-between gap-3 flex-wrap">
+        <button
+          type="button"
+          onClick={() => setBootstrapWizardStep((step) => Math.max(0, step - 1))}
+          disabled={bootstrapWizardStep === 0}
+          className={`px-4 py-2 rounded-xl text-xs font-extrabold ${bootstrapWizardStep === 0 ? "bg-slate-100 text-slate-400 cursor-not-allowed" : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"}`}
+        >
+          Back
+        </button>
+        <div className="flex items-center gap-2 text-[10px] font-mono font-black uppercase">
+          <span className="px-2 py-1 rounded-lg bg-blue-50 text-blue-700">No overwrite</span>
+          <span className="px-2 py-1 rounded-lg bg-slate-100 text-slate-700">No operational data</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setBootstrapWizardStep((step) => Math.min(bootstrapWizardSteps.length - 1, step + 1))}
+          disabled={bootstrapWizardStep >= bootstrapWizardSteps.length - 1 || !canContinueBootstrapWizard(bootstrapWizardStep)}
+          className={`px-4 py-2 rounded-xl text-xs font-extrabold ${bootstrapWizardStep < bootstrapWizardSteps.length - 1 && canContinueBootstrapWizard(bootstrapWizardStep) ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-slate-200 text-slate-400 cursor-not-allowed"}`}
+        >
+          Continue
+        </button>
+      </div>
+    </div>
+  );
+  const registryByKey = new Map<string, DashboardRegistrySourceStatus>((dashboardSourceState.registries || []).map((registry) => [registry.key, registry]));
+  const getTabRowCount = (key: string, tabName: string) => {
+    const registry = registryByKey.get(key as any);
+    return registry?.tabRowCounts?.[tabName] || 0;
+  };
+  const getRegistryUrl = (key: string) => registryByKey.get(key as any)?.url || "";
+  const getRegistryRowCount = (key: string) => registryByKey.get(key as any)?.rowCount || 0;
+  const canViewRegistrySheetLinks = googleWorkspaceAuthState.connected || isPrincipalRole() || isAdminRole() || isCoordinatorRole() || isHodRole() || isManagerRole() || isHrRole() || isExamsRole() || isTeacherRole();
+  const canEditRegistrySheetLinks = googleWorkspaceAuthState.connected && (isPrincipalRole() || isAdminRole() || isCoordinatorRole() || isHodRole() || isManagerRole() || isHrRole() || isExamsRole());
+  const openRegistrySheetLink = (url: string, mode: "view" | "edit") => {
+    if (!url || (!canViewRegistrySheetLinks && mode === "view") || (!canEditRegistrySheetLinks && mode === "edit")) return;
+    const trimmed = url.trim();
+    const targetUrl = mode === "view"
+      ? trimmed.replace(/\/edit(\?.*)?$/, "/view$1")
+      : trimmed;
+    window.open(targetUrl, "_blank", "noopener,noreferrer");
+  };
+  const countTabs = (items: Array<[string, string]>) =>
+    items.reduce((sum, [key, tabName]) => sum + getTabRowCount(key, tabName), 0);
+  const liveSectionCards = [
+    {
+      title: "Class Sections",
+      source: "Master Registry / Classes_Sections",
+      sourceUrl: getRegistryUrl("masterDataRegistryUrl"),
+      rows: getTabRowCount("masterDataRegistryUrl", "Classes_Sections"),
+      empty: "No live class/section rows found in Master Registry / Classes_Sections.",
+      registryKey: "masterDataRegistryUrl"
+    },
+    {
+      title: "Teacher Allocations",
+      source: "Master Registry / Teacher_Allocations",
+      sourceUrl: getRegistryUrl("masterDataRegistryUrl"),
+      rows: getTabRowCount("masterDataRegistryUrl", "Teacher_Allocations"),
+      empty: "No live teacher allocation rows found in Master Registry / Teacher_Allocations.",
+      registryKey: "masterDataRegistryUrl"
+    },
+    {
+      title: "Lesson Workspace",
+      source: "Lesson Workspace Registry / Lesson_Workspace_Registry",
+      sourceUrl: getRegistryUrl("lessonWorkspaceRegistryUrl"),
+      rows: getTabRowCount("lessonWorkspaceRegistryUrl", "Lesson_Workspace_Registry"),
+      empty: "No live lesson workspace rows found in Lesson Workspace Registry / Lesson_Workspace_Registry.",
+      registryKey: "lessonWorkspaceRegistryUrl"
+    },
+    {
+      title: "Alerts",
+      source: "Dashboard Data Source / Alert_Log",
+      sourceUrl: getRegistryUrl("dashboardDataSourceUrl"),
+      rows: getTabRowCount("dashboardDataSourceUrl", "Alert_Log"),
+      empty: "No live alert rows found in Dashboard Data Source / Alert_Log.",
+      registryKey: "dashboardDataSourceUrl"
+    },
+    {
+      title: "SQAA Evidence",
+      source: "QA/SQAA Registry / SQAA_Evidence_Map",
+      sourceUrl: getRegistryUrl("qaSqaaRegistryUrl"),
+      rows: getTabRowCount("qaSqaaRegistryUrl", "SQAA_Evidence_Map"),
+      empty: "No live compliance evidence rows found in QA/SQAA Registry / SQAA_Evidence_Map.",
+      registryKey: "qaSqaaRegistryUrl"
+    },
+    {
+      title: "Assessments",
+      source: "Assessment/Result Registry",
+      sourceUrl: getRegistryUrl("assessmentResultRegistryUrl"),
+      rows: registryByKey.get("assessmentResultRegistryUrl" as any)?.rowCount || 0,
+      empty: "No live assessment rows found in Assessment/Result Registry.",
+      registryKey: "assessmentResultRegistryUrl"
+    },
+    {
+      title: "Classroom Sync",
+      source: "Google Classroom Sync Registry",
+      sourceUrl: getRegistryUrl("classroomSyncRegistryUrl"),
+      rows: registryByKey.get("classroomSyncRegistryUrl" as any)?.rowCount || 0,
+      empty: "No live Classroom sync rows found in Google Classroom Sync Registry.",
+      registryKey: "classroomSyncRegistryUrl"
+    }
+  ];
+
+  const dashboardRoleKey: DashboardRoleKey = isPrincipalRole()
+    ? "principal"
+    : isAdminRole()
+      ? "admin"
+      : isCoordinatorRole()
+        ? "coordinator"
+        : isHodRole()
+          ? "hod"
+          : isTeacherRole()
+            ? "teacher"
+            : isManagerRole()
+              ? "manager"
+              : isHrRole()
+                ? "hr"
+                : isExamsRole()
+                  ? "exams"
+                  : isParentRole()
+                    ? "parent"
+                    : isStudentRole()
+                      ? "student"
+                      : "manager";
+
+  const roleDashboardTitle = DASHBOARD_ROLE_TITLES[dashboardRoleKey] || "Role Dashboard";
+
+  const dashboardCardIconMap: Record<string, React.ComponentType<{ size: number; className?: string }>> = {
+    AlertTriangle,
+    Award,
+    BarChart2,
+    Bell,
+    Briefcase,
+    BookOpen,
+    Calendar,
+    Check,
+    CheckSquare,
+    Clock,
+    Database,
+    FileText,
+    FolderOpen,
+    LayoutGrid,
+    Send,
+    Settings,
+    ShieldAlert,
+    Star,
+    UserCheck,
+    Users
+  };
+
+  const getRegistryRowCountSafe = (registryKey: string) => registryByKey.get(registryKey as any)?.rowCount || 0;
+  const getTabRowCountSafe = (registryKey: string, tabName: string) => registryByKey.get(registryKey as any)?.tabRowCounts?.[tabName] || 0;
+
+  const resolveCardRows = (card: DashboardRoleCardDefinition): number => {
+    if (card.countMode === "liveRows") {
+      return (dashboardSourceState.registries || []).reduce((sum, registry) => sum + registry.rowCount, 0);
+    }
+
+    if (card.countMode === "blueprintRows") {
+      return liveDashboardBlueprints?.[card.blueprintRole || dashboardRoleKey]?.rows?.length || 0;
+    }
+
+    if ((card.registryKeys || []).length === 0) {
+      return 0;
+    }
+
+    if ((card.tabNames || []).length > 0 && (card.registryKeys || []).length === 1) {
+      const registryKey = card.registryKeys![0];
+      return card.tabNames!.reduce((sum, tabName) => sum + getTabRowCountSafe(registryKey, tabName), 0);
+    }
+
+    return (card.registryKeys || []).reduce((sum, registryKey) => sum + getRegistryRowCountSafe(registryKey), 0);
+  };
+
+  const roleDashboardCards = getDashboardRoleCards(dashboardRoleKey)
+    .map((card) => {
+      const rows = resolveCardRows(card);
+      return {
+        ...card,
+        rows,
+        model: toDashboardCardModel(card, rows, dashboardRoleKey),
+        icon: dashboardCardIconMap[card.icon] || Database
+      };
+    })
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  const roleDashboardSourceRows = roleDashboardCards.reduce((sum, card) => sum + card.rows, 0);
+  const renderRoleSpecificDashboardCards = () => (
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4" id="role-specific-dashboard-cards">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Role Dashboard</div>
+          <h2 className="text-base font-extrabold text-slate-900">{roleDashboardTitle}</h2>
+          <p className="text-xs text-slate-600 mt-1">
+            Cards are role-specific, compact, and driven by the live data catalog.
+          </p>
+        </div>
+        <span className={`text-[10px] font-sans font-black px-2 py-1 rounded-lg ${roleDashboardSourceRows > 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+          {roleDashboardSourceRows > 0 ? `${roleDashboardSourceRows} live source rows` : "Setup required"}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        {roleDashboardCards.map((card) => (
+          <button
+            key={card.key}
+            type="button"
+            onClick={() => setSelectedRoleCardModel(card.model)}
+            className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3 text-left hover:border-blue-200 hover:bg-white transition-all cursor-pointer"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-2 min-w-0">
+                <div className="rounded-lg border border-slate-200 bg-white p-2 shrink-0">
+                  {React.createElement(card.icon, { size: 18, className: "text-slate-700" })}
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-extrabold text-slate-900">{card.model.title}</h3>
+                  <p className="text-xs text-slate-600 mt-1 leading-snug">{card.rows > 0 ? card.model.summary : card.model.emptyState}</p>
+                </div>
+              </div>
+              <span className={`text-[10px] font-sans font-bold px-2 py-0.5 rounded-full shrink-0 ${card.rows > 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                {card.rows > 0 ? `${card.rows} rows` : "Setup"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-2 text-[10px] font-mono font-bold">
+              <span className="text-blue-700">Source: {card.source}</span>
+              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-slate-600">{card.sourceBadge}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2 pt-1 text-[11px] font-extrabold">
+              <span className="text-slate-600">{card.model.drillThroughLabel}</span>
+              <ArrowRight size={12} className="text-blue-600" />
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {selectedRoleCardModel && (
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Drill-through</div>
+              <h3 className="text-sm font-extrabold text-slate-900">{selectedRoleCardModel.title}</h3>
+              <p className="text-xs text-slate-600 mt-1">{selectedRoleCardModel.summary}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedRoleCardModel(null)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-extrabold text-slate-700 hover:bg-slate-50"
+            >
+              Close
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <div className="text-[10px] uppercase tracking-wider font-mono text-slate-400 font-bold">Top rows</div>
+              <div className="mt-1 text-sm font-bold text-slate-900">{selectedRoleCardModel.topRows}</div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <div className="text-[10px] uppercase tracking-wider font-mono text-slate-400 font-bold">Total rows</div>
+              <div className="mt-1 text-sm font-bold text-slate-900">{selectedRoleCardModel.totalRows}</div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <div className="text-[10px] uppercase tracking-wider font-mono text-slate-400 font-bold">Target</div>
+              <div className="mt-1 text-[11px] font-bold text-blue-700 break-all">{selectedRoleCardModel.drillThroughTarget}</div>
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs">
+            <div className="text-[10px] uppercase tracking-wider font-mono text-slate-400 font-bold">Applied filters</div>
+            <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-slate-700 font-mono">{JSON.stringify(selectedRoleCardModel.filters, null, 2)}</pre>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
+            {selectedRoleCardModel.emptyState}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderRegistersHub = () => {
+    const teacherCount = [...new Set((courses || []).map((course) => course.teacherName).filter(Boolean))].length;
+    const registerCards = [
+      { title: "Students", count: students.length, detail: "Live student records", source: "Master Registry / Student_Directory", drillTab: "admin-registry-detail" },
+      { title: "Teachers", count: teacherCount, detail: "Active teaching staff", source: "Master Registry / Teacher_Allocations", drillTab: "admin-registry-detail" },
+      { title: "Classes & Sections", count: courses.length, detail: "Live classroom sections", source: "Master Registry / Classes_Sections", drillTab: "admin-registry-detail" },
+      { title: "Staff", count: teacherCount, detail: "Administrative and support staff", source: "Master Registry / Staff_Directory", drillTab: "admin-registry-detail" },
+      { title: "Subjects", count: [...new Set((courses || []).map((course) => course.name).filter(Boolean))].length, detail: "Unique subject or course names", source: "Master Registry / Subjects", drillTab: "admin-registry-detail" },
+      { title: "Attendance", count: dashboardSourceState.registries?.find((registry) => /attendance/i.test(registry.label || registry.url || registry.key || ""))?.rowCount || 0, detail: "Attendance records when connected", source: "Attendance Registry / Attendance_Summary", drillTab: "admin-registry-detail" },
+      { title: "Assessments", count: dashboardSourceState.registries?.find((registry) => /assessment/i.test(registry.label || registry.url || registry.key || ""))?.rowCount || 0, detail: "Assessment and result rows", source: "Assessment/Result Registry", drillTab: "admin-registry-detail" },
+      { title: "Tasks & Follow-ups", count: tasks.length, detail: "Open work items and follow-ups", source: "Dashboard Data Source / Alert_Log", drillTab: "role-cards" }
+    ];
+
+    return (
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4" id="registers-hub">
+        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
+          <div>
+            <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Registers</div>
+            <h2 className="text-base font-extrabold text-slate-900">Live school registers</h2>
+            <p className="text-xs text-slate-600 mt-1 max-w-3xl">
+              Keep live records here instead of mock summaries. Common practice is to centralize students, teachers, classes & sections, staff, subjects, attendance, assessments, and timetables in one register area.
+            </p>
+          </div>
+          <span className="text-[10px] font-sans font-black px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700">
+            {students.length + teacherCount + courses.length + tasks.length} live rows
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          {registerCards.map((card) => (
+            <div key={card.title} className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
+              <button type="button" onClick={() => onToggleTab(card.drillTab)} className="w-full text-left flex items-center justify-between gap-2">
+                <h3 className="text-sm font-extrabold text-slate-900">{card.title}</h3>
+                <span className={`text-[10px] font-sans font-bold px-2 py-0.5 rounded-full ${card.count > 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                  {card.count > 0 ? `${card.count} rows` : "Setup required"}
+                </span>
+              </button>
+              <div className="text-xs font-semibold text-slate-600">{card.detail}</div>
+              <div className="text-[10px] font-mono font-bold text-blue-700">Source: {card.source}</div>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => onToggleTab(card.drillTab)}
+                  className="px-2.5 py-1.5 rounded-lg border border-blue-200 bg-white text-[10px] font-extrabold text-blue-700 hover:bg-blue-50"
+                >
+                  Drill Through
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderSettingsHub = () => {
+    return (
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4" id="settings-hub">
+        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
+          <div>
+            <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Settings</div>
+            <h2 className="text-base font-extrabold text-slate-900">Configuration and source controls</h2>
+            <p className="text-xs text-slate-600 mt-1 max-w-3xl">
+              Keep configuration separate from working registers. The detailed setup cards now live in the dedicated Setup & Registries page.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-sans font-black px-2 py-1 rounded-lg bg-blue-50 text-blue-700">
+              {registryHealthSummary.onboardingStatus}
+            </span>
+            {isWorkspaceMock && (
+              <span className="text-[10px] font-sans font-black px-2 py-1 rounded-lg border border-amber-200 bg-amber-50 text-amber-800">
+                Workspace preview
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Registry Health</div>
+                <h3 className="text-sm font-extrabold text-slate-900">Setup and sync status</h3>
+              </div>
+              <span className="text-[10px] font-sans font-black px-2 py-1 rounded-lg bg-white text-slate-700 border border-slate-200">
+                {registryHealthSummary.connectedRegistries}/{registryHealthSummary.totalRegistries} connected
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-wider">
+              <span className="rounded-full border border-white bg-white px-2.5 py-1 text-slate-700">Warnings {registryHealthSummary.warningRegistries}</span>
+              <span className="rounded-full border border-white bg-white px-2.5 py-1 text-slate-700">Critical {registryHealthSummary.criticalRegistries}</span>
+              <span className="rounded-full border border-white bg-white px-2.5 py-1 text-slate-700">{registryHealthSummary.onboardingStatus}</span>
+            </div>
+            <p className="text-xs text-slate-600">{registryHealthSummary.primaryIssue}</p>
+            <button
+              type="button"
+              onClick={openSetupCentre}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
+            >
+              Open Setup Centre
+              <ArrowRight size={12} />
+            </button>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+            <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Workspace Controls</div>
+            <div className="text-sm font-extrabold text-slate-900">Keep setup actions out of the role header</div>
+            <p className="text-xs text-slate-600">
+              Use the Setup Centre for registry checks, source inspection, and repair actions. Settings stays focused on configuration only.
+            </p>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-extrabold text-slate-900">Open the Setup Centre</h3>
+              <p className="text-xs text-slate-600 mt-1">
+                Use this page for registry connections, onboarding, registry overview, and repair actions.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => onToggleTab("setup-registries")}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
+              >
+                Open Setup Centre <ArrowRight size={12} />
+              </button>
+              <button
+                type="button"
+                onClick={() => onToggleTab("overview")}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-extrabold text-slate-700 hover:bg-slate-50"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderSetupAndRegistriesPage = () => (
+    <div className="space-y-6 mt-2 animate-fade-in" id="setup-and-registries-page">
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Setup & Registries</div>
+            <h2 className="text-lg font-extrabold text-slate-900">Live data setup and repair centre</h2>
+            <p className="text-xs text-slate-600 mt-1 max-w-3xl">
+              Use this page for live data connections, onboarding, data-driven overview, catalog details, and sync logs.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => onToggleTab("overview")}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-extrabold text-slate-700 hover:bg-slate-50"
+            >
+              Back to Dashboard
+            </button>
+            <button
+              type="button"
+              onClick={() => onToggleTab("settings")}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-600 px-3 py-2 text-[11px] font-extrabold text-white hover:bg-blue-700"
+            >
+              Open Settings
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6">
+        {renderDashboardSourcePanel()}
+        {renderRegistryBootstrapPreview()}
+        {renderRegistryDetailPanel()}
+        {renderRegistersHub()}
+      </div>
+    </div>
+  );
+
+  const renderTeacherDashboard = () => {
+    const header = teacherDashboard.header;
+    const isSetupState = teacherDashboard.setupState.status !== "live" || !header.name;
+    const currentHighlight = teacherDashboard.timetable.find((item) => item.highlight === "current") || teacherDashboard.timetable.find((item) => item.highlight === "next");
+
+    return (
+      <div className="space-y-6" id="teacher-dashboard-root">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="h-14 w-14 rounded-2xl border border-slate-200 bg-gradient-to-br from-blue-600 to-cyan-500 text-white flex items-center justify-center font-black text-xl shrink-0">
+                {header.initials || "T"}
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-blue-700">
+                    Teacher Dashboard
+                  </span>
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${isSetupState ? "border border-amber-200 bg-amber-50 text-amber-700" : "border border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                    {isSetupState ? "Setup required" : "Live data"}
+                  </span>
+                </div>
+                <h2 className="mt-1 text-xl sm:text-2xl font-black text-slate-900 truncate">{header.name || "Teacher dashboard setup required"}</h2>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-600 font-medium">
+                  <span className="truncate">{header.label || "Teacher"}</span>
+                  <span className="truncate">{header.subject || "Subject pending"}</span>
+                  <span className="truncate">
+                    {header.classes.length > 0
+                      ? header.classes.map((className) => formatClassLabel(className) || className).join(", ")
+                      : "Classes pending"}
+                  </span>
+                  <span className="truncate">{header.academicSession || "Academic session pending"}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 text-[11px] text-slate-500 flex flex-wrap gap-2">
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">Staff ID: {header.staffId || "Pending"}</span>
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">Source: {header.source.workbook} / {header.source.tab}</span>
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">Rows: {header.source.rowCount}</span>
+          </div>
+        </div>
+
+        {isSetupState && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={18} />
+              <div className="min-w-0">
+                <h3 className="text-sm font-extrabold text-amber-900">{teacherDashboard.setupState.title}</h3>
+                <p className="text-xs text-amber-800 mt-1">{teacherDashboard.setupState.message}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {teacherDashboard.setupState.messages.map((message) => (
+                    <span key={message} className="inline-flex rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[10px] font-bold text-amber-800">
+                      {message}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Required Registries</div>
+              <h3 className="text-sm font-extrabold text-slate-900">Live source map for this teacher view</h3>
+            </div>
+            <span className="text-[10px] font-sans font-black rounded-full bg-slate-100 text-slate-700 px-2 py-1">{teacherDashboard.sourceHealth.length} linked</span>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {teacherDashboard.sourceHealth.map((source) => (
+              <span
+                key={`${source.workbook}-${source.tab}`}
+                className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-700"
+                title={`${formatTeacherDashboardSource(source)} | ${source.rowCount} rows`}
+              >
+                <span className="truncate">{formatTeacherDashboardSource(source)}</span>
+                <span className="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-black text-slate-500">{source.rowCount}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          {teacherDashboard.kpis.map((kpi) => (
+            <div key={kpi.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-slate-500 truncate">{kpi.label}</div>
+                <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${kpi.status === "healthy" ? "bg-emerald-50 text-emerald-700" : kpi.status === "warning" ? "bg-amber-50 text-amber-700" : kpi.status === "attention" ? "bg-rose-50 text-rose-700" : "bg-slate-100 text-slate-600"}`}>{formatTeacherDashboardSource(kpi.source)}</span>
+              </div>
+              <div className="mt-2 text-2xl font-black text-slate-900">{kpi.value}</div>
+              <div className="mt-1 text-xs text-slate-600 truncate">{kpi.detail}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Today&apos;s Timetable</div>
+                <h3 className="text-sm font-extrabold text-slate-900">Today&apos;s timetable</h3>
+              </div>
+              <span className="text-[10px] font-sans font-black rounded-full bg-blue-50 text-blue-700 px-2 py-1">{currentHighlight ? currentHighlight.highlight.toUpperCase() : "SETUP"}</span>
+            </div>
+            <div className="mt-4 space-y-2">
+              {teacherDashboard.timetable.length > 0 ? teacherDashboard.timetable.slice(0, DASHBOARD_ROW_LIMIT).map((period) => (
+                <div key={period.id} className={`rounded-xl border p-3 flex items-start justify-between gap-3 ${period.highlight === "current" ? "border-blue-200 bg-blue-50/60" : period.highlight === "next" ? "border-emerald-200 bg-emerald-50/50" : "border-slate-200 bg-slate-50"}`}>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono font-bold">
+                      <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">{period.day}</span>
+                      <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">{renderClassLabel(period.className)}{period.section ? `-${period.section}` : ""}</span>
+                      <span className={`rounded-full border px-2 py-0.5 ${period.highlight === "current" ? "border-blue-200 bg-blue-50 text-blue-700" : period.highlight === "next" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-600"}`}>{period.highlight === "current" ? "Now" : period.highlight === "next" ? "Next" : "Planned"}</span>
+                    </div>
+                    <div className="mt-1 text-sm font-bold text-slate-900 truncate">{period.subject || "Subject pending"}</div>
+                    <div className="mt-0.5 text-xs text-slate-600 truncate">{period.startTime || "-"} - {period.endTime || "-"} {period.room ? `| ${period.room}` : ""}</div>
+                    <div className="mt-1 text-[10px] font-mono font-bold text-slate-500 truncate">Source: {formatTeacherDashboardSource(period.source)}</div>
+                  </div>
+                  <div className="text-[10px] font-mono font-bold text-slate-500 shrink-0">{period.status || "Scheduled"}</div>
+                </div>
+              )) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">Timetable not configured for this teacher. Add rows in Schooly_Master_Data_Registry / Timetable.</div>
+              )}
+            </div>
+            {teacherDashboard.timetable.length > DASHBOARD_ROW_LIMIT && (
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => onToggleTab("classroom")}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
+                >
+                  View All ({teacherDashboard.timetable.length})
+                  <ChevronRight size={12} />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Pending Tasks</div>
+                <h3 className="text-sm font-extrabold text-slate-900">Pending tasks / action queue</h3>
+              </div>
+              <span className="text-[10px] font-sans font-black rounded-full bg-rose-50 text-rose-700 px-2 py-1">{teacherDashboard.pendingTasks.length} open</span>
+            </div>
+            <div className="mt-4 space-y-2">
+              {teacherDashboard.pendingTasks.length > 0 ? teacherDashboard.pendingTasks.slice(0, DASHBOARD_ROW_LIMIT).map((task) => (
+                <div key={task.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold text-slate-900 truncate">{task.title}</div>
+                      <div className="mt-1 text-xs text-slate-600 truncate">{task.detail || task.sourceLabel}</div>
+                    </div>
+                    <span className={`text-[10px] font-sans font-black rounded-full px-2 py-0.5 shrink-0 ${task.severity === "critical" ? "bg-rose-50 text-rose-700" : task.severity === "high" ? "bg-amber-50 text-amber-700" : task.severity === "medium" ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-600"}`}>{task.statusLabel}</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-mono font-bold text-slate-500">{task.sourceLabel} / {task.dueLabel}</span>
+                    <button type="button" onClick={() => task.actionTab ? onToggleTab(task.actionTab) : undefined} disabled={!task.actionTab} className={`rounded-lg px-2.5 py-1.5 text-[10px] font-extrabold ${task.actionTab ? "border border-blue-200 bg-white text-blue-700 hover:bg-blue-50" : "border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"}`}>
+                      {task.actionLabel}
+                    </button>
+                  </div>
+                </div>
+              )) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">No open tasks were found. Seed Dashboard Data Source / Dashboard_Alerts, Planner_Submissions, Classroom_Assignment_Map, Marks_Entry, Lesson_Workspace_Registry, or Classroom_Publish_Log.</div>
+              )}
+            </div>
+            {teacherDashboard.pendingTasks.length > DASHBOARD_ROW_LIMIT && (
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => onToggleTab("tasks")}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-2 text-[11px] font-extrabold text-rose-700 hover:bg-rose-50"
+                >
+                  View All ({teacherDashboard.pendingTasks.length})
+                  <ChevronRight size={12} />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            {teacherDashboard.quickLinks.map((link) => (
+              <button
+                key={link.label}
+                type="button"
+                onClick={() => link.actionTab ? onToggleTab(link.actionTab) : undefined}
+                disabled={!link.available}
+                className={`flex min-w-[180px] flex-1 items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left ${link.available ? "border-slate-200 bg-slate-50 hover:bg-white" : "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"}`}
+              >
+                <div className="min-w-0">
+                  <div className="text-sm font-bold truncate">{link.label}</div>
+                  <div className="text-[11px] text-slate-600 truncate">{link.detail}</div>
+                </div>
+                <span className="text-[10px] font-sans font-bold rounded-full border border-slate-200 bg-white px-2 py-1">{link.actionLabel}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">My Class Performance</div>
+                <h3 className="text-sm font-extrabold text-slate-900">My class performance</h3>
+              </div>
+              <span className="text-[10px] font-sans font-black rounded-full bg-blue-50 text-blue-700 px-2 py-1">{teacherDashboard.classPerformance.length} classes</span>
+            </div>
+            <div className="mt-4 space-y-3">
+              {teacherDashboard.classPerformance.length > 0 ? teacherDashboard.classPerformance.slice(0, DASHBOARD_ROW_LIMIT).map((item) => (
+                <div key={item.id}>
+                  <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                    <span className="truncate">{renderClassLabel(item.className)}{item.section ? `-${item.section}` : ""} | {item.subject}</span>
+                    <span>{item.percent}%</span>
+                  </div>
+                  <div className="mt-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+                    <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.max(0, Math.min(100, item.percent))}%` }} />
+                  </div>
+                  <div className="mt-1 text-[11px] text-slate-500 truncate">{item.summary}</div>
+                  <div className="mt-1 text-[10px] font-mono font-bold text-slate-500 truncate">Source: {formatTeacherDashboardSource(item.source)}</div>
+                </div>
+              )) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">No assessment results found. Seed Assessment / Result Registry / Result_Analysis or Marks_Entry.</div>
+              )}
+            </div>
+            {teacherDashboard.classPerformance.length > DASHBOARD_ROW_LIMIT && (
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => onToggleTab("registers")}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
+                >
+                  View All ({teacherDashboard.classPerformance.length})
+                  <ChevronRight size={12} />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">My Classroom Posts / Themes</div>
+                <h3 className="text-sm font-extrabold text-slate-900">My classroom posts / themes</h3>
+              </div>
+              <span className="text-[10px] font-sans font-black rounded-full bg-cyan-50 text-cyan-700 px-2 py-1">{teacherDashboard.classroomActivity.length} posts</span>
+            </div>
+            <div className="mt-4 space-y-2">
+              {teacherDashboard.classroomActivity.length > 0 ? teacherDashboard.classroomActivity.slice(0, 5).map((item) => (
+                <div key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-sans font-black rounded-full border border-blue-200 bg-white px-2 py-0.5 text-blue-700 truncate">{item.tag}</span>
+                    <span className="text-[10px] text-slate-500 font-mono">{item.postedAt ? formatTeacherDashboardDateTime(item.postedAt) : "Live"}</span>
+                  </div>
+                  <div className="mt-2 text-sm font-bold text-slate-900 truncate">{item.title}</div>
+                  <div className="mt-1 text-xs text-slate-600 line-clamp-2">{item.detail || "Live classroom activity"}</div>
+                  <div className="mt-1 text-[10px] font-mono font-bold text-slate-500 truncate">Source: {formatTeacherDashboardSource(item.source)}</div>
+                </div>
+              )) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">No classroom activity rows were found. Seed Google Classroom Sync Registry / Classroom_Announcement_Sync or Dashboard Data Source / Classroom_Activity.</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Assessment Tracking</div>
+                <h3 className="text-sm font-extrabold text-slate-900">My assessment tracking</h3>
+              </div>
+              <span className="text-[10px] font-sans font-black rounded-full bg-indigo-50 text-indigo-700 px-2 py-1">{teacherDashboard.assessmentTracking.length} items</span>
+            </div>
+            <div className="mt-4 space-y-2">
+              {teacherDashboard.assessmentTracking.length > 0 ? teacherDashboard.assessmentTracking.slice(0, 5).map((item) => (
+                <div key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold text-slate-900 truncate">{item.title}</div>
+                      <div className="text-[11px] text-slate-600 mt-1 truncate">{renderClassLabel(item.className)}{item.section ? `-${item.section}` : ""} | {item.subject}</div>
+                    </div>
+                    <span className="text-[10px] font-sans font-black rounded-full border border-slate-200 bg-white px-2 py-0.5">{item.dueLabel}</span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-[10px] font-bold">
+                    <span className="rounded-full bg-blue-50 text-blue-700 px-2 py-0.5">{item.completionLabel}</span>
+                    <span className="rounded-full bg-slate-100 text-slate-700 px-2 py-0.5">{item.marksStatusLabel}</span>
+                    <span className="rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5">{item.analysisStatusLabel}</span>
+                  </div>
+                  <div className="mt-1 text-[10px] font-mono font-bold text-slate-500 truncate">Source: {formatTeacherDashboardSource(item.source)}</div>
+                </div>
+              )) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">No assessment rows found. Seed Assessment / Result Registry / Assessment_Plan, Marks_Entry, Result_Analysis, or Question_Paper_Registry.</div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Invigilation & Olympiads</div>
+                <h3 className="text-sm font-extrabold text-slate-900">My invigilation & olympiads</h3>
+              </div>
+              <span className="text-[10px] font-sans font-black rounded-full bg-slate-100 text-slate-700 px-2 py-1">{teacherDashboard.invigilationDuty ? "1 live duty" : "Setup required"}</span>
+            </div>
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              {teacherDashboard.invigilationDuty ? (
+                <div className="space-y-2">
+                  <div className="text-sm font-bold text-slate-900 truncate">{teacherDashboard.invigilationDuty.eventName}</div>
+                  <div className="text-xs text-slate-600">{teacherDashboard.invigilationDuty.eventType} | {renderClassLabel(teacherDashboard.invigilationDuty.className)}{teacherDashboard.invigilationDuty.section ? `-${teacherDashboard.invigilationDuty.section}` : ""} | {teacherDashboard.invigilationDuty.subject}</div>
+                  <div className="text-[11px] font-mono text-slate-500">{formatTeacherDashboardDate(teacherDashboard.invigilationDuty.dutyDate)} | {teacherDashboard.invigilationDuty.status}</div>
+                  <div className="text-[10px] font-mono font-bold text-slate-500">Source: Assessment / Result Registry / Invigilation_Olympiad_Duties</div>
+                </div>
+              ) : (
+                <div className="text-sm font-semibold text-amber-800">Invigilation/Olympiad duty registry not configured. Add Assessment / Result Registry / Invigilation_Olympiad_Duties.</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Renewal Status</div>
+                <h3 className="text-sm font-extrabold text-slate-900">My renewal status</h3>
+              </div>
+              <span className="text-[10px] font-sans font-black rounded-full bg-slate-100 text-slate-700 px-2 py-1">{teacherDashboard.renewalStatus.statusLabel || "Setup required"}</span>
+            </div>
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
+              <div className="font-semibold text-slate-900">{teacherDashboard.renewalStatus.title}</div>
+              <div className="mt-1 text-slate-600">{teacherDashboard.renewalStatus.message}</div>
+              {teacherDashboard.renewalStatus.nextReviewDate ? (
+                <div className="mt-2 text-[11px] font-mono text-slate-500">Next review: {formatTeacherDashboardDate(teacherDashboard.renewalStatus.nextReviewDate)}</div>
+              ) : null}
+              <div className="mt-2 text-[10px] font-mono font-bold text-slate-500">Source: Schooly_Teacher_CPD_Renewal_Registry / Teacher_CPD_Status</div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Recent Classroom Announcements</div>
+                <h3 className="text-sm font-extrabold text-slate-900">Recent classroom announcements</h3>
+              </div>
+              <button type="button" onClick={() => onToggleTab("classroom")} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50">
+                Track class updates
+                <ChevronRight size={12} />
+              </button>
+            </div>
+            <div className="mt-4 space-y-2">
+              {teacherDashboard.announcements.length > 0 ? teacherDashboard.announcements.slice(0, 5).map((announcement) => (
+                <div key={announcement.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-blue-200 bg-white px-2 py-0.5 text-[10px] font-bold text-blue-700">{renderClassLabel(announcement.className)}{announcement.section ? `-${announcement.section}` : ""}</span>
+                    <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700">{announcement.subject || "General"}</span>
+                    <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700">{announcement.status}</span>
+                  </div>
+                  <div className="mt-2 text-sm font-bold text-slate-900 truncate">{announcement.title}</div>
+                  <div className="mt-1 text-xs text-slate-600 line-clamp-2">{announcement.text}</div>
+                  <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                    <span className="font-mono">{announcement.postedAt ? formatTeacherDashboardDateTime(announcement.postedAt) : "Live"}</span>
+                    {announcement.url ? <span className="truncate max-w-[50%]">Classroom link available</span> : <span>Announcement details pending</span>}
+                  </div>
+                  <div className="mt-1 text-[10px] font-mono font-bold text-slate-500 truncate">Source: {formatTeacherDashboardSource(announcement.source)}</div>
+                </div>
+              )) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">No classroom announcement rows were found. Add Google Classroom Sync Registry / Classroom_Announcement_Sync.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderManagerDashboard = () => {
+    const profile = managerDashboard.profile;
+    const isSetupState = managerDashboard.setupState.status !== "live" || !profile.name;
+    const metricTone = (status: string) => {
+      if (status === "healthy") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+      if (status === "warning") return "border-amber-200 bg-amber-50 text-amber-700";
+      if (status === "attention") return "border-rose-200 bg-rose-50 text-rose-700";
+      return "border-slate-200 bg-slate-50 text-slate-600";
+    };
+    const checklistTone = (severity: string) => {
+      if (severity === "critical") return "border-rose-200 bg-rose-50 text-rose-700";
+      if (severity === "high") return "border-amber-200 bg-amber-50 text-amber-700";
+      if (severity === "warning") return "border-blue-200 bg-blue-50 text-blue-700";
+      return "border-slate-200 bg-slate-50 text-slate-600";
+    };
+
+    return (
+      <div className="space-y-6" id="manager-dashboard-root">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="h-14 w-14 rounded-full border border-slate-200 bg-gradient-to-br from-blue-600 to-cyan-500 text-white flex items-center justify-center font-black text-xl shrink-0">
+                {profile.initials || "MG"}
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-blue-700">
+                    {profile.roleLabel || "School Manager"}
+                  </span>
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${isSetupState ? "border border-amber-200 bg-amber-50 text-amber-700" : "border border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                    {isSetupState ? "Setup required" : "Live data"}
+                  </span>
+                </div>
+                <h2 className="mt-1 text-xl sm:text-2xl font-black text-slate-900 truncate">
+                  Welcome back, {profile.name || "Manager dashboard setup required"}
+                </h2>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-600 font-medium">
+                  <span className="truncate">{profile.oversightLabel || "Operational oversight"}</span>
+                  <span className="truncate">{profile.performanceLabel || "Performance review pending"}</span>
+                  <span className="truncate">{profile.academicSession ? `Session ${profile.academicSession}` : "Academic year pending"}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 text-[11px] text-slate-500 flex flex-wrap gap-2">
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">Source: {formatTeacherDashboardSource(profile.source)}</span>
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">Session: {profile.academicSession || "Pending"}</span>
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">Oversight: {profile.oversightLabel || "Pending"}</span>
+          </div>
+        </div>
+
+        {isSetupState && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={18} />
+              <div className="min-w-0">
+                <h3 className="text-sm font-extrabold text-amber-900">{managerDashboard.setupState.title}</h3>
+                <p className="text-xs text-amber-800 mt-1">{managerDashboard.setupState.message}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {managerDashboard.setupState.messages.map((message) => (
+                    <span key={message} className="inline-flex rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[10px] font-bold text-amber-800">
+                      {message}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          {managerDashboard.kpis.map((kpi) => (
+            <div key={kpi.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-slate-500 truncate">{kpi.label}</div>
+                <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${metricTone(kpi.status)}`}>
+                  {formatTeacherDashboardSource(kpi.source)}
+                </span>
+              </div>
+              <div className="mt-2 text-2xl font-black text-slate-900">{kpi.value}</div>
+              <div className="mt-1 text-xs text-slate-600 truncate">{kpi.detail}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Strategic Operational Metrics</div>
+                <h3 className="text-sm font-extrabold text-slate-900">Strategic operational metrics and performance chart</h3>
+              </div>
+              <span className="text-[10px] font-sans font-black rounded-full bg-blue-50 text-blue-700 px-2 py-1">{managerDashboard.operationalMetrics.length} metrics</span>
+            </div>
+            <div className="mt-4 space-y-3">
+              {managerDashboard.operationalMetrics.length > 0 ? managerDashboard.operationalMetrics.map((metric) => (
+                <div key={metric.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold text-slate-900 truncate">{metric.label}</div>
+                      <div className="mt-1 text-[11px] text-slate-600 truncate">{metric.detail}</div>
+                    </div>
+                    <span className={`text-[10px] font-sans font-black rounded-full px-2 py-0.5 shrink-0 ${metricTone(metric.status)}`}>
+                      {metric.value}
+                    </span>
+                  </div>
+                  <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden">
+                    <div className={`h-full rounded-full ${metric.status === "healthy" ? "bg-emerald-500" : metric.status === "warning" ? "bg-amber-500" : metric.status === "attention" ? "bg-rose-500" : "bg-slate-400"}`} style={{ width: `${Math.max(0, Math.min(100, metric.percent))}%` }} />
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2 text-[10px] font-mono font-bold text-slate-500">
+                    <span>Source: {formatTeacherDashboardSource(metric.source)}</span>
+                    <span>{metric.percent > 0 ? `${metric.percent}%` : "Setup required"}</span>
+                  </div>
+                </div>
+              )) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
+                  No live operational metrics were found. Seed Dashboard_Metrics, Planner_Submissions, Classroom_Activity, Evidence_Gaps, or SQAA evidence rows.
+                </div>
+              )}
+            </div>
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={() => onToggleTab("registry-detail")}
+                className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-600 px-4 py-2 text-xs font-extrabold text-white hover:bg-blue-700"
+              >
+                Open source detail
+                <ArrowUpRight size={14} />
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Strategic Milestones</div>
+                <h3 className="text-sm font-extrabold text-slate-900">Strategic milestones and compliance checklist</h3>
+              </div>
+              <span className="text-[10px] font-sans font-black rounded-full bg-slate-100 text-slate-700 px-2 py-1">{managerDashboard.complianceChecklist.length} items</span>
+            </div>
+            <div className="mt-4 space-y-2">
+              {managerDashboard.complianceChecklist.length > 0 ? managerDashboard.complianceChecklist.map((item) => (
+                <div key={item.id} className={`rounded-xl border p-3 ${checklistTone(item.severity)}`}>
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 shrink-0">
+                      {item.severity === "critical" || item.severity === "high" ? <AlertTriangle size={15} className="text-current" /> : <Check size={15} className="text-current" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-bold text-slate-900 truncate">{item.title}</div>
+                      <div className="mt-1 text-xs text-slate-600 truncate">{item.detail}</div>
+                    </div>
+                    <span className="text-[10px] font-sans font-black rounded-full border border-current/20 bg-white/75 px-2 py-0.5 shrink-0">
+                      {item.statusLabel}
+                    </span>
+                  </div>
+                  <div className="mt-2 text-[10px] font-mono font-bold text-slate-500 truncate">Source: {formatTeacherDashboardSource(item.source)}</div>
+                </div>
+              )) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
+                  Strategic_Milestones, Operational_Checklist, and QA checklist rows are not configured yet.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Recent Classroom Announcements</div>
+              <h3 className="text-sm font-extrabold text-slate-900">Recent classroom announcements</h3>
+            </div>
+            <button type="button" onClick={() => onToggleTab("registry-detail")} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50">
+              Track class sync
+              <ChevronRight size={12} />
+            </button>
+          </div>
+          <div className="mt-4 space-y-2">
+            {managerDashboard.announcements.length > 0 ? managerDashboard.announcements.slice(0, 5).map((announcement) => (
+              <div key={announcement.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-blue-200 bg-white px-2 py-0.5 text-[10px] font-bold text-blue-700">{renderClassLabel(announcement.className)}{announcement.section ? `-${announcement.section}` : ""}</span>
+                  <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700">{announcement.subject || "General"}</span>
+                  <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700">{announcement.status}</span>
+                </div>
+                <div className="mt-2 text-sm font-bold text-slate-900 truncate">{announcement.title}</div>
+                <div className="mt-1 text-xs text-slate-600 line-clamp-2">{announcement.text}</div>
+                <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                  <span className="font-mono">{announcement.postedAt ? formatTeacherDashboardDateTime(announcement.postedAt) : "Live"}</span>
+                  {announcement.url ? (
+                    <button
+                      type="button"
+                      onClick={() => window.open(announcement.url, "_blank", "noopener,noreferrer")}
+                      className="text-[10px] font-black text-blue-700 hover:underline bg-transparent border-none cursor-pointer p-0"
+                    >
+                      View
+                    </button>
+                  ) : (
+                    <span>Update details pending</span>
+                  )}
+                </div>
+                <div className="mt-1 text-[10px] font-mono font-bold text-slate-500 truncate">Source: {formatTeacherDashboardSource(announcement.source)}</div>
+              </div>
+            )) : (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">No classroom announcement rows were found. Seed Classroom_Announcement_Sync in the Classroom Sync Registry.</div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderStudentDashboard = () => {
+    const profile = studentDashboard.header;
+    const isSetupState = studentDashboard.setupState.status !== "live" || !profile.name;
+    const taskTone = (task: StudentDashboardTask) => {
+      if (task.completed) return "border-emerald-200 bg-emerald-50 text-emerald-700";
+      if ((task.statusLabel || "").toLowerCase().includes("overdue")) return "border-rose-200 bg-rose-50 text-rose-700";
+      if ((task.statusLabel || "").toLowerCase().includes("pending")) return "border-amber-200 bg-amber-50 text-amber-700";
+      return "border-slate-200 bg-slate-50 text-slate-600";
+    };
+    const kpiTone = (status: string) => {
+      if (status === "healthy") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+      if (status === "warning") return "border-amber-200 bg-amber-50 text-amber-700";
+      if (status === "attention") return "border-rose-200 bg-rose-50 text-rose-700";
+      return "border-slate-200 bg-slate-50 text-slate-600";
+    };
+    const timetableTone = (highlight: StudentTimetableItem["highlight"]) => {
+      if (highlight === "current") return "border-emerald-200 bg-emerald-50/80";
+      if (highlight === "next") return "border-blue-200 bg-blue-50/70";
+      return "border-slate-200 bg-slate-50";
+    };
+    const taskRows = studentTasksList.length > 0 ? studentTasksList : studentDashboard.tasks;
+    const visibleTimetable = studentDashboard.timetable.length > 0 ? studentDashboard.timetable.slice(0, 4) : [];
+    const visibleAnnouncements = studentDashboard.announcements.length > 0 ? studentDashboard.announcements.slice(0, 5) : [];
+    const quickResources = studentDashboard.resources.slice(0, 2);
+    const sourceRowCount = studentDashboard.sourceHealth.reduce((sum, item) => sum + item.rowCount, 0);
+    const footerNoteText = studentDashboard.tasks.find((task) => task.detail)?.detail || studentDashboard.announcements[0]?.text || "Use the classroom tab to review live assignment and timetable rows.";
+
+    const toggleTask = (taskId: string) => {
+      setStudentCheckedTasks((prev) => (prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [...prev, taskId]));
+    };
+
+    return (
+      <div className="space-y-6" id="student-dashboard-root">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="h-14 w-14 rounded-full border border-slate-200 bg-gradient-to-br from-cyan-600 to-blue-500 text-white flex items-center justify-center font-black text-xl shrink-0">
+                {profile.initials || "ST"}
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center rounded-full border border-cyan-200 bg-cyan-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-cyan-700">
+                    {profile.label || "Student Portal"}
+                  </span>
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${isSetupState ? "border border-amber-200 bg-amber-50 text-amber-700" : "border border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                    {isSetupState ? "Setup required" : "Live data"}
+                  </span>
+                </div>
+                <h2 className="mt-1 text-xl sm:text-2xl font-black text-slate-900 truncate">
+                  Welcome back, {profile.name || "Student dashboard setup required"}
+                </h2>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-600 font-medium">
+                  <span className="truncate">{formatClassLabel(profile.className) || profile.className || "Class pending"}{profile.section ? `-${profile.section}` : ""} Student</span>
+                  <span className="truncate">{profile.academicSession ? `Session ${profile.academicSession}` : "Academic year pending"}</span>
+                  {profile.rollNumber ? <span className="truncate">Roll {profile.rollNumber}</span> : null}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 text-[11px] text-slate-500 flex flex-wrap gap-2">
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">Source: {formatTeacherDashboardSource(profile.source)}</span>
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">Rows: {profile.source.rowCount}</span>
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">Session: {profile.academicSession || "Pending"}</span>
+          </div>
+        </div>
+
+        {isSetupState && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={18} />
+              <div className="min-w-0">
+                <h3 className="text-sm font-extrabold text-amber-900">{studentDashboard.setupState.title}</h3>
+                <p className="text-xs text-amber-800 mt-1">{studentDashboard.setupState.message}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {studentDashboard.setupState.messages.map((message) => (
+                    <span key={message} className="inline-flex rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[10px] font-bold text-amber-800">
+                      {message}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          {studentDashboard.kpis.map((kpi) => (
+            <div key={kpi.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-slate-500 truncate">{kpi.label}</div>
+                <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${kpiTone(kpi.status)}`}>
+                  {formatTeacherDashboardSource(kpi.source)}
+                </span>
+              </div>
+              <div className="mt-2 text-2xl font-black text-slate-900">{kpi.value}</div>
+              <div className="mt-1 text-xs text-slate-600 truncate">{kpi.detail}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Personal Tasks</div>
+                <h3 className="text-sm font-extrabold text-slate-900">Personal tasks and Google Classroom assignments checklist</h3>
+              </div>
+              <span className="text-[10px] font-sans font-black rounded-full bg-blue-50 text-blue-700 px-2 py-1">{taskRows.filter((task) => !task.completed).length} open</span>
+            </div>
+            <div className="mt-4 space-y-2">
+              {taskRows.length > 0 ? taskRows.slice(0, 4).map((task) => {
+                const checked = task.completed || studentCheckedTasks.includes(task.id);
+                return (
+                  <div key={task.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700 truncate">{task.subject || "Student work"}</span>
+                          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${taskTone(task)}`}>{task.statusLabel}</span>
+                        </div>
+                        <div className={`mt-2 text-sm font-bold truncate ${checked ? "text-slate-500 line-through" : "text-slate-900"}`}>{task.title}</div>
+                        <div className="mt-1 text-xs text-slate-600 truncate">{task.detail || task.dueLabel}</div>
+                        <div className="mt-1 text-[10px] font-mono font-bold text-slate-500 truncate">Due: {task.dueLabel} | Source: {formatTeacherDashboardSource(task.source)}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => toggleTask(task.id)}
+                        className={`rounded-lg px-2.5 py-1.5 text-[10px] font-extrabold border shrink-0 ${checked ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-blue-200 bg-white text-blue-700 hover:bg-blue-50"}`}
+                      >
+                        {checked ? "Submitted" : task.actionLabel}
+                      </button>
+                    </div>
+                  </div>
+                );
+              }) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">No live student task rows were found. Seed Classroom_Assignment_Map, Classroom_Submission_Sync, or Dashboard_Alerts.</div>
+              )}
+            </div>
+            <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              {studentDashboard.setupState.status === "live" ? footerNoteText : studentDashboard.setupState.message}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Active Timetable</div>
+                <h3 className="text-sm font-extrabold text-slate-900">My Grade timetable and daily schedule</h3>
+              </div>
+              <span className="text-[10px] font-sans font-black rounded-full bg-emerald-50 text-emerald-700 px-2 py-1">{visibleTimetable.length > 0 ? `${visibleTimetable.length} periods` : "Setup required"}</span>
+            </div>
+            <div className="mt-4 space-y-2">
+              {visibleTimetable.length > 0 ? visibleTimetable.map((item) => (
+                <div key={item.id} className={`rounded-xl border p-3 flex items-center justify-between gap-3 ${timetableTone(item.highlight)}`}>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono font-bold">
+                      <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">{renderClassLabel(item.className)}{item.section ? `-${item.section}` : ""}</span>
+                      <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">{item.timeLabel || "Scheduled"}</span>
+                      <span className={`rounded-full border px-2 py-0.5 ${item.highlight === "current" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : item.highlight === "next" ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600"}`}>
+                        {item.highlight === "current" ? "Now" : item.highlight === "next" ? "Next" : item.statusLabel || "Planned"}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-sm font-bold text-slate-900 truncate">{item.title}</div>
+                    <div className="mt-0.5 text-xs text-slate-600 truncate">{item.subject || "Subject pending"}{item.room ? ` | ${item.room}` : ""}</div>
+                    <div className="mt-1 text-[10px] font-mono font-bold text-slate-500 truncate">Source: {formatTeacherDashboardSource(item.source)}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => item.actionTab ? onToggleTab(item.actionTab) : undefined}
+                    className={`rounded-lg px-2.5 py-1.5 text-[10px] font-extrabold border shrink-0 ${item.highlight === "current" ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}
+                  >
+                    {item.actionLabel}
+                  </button>
+                </div>
+              )) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">Timetable not configured for this student. Add live rows in Schooly_Master_Data_Registry / Timetable.</div>
+              )}
+            </div>
+            {quickResources.length > 0 && (
+              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="text-xs font-bold text-slate-800">Study Files Quick Access Folder:</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {quickResources.map((resource) => (
+                    <button
+                      key={resource.id}
+                      type="button"
+                      onClick={() => resource.actionTab ? onToggleTab(resource.actionTab) : undefined}
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[10px] font-bold text-slate-700 hover:bg-slate-50"
+                    >
+                      <BookOpen size={11} className="text-blue-600" />
+                      <span className="truncate">{resource.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Recent Classroom Announcements</div>
+              <h3 className="text-sm font-extrabold text-slate-900">Recent classroom announcements</h3>
+            </div>
+            <button type="button" onClick={() => onToggleTab("classroom")} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50">
+              Track class syllabus
+              <ChevronRight size={12} />
+            </button>
+          </div>
+          <div className="mt-4 space-y-2">
+            {visibleAnnouncements.length > 0 ? visibleAnnouncements.map((announcement) => (
+              <div key={announcement.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-cyan-200 bg-white px-2 py-0.5 text-[10px] font-bold text-cyan-700">{renderClassLabel(announcement.className)}{announcement.section ? `-${announcement.section}` : ""}</span>
+                  <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700">{announcement.subject || "General"}</span>
+                  <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700">{announcement.status}</span>
+                </div>
+                <div className="mt-2 text-sm font-bold text-slate-900 truncate">{announcement.title}</div>
+                <div className="mt-1 text-xs text-slate-600 line-clamp-2">{announcement.text}</div>
+                <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                  <span className="font-mono">{announcement.postedAt ? formatTeacherDashboardDateTime(announcement.postedAt) : "Live"}</span>
+                  <span className="truncate max-w-[55%]">{announcement.teacherName || "Teacher name pending"}</span>
+                </div>
+                <div className="mt-1 text-[10px] font-mono font-bold text-slate-500 truncate">Source: {formatTeacherDashboardSource(announcement.source)}</div>
+              </div>
+            )) : (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">No classroom announcement rows were found. Add Classroom_Announcement_Sync or Classroom_Activity rows.</div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderCoordinatorDashboard = () => {
+    const profile = coordinatorDashboard.coordinatorProfile;
+    const isSetupState = coordinatorDashboard.setupState.status !== "live" || !profile.name;
+    const statusBadge = (status: string) => {
+      const token = status.toLowerCase();
+      if (token.includes("submitted") || token.includes("live") || token.includes("complete")) return "bg-emerald-50 text-emerald-700 border-emerald-200";
+      if (token.includes("partial") || token.includes("review")) return "bg-amber-50 text-amber-700 border-amber-200";
+      if (token.includes("pending")) return "bg-blue-50 text-blue-700 border-blue-200";
+      return "bg-slate-100 text-slate-600 border-slate-200";
+    };
+    const statusClass = (value: string) => statusBadge(value);
+    const filteredRemedial = coordinatorDashboard.remedialTracking.filter((item) => {
+      const matchesSearch = !coordinatorSearch ||
+        [item.name, item.className, item.section, item.riskArea, item.owner, item.status].some((value) => String(value || "").toLowerCase().includes(coordinatorSearch.toLowerCase()));
+      const matchesStatus = coordinatorStatusFilter === "all" || String(item.status || "").toLowerCase().includes(coordinatorStatusFilter.toLowerCase());
+      const classLabel = item.section ? `${item.className}-${item.section}` : item.className;
+      const matchesClass = coordinatorClassFilter === "all" || classLabel === coordinatorClassFilter;
+      return matchesSearch && matchesStatus && matchesClass;
+    });
+    const uniqueCoordinatorClasses = Array.from(new Set(coordinatorDashboard.plannerStatusMatrix.rows.map((row) => row.section ? `${row.className}-${row.section}` : row.className).filter(Boolean))) as string[];
+    uniqueCoordinatorClasses.sort(compareClassLabels);
+    const activeClasses = coordinatorDashboard.plannerStatusMatrix.rows.length;
+
+    return (
+      <div className="space-y-6" id="coordinator-dashboard-root">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="h-14 w-14 rounded-2xl border border-slate-200 bg-gradient-to-br from-teal-600 to-cyan-500 text-white flex items-center justify-center font-black text-xl shrink-0">
+                {profile.initials || "MC"}
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-teal-700">
+                    Coordinator Dashboard
+                  </span>
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${isSetupState ? "border border-amber-200 bg-amber-50 text-amber-700" : "border border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                    {isSetupState ? "Setup required" : "Live data"}
+                  </span>
+                </div>
+                <h2 className="mt-1 text-xl sm:text-2xl font-black text-slate-900 truncate">{profile.name || "Coordinator dashboard setup required"}</h2>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-600 font-medium">
+                  <span className="truncate">{profile.label || "Academic Coordinator"}</span>
+                  <span className="truncate">{profile.academicSession ? `Session ${profile.academicSession}` : "Academic session pending"}</span>
+                  <span className="truncate">{profile.configuredScope || "Coordinator scope not configured."}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 text-[11px] text-slate-500 flex flex-wrap gap-2">
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">Source: {formatTeacherDashboardSource(profile.source)}</span>
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">Rows: {profile.source.rowCount}</span>
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">Academic year: {profile.academicSession || "Pending"}</span>
+          </div>
+        </div>
+
+        {isSetupState && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={18} />
+              <div className="min-w-0">
+                <h3 className="text-sm font-extrabold text-amber-900">{examsDashboard.setupState.title}</h3>
+                <p className="text-xs text-amber-800 mt-1">{examsDashboard.setupState.message}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {examsDashboard.setupState.messages.map((message) => (
+                    <span key={message} className="inline-flex rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[10px] font-bold text-amber-800">
+                      {message}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          {examsDashboard.kpis.map((kpi) => (
+            <div key={kpi.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-slate-500 truncate">{kpi.label}</div>
+                <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${kpi.status === "healthy" ? "bg-emerald-50 text-emerald-700" : kpi.status === "warning" ? "bg-amber-50 text-amber-700" : kpi.status === "attention" ? "bg-rose-50 text-rose-700" : "bg-slate-100 text-slate-600"}`}>{formatTeacherDashboardSource(kpi.source)}</span>
+              </div>
+              <div className="mt-2 text-2xl font-black text-slate-900">{kpi.value}</div>
+              <div className="mt-1 text-xs text-slate-600 truncate">{kpi.detail}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-violet-600">AP &amp; CBSE Boards Preparation Analytics Grid</div>
+                <h3 className="text-sm font-extrabold text-slate-900">Board subject stats</h3>
+              </div>
+              <span className="text-[10px] font-sans font-black rounded-full bg-violet-50 text-violet-700 px-2 py-1">Subject stats</span>
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              {examsDashboard.boardSubjectStats.length > 0 ? (
+                <table className="min-w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-slate-400 font-mono uppercase tracking-wider">
+                      <th className="py-2 pr-3">Board</th>
+                      <th className="py-2 pr-3">Subject</th>
+                      <th className="py-2 pr-3">Registered no</th>
+                      <th className="py-2 pr-3">Syllabus complete</th>
+                      <th className="py-2 pr-3">Mock average</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {examsDashboard.boardSubjectStats.map((row) => (
+                      <tr key={row.id} className="hover:bg-slate-50/60">
+                        <td className="py-3 pr-3 font-semibold text-slate-800 truncate">{row.board}</td>
+                        <td className="py-3 pr-3 font-semibold text-slate-800 truncate">{row.subject}</td>
+                        <td className="py-3 pr-3 font-sans font-bold text-slate-600">{row.registeredCount}</td>
+                        <td className="py-3 pr-3">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2.5 w-28 rounded-full bg-slate-100 overflow-hidden">
+                              <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.max(0, Math.min(100, row.syllabusCompliance))}%` }} />
+                            </div>
+                            <span className="text-[11px] font-bold text-emerald-700">{row.syllabusCompliance}% (Audited)</span>
+                          </div>
+                        </td>
+                        <td className="py-3 pr-3 font-sans font-bold text-slate-700">{row.mockAverage}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">No board subject stats found. Seed Assessment_Plan, Result_Analysis, Marks_Entry, or Question_Paper_Registry.</div>
+              )}
+            </div>
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={() => onToggleTab("registers")}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-600 px-3 py-2 text-[11px] font-extrabold text-white hover:bg-violet-700"
+              >
+                Export Board Registration Ledgers
+                <ArrowRight size={12} />
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-violet-600">Draft Exam Verification &amp; Question Paper Review</div>
+                <h3 className="text-sm font-extrabold text-slate-900">Draft exam verification &amp; question paper review</h3>
+              </div>
+              <span className="text-[10px] font-sans font-black rounded-full bg-emerald-50 text-emerald-700 px-2 py-1">Auditing</span>
+            </div>
+            <div className="mt-4 space-y-2">
+              {examsDashboard.verificationItems.length > 0 ? examsDashboard.verificationItems.map((item) => (
+                <div key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold text-slate-900 truncate">{item.title}</div>
+                      <div className="mt-1 text-xs text-slate-600 line-clamp-2">{item.detail}</div>
+                    </div>
+                    <span className={`text-[10px] font-sans font-black rounded-full px-2 py-0.5 shrink-0 border ${statusClass(item.statusLabel)}`}>{item.statusLabel || "Review"}</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-mono font-bold text-slate-500 truncate">Source: {formatTeacherDashboardSource(item.source)}</span>
+                    <button
+                      type="button"
+                      onClick={() => item.actionTab ? onToggleTab(item.actionTab) : undefined}
+                      disabled={!item.actionTab}
+                      className={`rounded-lg px-2.5 py-1.5 text-[10px] font-extrabold ${item.actionTab ? "border border-blue-200 bg-white text-blue-700 hover:bg-blue-50" : "border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"}`}
+                    >
+                      {item.actionLabel}
+                    </button>
+                  </div>
+                </div>
+              )) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">No draft paper rows found. Seed Question_Paper_Registry or Assessment_Plan.</div>
+              )}
+            </div>
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              Notice: Approved mid-term papers should be digitally hashed and locked before signing.
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-[10px] uppercase tracking-wider font-mono font-black text-violet-600">Recent Classroom Announcements</div>
+              <h3 className="text-sm font-extrabold text-slate-900">Recent classroom announcements</h3>
+            </div>
+            <button type="button" onClick={() => onToggleTab("registers")} className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-white px-3 py-2 text-[11px] font-extrabold text-violet-700 hover:bg-violet-50">
+              Track Class Syllabi
+              <ChevronRight size={12} />
+            </button>
+          </div>
+          <div className="mt-4 space-y-2">
+            {examsDashboard.announcements.length > 0 ? examsDashboard.announcements.map((announcement) => (
+              <div key={announcement.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-violet-200 bg-white px-2 py-0.5 text-[10px] font-bold text-violet-700">{renderClassLabel(announcement.className)}{announcement.section ? `-${announcement.section}` : ""}</span>
+                  <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700">{announcement.subject || "General"}</span>
+                  <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700">{announcement.status}</span>
+                </div>
+                <div className="mt-2 text-sm font-bold text-slate-900 truncate">{announcement.title}</div>
+                <div className="mt-1 text-xs text-slate-600 line-clamp-2">{announcement.text || "Announcement details pending"}</div>
+                <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                  <span className="font-mono">{announcement.postedAt ? formatTeacherDashboardDateTime(announcement.postedAt) : "Live"}</span>
+                  <span className="truncate max-w-[45%]">{announcement.teacherName || "Teacher name pending"}</span>
+                </div>
+              </div>
+            )) : (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">No announcements this week. Seed Classroom_Announcement_Sync or Classroom_Activity.</div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderExamsDashboard = renderCoordinatorDashboard;
+
+  const renderParentDashboard = () => {
+    const header = parentDashboard.header;
+    const isSetupState = parentDashboard.setupState.status !== "live" || !header.name;
+
+    const ticketTone = (value: string) => {
+      const token = String(value || "").toLowerCase();
+      if (/(resolved|closed|done|complete|cleared)/.test(token)) return "bg-emerald-50 text-emerald-700 border-emerald-200";
+      if (/(open|new|pending|review|active)/.test(token)) return "bg-amber-50 text-amber-700 border-amber-200";
+      return "bg-slate-100 text-slate-600 border-slate-200";
+    };
+
+    return (
+      <div className="space-y-6" id="parent-dashboard-root">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="h-14 w-14 rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-500 to-cyan-500 text-white flex items-center justify-center font-black text-xl shrink-0">
+                {header.initials || "PT"}
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700">
+                    Parent Representative
+                  </span>
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${isSetupState ? "border border-amber-200 bg-amber-50 text-amber-700" : "border border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                    {isSetupState ? "Setup required" : "Live data"}
+                  </span>
+                </div>
+                <h2 className="mt-1 text-xl sm:text-2xl font-black text-slate-900 truncate">{header.name || "Parents liaison"}</h2>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-600 font-medium">
+                  <span className="truncate">{header.committeeLabel || "Parent Advisory Committee"}</span>
+                  <span className="truncate">{header.liaisonLabel || "Liaison Officer"}</span>
+                  <span className="truncate">{header.academicSession || "Academic session pending"}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 text-[11px] text-slate-500 flex flex-wrap gap-2">
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">Source: {formatTeacherDashboardSource(header.source)}</span>
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">Rows: {header.source.rowCount}</span>
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">Session: {header.academicSession || "Pending"}</span>
+          </div>
+        </div>
+
+        {isSetupState && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={18} />
+              <div className="min-w-0">
+                <h3 className="text-sm font-extrabold text-amber-900">{parentDashboard.setupState.title}</h3>
+                <p className="text-xs text-amber-800 mt-1">{parentDashboard.setupState.message}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {parentDashboard.setupState.messages.map((message) => (
+                    <span key={message} className="inline-flex rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[10px] font-bold text-amber-800">
+                      {message}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          {parentDashboard.kpis.map((kpi) => (
+            <div key={kpi.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-slate-500 truncate">{kpi.label}</div>
+                <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${kpi.status === "healthy" ? "bg-emerald-50 text-emerald-700" : kpi.status === "warning" ? "bg-amber-50 text-amber-700" : kpi.status === "attention" ? "bg-rose-50 text-rose-700" : "bg-slate-100 text-slate-600"}`}>{formatTeacherDashboardSource(kpi.source)}</span>
+              </div>
+              <div className="mt-2 text-2xl font-black text-slate-900">{kpi.value}</div>
+              <div className="mt-1 text-xs text-slate-600 truncate">{kpi.detail}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-emerald-600">Parent Portal &amp; Principal&apos;s Announcements Notice Board</div>
+                <h3 className="text-sm font-extrabold text-slate-900">Parent portal notice board</h3>
+              </div>
+              <span className="text-[10px] font-sans font-black rounded-full bg-emerald-50 text-emerald-700 px-2 py-1">Latest updates</span>
+            </div>
+            <div className="mt-4 space-y-2">
+              {parentDashboard.notices.length > 0 ? parentDashboard.notices.map((notice) => (
+                <div key={notice.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[10px] font-bold text-emerald-700">{renderClassLabel(notice.className)}{notice.section ? `-${notice.section}` : ""}</span>
+                    <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700">{notice.title}</span>
+                  </div>
+                  <div className="mt-2 text-sm font-bold text-slate-900 truncate">{notice.text}</div>
+                  <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                    <span className="font-mono">{notice.postedAt ? formatTeacherDashboardDateTime(notice.postedAt) : "Live"}</span>
+                    <span className="truncate">{formatTeacherDashboardSource(notice.source)}</span>
+                  </div>
+                </div>
+              )) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">No announcements this week. Seed Classroom_Announcement_Sync or Classroom_Activity.</div>
+              )}
+            </div>
+
+            <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
+              <div className="text-[10px] uppercase tracking-wider font-mono font-black text-slate-500">File advisory ticket to executive committee</div>
+              <div className="mt-2 flex gap-2">
+                <input
+                  disabled
+                  placeholder="Enter issue (e.g. feedback regarding bus fleet timings...)"
+                  className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 disabled:cursor-not-allowed"
+                />
+                <button
+                  type="button"
+                  disabled
+                  className="rounded-xl bg-slate-200 px-4 py-2 text-sm font-extrabold text-slate-500 cursor-not-allowed"
+                >
+                  Submit Ticket
+                </button>
+              </div>
+              <div className="mt-3 space-y-2">
+                {parentDashboard.advisoryTickets.length > 0 ? parentDashboard.advisoryTickets.map((ticket) => (
+                  <div key={ticket.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-bold text-slate-900 truncate">{ticket.title}</div>
+                        <div className="mt-1 text-xs text-slate-600 truncate">{ticket.detail}</div>
+                      </div>
+                      <span className={`text-[10px] font-sans font-black rounded-full px-2 py-0.5 shrink-0 border ${ticketTone(ticket.statusLabel)}`}>{ticket.statusLabel}</span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-mono font-bold text-slate-500">{ticket.dueLabel}</span>
+                      <button
+                        type="button"
+                        onClick={() => ticket.actionTab ? onToggleTab(ticket.actionTab) : undefined}
+                        disabled={!ticket.actionTab}
+                        className={`rounded-lg px-2.5 py-1.5 text-[10px] font-extrabold ${ticket.actionTab ? "border border-blue-200 bg-white text-blue-700 hover:bg-blue-50" : "border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"}`}
+                      >
+                        {ticket.actionLabel}
+                      </button>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">No advisory ticket rows found. Seed Dashboard_Alerts for live parent support items.</div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-emerald-600">Safety Records &amp; Pupil Transport Updates</div>
+                <h3 className="text-sm font-extrabold text-slate-900">Safety records and transport updates</h3>
+              </div>
+              <span className="text-[10px] font-sans font-black rounded-full bg-emerald-50 text-emerald-700 px-2 py-1">Audited</span>
+            </div>
+            <div className="mt-4 space-y-2">
+              {parentDashboard.safetyItems.length > 0 ? parentDashboard.safetyItems.map((item) => (
+                <div key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-xs font-black uppercase tracking-wider text-slate-500 truncate">{item.label}</div>
+                      <div className="mt-1 text-sm font-bold text-slate-900 truncate">{item.detail}</div>
+                    </div>
+                    <span className="text-[10px] font-sans font-black rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-emerald-700 shrink-0">{item.statusLabel}</span>
+                  </div>
+                  <div className="mt-1 text-[10px] font-mono font-bold text-slate-500 truncate">Source: {formatTeacherDashboardSource(item.source)}</div>
+                </div>
+              )) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">No safety rows found. Seed Dashboard_Alerts or Classroom_Sync_Log.</div>
+              )}
+            </div>
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-xs font-bold text-slate-800">Emergency Advisory Helpline: +91 999 000 1122</div>
+              <div className="mt-1 text-xs text-slate-600">Transport desk updates are pushed instantly to parent portal nodes.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderHodDashboard = () => {
+    const profile = hodDashboard.hodProfile;
+    const isSetupState = hodDashboard.setupState.status !== "live" || !profile.name;
+    const statusBadge = (status: string) => {
+      const token = status.toLowerCase();
+      if (token.includes("done") || token.includes("live") || token.includes("active") || token.includes("complete")) return "bg-emerald-50 text-emerald-700 border-emerald-200";
+      if (token.includes("partial") || token.includes("review") || token.includes("watch")) return "bg-amber-50 text-amber-700 border-amber-200";
+      if (token.includes("missing") || token.includes("low") || token.includes("critical")) return "bg-rose-50 text-rose-700 border-rose-200";
+      return "bg-slate-100 text-slate-600 border-slate-200";
+    };
+    const sourceBadge = (source: { workbook: string; tab: string; rowCount: number }) => (
+      <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-mono font-black text-slate-700">
+        <span className="truncate max-w-[180px]">{source.workbook} / {source.tab}</span>
+        <span className="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-sans text-slate-500">{source.rowCount}</span>
+      </span>
+    );
+
+    const repositoryRows = [...hodDashboard.repositoryHealthByClass].sort((a, b) => compareClassLabels(a.className, b.className));
+    const visibleRepositoryRows = repositoryRows.slice(0, DASHBOARD_ROW_LIMIT);
+    const teacherRows = hodDashboard.teacherActivity;
+    const visibleTeacherRows = teacherRows.slice(0, DASHBOARD_ROW_LIMIT);
+    const assessmentRows = hodDashboard.assessmentTracking;
+    const visibleAssessmentRows = assessmentRows.slice(0, DASHBOARD_ROW_LIMIT);
+    const visibleAnnouncements = hodDashboard.announcements.slice(0, DASHBOARD_ROW_LIMIT);
+
+    return (
+      <div className="space-y-6" id="hod-dashboard-root">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="h-14 w-14 rounded-full border border-blue-200 bg-blue-50 text-blue-700 flex items-center justify-center font-black text-xl shrink-0">
+                {profile.initials || "HOD"}
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-blue-700">
+                    HOD Dashboard
+                  </span>
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${isSetupState ? "border border-amber-200 bg-amber-50 text-amber-700" : "border border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                    {isSetupState ? "Setup required" : "Live data"}
+                  </span>
+                </div>
+                <h2 className="mt-1 text-xl sm:text-2xl font-black text-slate-900 truncate">{profile.name || "HOD dashboard setup required"}</h2>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-600 font-medium">
+                  <span className="truncate">{profile.departmentLabel || "HOD scope not configured."}</span>
+                  <span className="truncate">{profile.academicSession ? `Session ${profile.academicSession}` : "Academic year pending"}</span>
+                  <span className="truncate">{profile.subjectArea || "Subject area pending"}</span>
+                  <span className="truncate">{profile.classRange || "Class range pending"}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 text-[11px] text-slate-500 flex flex-wrap gap-2">
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">Source: {formatTeacherDashboardSource(profile.source)}</span>
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">Active teachers: {profile.activeTeacherCount || "0"}</span>
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">Scope: {profile.classRange || "Pending"}</span>
+          </div>
+        </div>
+
+        {isSetupState && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={18} />
+              <div className="min-w-0">
+                <h3 className="text-sm font-extrabold text-amber-900">{hodDashboard.setupState.title}</h3>
+                <p className="text-xs text-amber-800 mt-1">{hodDashboard.setupState.message}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {hodDashboard.setupState.messages.map((message) => (
+                    <span key={message} className="inline-flex rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[10px] font-bold text-amber-800">
+                      {message}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          {hodDashboard.kpis.map((kpi) => (
+            <div key={kpi.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-slate-500 truncate">{kpi.label}</div>
+                <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${kpi.status === "healthy" ? "bg-emerald-50 text-emerald-700" : kpi.status === "warning" ? "bg-amber-50 text-amber-700" : kpi.status === "attention" ? "bg-rose-50 text-rose-700" : "bg-slate-100 text-slate-600"}`}>{formatTeacherDashboardSource(kpi.source)}</span>
+              </div>
+              <div className="mt-2 text-2xl font-black text-slate-900">{kpi.value}</div>
+              <div className="mt-1 text-xs text-slate-600 truncate">{kpi.detail}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Repository Health</div>
+                <h3 className="text-sm font-extrabold text-slate-900">Repository Health - By Class</h3>
+              </div>
+              <button type="button" onClick={() => onToggleTab("registers")} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50">
+                Fix gaps
+                <ChevronRight size={12} />
+              </button>
+            </div>
+            <div className="mt-4 space-y-3">
+              {visibleRepositoryRows.length > 0 ? visibleRepositoryRows.map((item) => (
+                <div key={item.id}>
+                  <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                    <span className="truncate">{renderClassLabel(item.className)}</span>
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-sans font-black text-slate-700">{item.completion}%</span>
+                  </div>
+                  <div className="mt-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+                    <div className={`h-full rounded-full ${item.completion >= 80 ? "bg-emerald-500" : item.completion >= 70 ? "bg-amber-500" : "bg-rose-500"}`} style={{ width: `${Math.max(0, Math.min(100, item.completion))}%` }} />
+                  </div>
+                  <div className="mt-1 text-[11px] text-slate-500 truncate">{item.label}</div>
+                  <div className="mt-1 text-[10px] font-mono font-bold text-slate-500 truncate">Source: {formatTeacherDashboardSource(item.source)}</div>
+                </div>
+              )) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">Chapter source not configured.</div>
+              )}
+            </div>
+            {repositoryRows.length > DASHBOARD_ROW_LIMIT && (
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => onToggleTab("registers")}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
+                >
+                  View All ({repositoryRows.length})
+                  <ChevronRight size={12} />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Teacher Activity</div>
+                <h3 className="text-sm font-extrabold text-slate-900">Teacher Activity - This Week</h3>
+              </div>
+              <span className="text-[10px] font-sans font-black rounded-full bg-cyan-50 text-cyan-700 px-2 py-1">{teacherRows.length} teachers</span>
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              {visibleTeacherRows.length > 0 ? (
+                <table className="min-w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-slate-400 font-mono uppercase tracking-wider">
+                      <th className="py-2 pr-3">Teacher</th>
+                      <th className="py-2 pr-3">Planner</th>
+                      <th className="py-2 pr-3">Uploads</th>
+                      <th className="py-2 pr-3">QB</th>
+                      <th className="py-2 pr-3">Classroom</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {visibleTeacherRows.map((item) => (
+                      <tr key={item.id} className="hover:bg-slate-50/60 align-top">
+                        <td className="py-3 pr-3 font-semibold text-slate-800 truncate" title={item.teacherName}>{item.teacherName}</td>
+                        <td className="py-3 pr-3"><span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black ${statusBadge(item.plannerStatus)}`}>{item.plannerStatus}</span></td>
+                        <td className="py-3 pr-3"><span className="text-[10px] font-sans font-black rounded-full border border-slate-200 bg-white px-2 py-0.5">{item.uploads}</span></td>
+                        <td className="py-3 pr-3"><span className="text-[10px] font-sans font-black rounded-full border border-slate-200 bg-white px-2 py-0.5">{item.questionBank}</span></td>
+                        <td className="py-3 pr-3">
+                          <div className="flex flex-col gap-1">
+                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black ${statusBadge(item.classroomStatus)}`}>{item.classroomStatus}</span>
+                            <span className="text-[10px] text-slate-500 truncate" title={item.complianceAlert}>{item.complianceAlert}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">No teacher activity rows found for this week.</div>
+              )}
+            </div>
+            {teacherRows.length > DASHBOARD_ROW_LIMIT && (
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => onToggleTab("role-cards")}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
+                >
+                  View All ({teacherRows.length})
+                  <ChevronRight size={12} />
+                </button>
+              </div>
+            )}
+            {hodDashboard.complianceAlerts.length > 0 ? (
+              <div className="mt-4 space-y-2">
+                {hodDashboard.complianceAlerts.map((alert) => (
+                  <div key={alert.id} className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm font-bold text-slate-900 truncate">{alert.teacherName}</div>
+                      <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black ${statusBadge(alert.severity)}`}>{alert.severity}</span>
+                    </div>
+                    <div className="mt-1 text-xs text-slate-700">{alert.alertType}: {alert.message}</div>
+                    <div className="mt-1 text-[10px] font-mono font-bold text-slate-500 truncate">Source: {formatTeacherDashboardSource(alert.source)}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">No follow-up alerts.</div>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Assessment Tracking</div>
+                <h3 className="text-sm font-extrabold text-slate-900">Assessment Tracking</h3>
+              </div>
+              <span className="text-[10px] font-sans font-black rounded-full bg-indigo-50 text-indigo-700 px-2 py-1">{assessmentRows.length} items</span>
+            </div>
+            <div className="mt-4 space-y-2">
+              {visibleAssessmentRows.length > 0 ? visibleAssessmentRows.map((item) => (
+                <div key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold text-slate-900 truncate">{item.title}</div>
+                      <div className="text-[11px] text-slate-600 mt-1 truncate">{item.dueLabel}</div>
+                    </div>
+                    <span className="text-[10px] font-sans font-black rounded-full border border-slate-200 bg-white px-2 py-0.5">{item.resultsLabel}</span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-[10px] font-bold">
+                    <span className="rounded-full bg-blue-50 text-blue-700 px-2 py-0.5">{item.departmentAverageLabel}</span>
+                    <span className="rounded-full bg-rose-50 text-rose-700 px-2 py-0.5">{item.belowThresholdLabel}</span>
+                  </div>
+                  <div className="mt-1 text-[10px] font-mono font-bold text-slate-500 truncate">Source: {formatTeacherDashboardSource(item.source)}</div>
+                </div>
+              )) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">No assessment data exists for this department.</div>
+              )}
+            </div>
+            {assessmentRows.length > DASHBOARD_ROW_LIMIT && (
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => onToggleTab("registers")}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
+                >
+                  View All ({assessmentRows.length})
+                  <ChevronRight size={12} />
+                </button>
+              </div>
+            )}
+            <div className="mt-4 flex justify-end">
+              <button type="button" onClick={() => onToggleTab("registers")} className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700">
+                Chase pending <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Enrichment</div>
+                <h3 className="text-sm font-extrabold text-slate-900">Enrichment and Olympiads</h3>
+              </div>
+              <span className="text-[10px] font-sans font-black rounded-full bg-purple-50 text-purple-700 px-2 py-1">{hodDashboard.enrichmentOlympiad.statusLabel}</span>
+            </div>
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="font-semibold text-slate-900">{hodDashboard.enrichmentOlympiad.title}</div>
+              <div className="mt-1 text-slate-600 text-sm">{hodDashboard.enrichmentOlympiad.message}</div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Remedial Status</div>
+                <h3 className="text-sm font-extrabold text-slate-900">Remedial Status</h3>
+              </div>
+              <span className="text-[10px] font-sans font-black rounded-full bg-rose-50 text-rose-700 px-2 py-1">{hodDashboard.remedialStatus.length} metrics</span>
+            </div>
+            <div className="mt-4 space-y-2">
+              {hodDashboard.remedialStatus.length > 0 ? hodDashboard.remedialStatus.map((item) => (
+                <div key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-slate-700 truncate">{item.label}</span>
+                  <span className="text-[10px] font-sans font-black rounded-full border border-slate-200 bg-white px-2 py-0.5">{item.value}</span>
+                </div>
+              )) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">No remedial records found for this department.</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Recent Classroom Announcements</div>
+              <h3 className="text-sm font-extrabold text-slate-900">Recent classroom announcements</h3>
+            </div>
+            <button type="button" onClick={() => onToggleTab("classroom")} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50">
+              Track class updates
+              <ChevronRight size={12} />
+            </button>
+          </div>
+          <div className="mt-4 space-y-2">
+            {visibleAnnouncements.length > 0 ? visibleAnnouncements.map((announcement) => (
+              <div key={announcement.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-blue-200 bg-white px-2 py-0.5 text-[10px] font-bold text-blue-700">{renderClassLabel(announcement.className)}{announcement.section ? `-${announcement.section}` : ""}</span>
+                  <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700">{announcement.subject || "General"}</span>
+                  <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700">{announcement.status}</span>
+                </div>
+                <div className="mt-2 text-sm font-bold text-slate-900 truncate">{announcement.title}</div>
+                <div className="mt-1 text-xs text-slate-600 line-clamp-2">{announcement.text}</div>
+                <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                  <span className="font-mono">{announcement.postedAt ? formatTeacherDashboardDateTime(announcement.postedAt) : "Live"}</span>
+                  {announcement.url ? <span className="truncate max-w-[50%]">Classroom link available</span> : <span>Announcement details pending</span>}
+                </div>
+                <div className="mt-1 text-[10px] font-mono font-bold text-slate-500 truncate">Source: {formatTeacherDashboardSource(announcement.source)}</div>
+              </div>
+            )) : (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">No classroom announcement rows found.</div>
+            )}
+          </div>
+          {hodDashboard.announcements.length > DASHBOARD_ROW_LIMIT && (
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => onToggleTab("classroom")}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
+              >
+                View All ({hodDashboard.announcements.length})
+                <ChevronRight size={12} />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderRegistryDetailPanel = () => (
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4" id="dashboard-live-only-overview">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Admin Registry Detail</div>
+          <h2 className="text-base font-extrabold text-slate-900">Registry-derived overview</h2>
+        </div>
+        <span className="text-[10px] font-mono bg-blue-50 text-blue-700 px-2 py-1 rounded-md font-bold uppercase">
+          {(dashboardSourceState.registries || []).reduce((sum, registry) => sum + registry.rowCount, 0)} live rows
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        {liveSectionCards.map((card) => (
+          <div key={card.source} className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-extrabold text-slate-900">{card.title}</h3>
+              <span className={`text-[10px] font-sans font-bold px-2 py-0.5 rounded-full ${card.rows > 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                {card.rows > 0 ? `${card.rows} rows` : "Setup required"}
+              </span>
+            </div>
+            <div className="text-[10px] text-blue-700 font-mono font-bold">Source: {card.source}</div>
+            {card.rows === 0 && <p className="text-xs text-amber-700 font-semibold">{card.empty}</p>}
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => onToggleTab("admin-registry-detail")}
+                className="px-2.5 py-1.5 rounded-lg border border-blue-200 bg-white text-[10px] font-extrabold text-blue-700 hover:bg-blue-50"
+              >
+                Drill Through
+              </button>
+              {card.sourceUrl && canViewRegistrySheetLinks && (
+                <button
+                  type="button"
+                  onClick={() => openRegistrySheetLink(card.sourceUrl, "view")}
+                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[10px] font-extrabold text-slate-700 hover:bg-slate-100"
+                >
+                  View
+                </button>
+              )}
+              {card.sourceUrl && canEditRegistrySheetLinks && (
+                <button
+                  type="button"
+                  onClick={() => openRegistrySheetLink(card.sourceUrl, "edit")}
+                  className="px-2.5 py-1.5 rounded-lg border border-emerald-200 bg-white text-[10px] font-extrabold text-emerald-700 hover:bg-emerald-50"
+                >
+                  Edit
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderPrincipalDashboardSectionsLegacy = () => {
+    if (!isPrincipalRole()) {
+      return null;
+    }
+
+    const classroomAnnouncements = courses
+      .slice(0, 5)
+      .map((course) => ({
+        id: course.id,
+        title: `${course.name} - ${course.section}`,
+        subtitle: course.announcements?.[0] || "No announcement added yet.",
+        meta: `${course.teacherName}  |  ${course.studentCount} students`
+      }));
+
+    const enrichmentCount = courses.filter((course) => (course.announcements || []).length > 0).length;
+    const remedialCount = selectedRemedialStudent ? 1 : highRiskStudents;
+    const legacyClassroomMetricRows = [
+      ["Active Class Sections", principalDashboard?.classroomMonitoring?.activeClassSections || principalDashboard?.classroomMonitoring?.totalClassrooms || 0],
+      ["Google Classroom Courses", principalDashboard?.classroomMonitoring?.googleClassroomCourseCount || courses.length],
+      ["Monitored Classrooms", principalDashboard?.classroomMonitoring?.monitoredClassroomsCount || courses.filter((course) => (course.announcements?.length || 0) > 0 || (course.materials?.length || 0) > 0).length],
+      ["Posted this week", principalDashboard?.classroomMonitoring?.postedThisWeek || 0],
+      ["Assignments created", principalDashboard?.classroomMonitoring?.assignmentsCreatedThisWeek || 0],
+      ["Submission rate", `${principalDashboard?.classroomMonitoring?.averageSubmissionRate || principalDashboard?.classroomMonitoring?.avgSubmissionRate || 0}%`],
+      ["Meet sessions", principalDashboard?.classroomMonitoring?.meetSessionsHeldThisWeek || 0]
+    ];
+
+    return (
+      <div className="space-y-6 mt-2 animate-fade-in" id="principal-specific-dashboard-zones">
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4" id="school-at-a-glance-card">
           <div className="flex items-center gap-2">
             <LayoutGrid className="text-blue-600" size={18} />
             <h2 className="text-base font-extrabold text-slate-905 font-sans tracking-tight">School at a Glance</h2>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4" id="school-glance-grid">
-            <div className="w-full h-full flex flex-col justify-between p-4 bg-slate-50 hover:bg-slate-100/60 border border-slate-100 rounded-xl space-y-1 transition-all cursor-pointer hover:border-blue-200 hover:shadow-xs group" onClick={() => setSelectedClassroomMetricDrill("total")} id="kpi-glance-classrooms">
-              <div>
-                <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block tracking-wider">Classrooms Active</span>
-                <div className="text-xl font-black text-slate-800 group-hover:text-blue-600 transition-colors">{courses.length} Active</div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4" id="school-glance-grid">
+            {[
+              { label: "Classrooms Active", value: `${courses.length} Active`, note: "Synced with LMS" },
+              { label: "Planners Submitted", value: `${dynamicGlanceCalculations.plannersCount} / ${dynamicGlanceCalculations.totalClassroomsCount}`, note: `${dynamicGlanceCalculations.overduePlannersCount} overdue this week` },
+              { label: "Assessments on Track", value: `${dynamicGlanceCalculations.assessmentPercent}%`, note: "On-track activity index" },
+              { label: "Compliance Score", value: `${dynamicGlanceCalculations.complianceScoreValue}%`, note: "CBSE aligned audits" },
+              { label: "Notebook Monitoring", value: `${dynamicGlanceCalculations.notebookCount} / ${dynamicGlanceCalculations.totalClassroomsCount}`, note: `${dynamicGlanceCalculations.pendingNotebooksReview} pending review` },
+              { label: "High-Risk Pupils", value: `${highRiskStudents} Flagged`, note: "Requires critical action" }
+            ].map((item, idx) => (
+              <div
+                key={item.label}
+                className="w-full h-full flex flex-col justify-between p-4 bg-slate-50 hover:bg-slate-100/60 border border-slate-100 rounded-xl space-y-1 transition-all cursor-pointer hover:border-blue-200 hover:shadow-xs group"
+                onClick={() => {
+                  if (idx === 0) setSelectedClassroomMetricDrill("total");
+                  if (idx === 1 || idx === 2) setSelectedAcademicLevelDrill("All Levels");
+                  if (idx === 3) setSelectedComplianceItemDrill("all");
+                  if (idx === 4) setSelectedClassroomMetricDrill("submissions");
+                  if (idx === 5) setSelectedClassroomMetricDrill("risk");
+                }}
+              >
+                <div>
+                  <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block tracking-wider">{item.label}</span>
+                  <div className={`text-xl font-black group-hover:text-blue-600 transition-colors ${idx === 3 ? "text-emerald-700 group-hover:text-emerald-800" : idx === 5 ? "text-rose-600 group-hover:text-rose-700" : "text-slate-800"}`}>
+                    {item.value}
+                  </div>
+                </div>
+                <div className="text-[10px] text-slate-500 font-medium font-sans">{item.note}</div>
               </div>
-              <div className="text-[10px] text-slate-500 font-medium font-sans">Synced with LMS</div>
-            </div>
-            <div className="w-full h-full flex flex-col justify-between p-4 bg-slate-50 hover:bg-slate-100/60 border border-slate-100 rounded-xl space-y-1 transition-all cursor-pointer hover:border-blue-200 hover:shadow-xs group" onClick={() => setSelectedAcademicLevelDrill("All Levels")} id="kpi-glance-planners">
-              <div>
-                <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block tracking-wider">Planners Submitted</span>
-                <div className="text-xl font-black text-slate-800 group-hover:text-blue-600 transition-colors">{dynamicGlanceCalculations.plannersCount} / {dynamicGlanceCalculations.totalClassroomsCount}</div>
-              </div>
-              <div className="text-[10px] text-amber-600 font-medium font-sans">{dynamicGlanceCalculations.overduePlannersCount} Overdue this week</div>
-            </div>
-            <div className="w-full h-full flex flex-col justify-between p-4 bg-slate-50 hover:bg-slate-100/60 border border-slate-100 rounded-xl space-y-1 transition-all cursor-pointer hover:border-blue-200 hover:shadow-xs group" onClick={() => setSelectedAcademicLevelDrill("All Levels")} id="kpi-glance-assessments">
-              <div>
-                <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block tracking-wider">Assessments on Track</span>
-                <div className="text-xl font-black text-slate-800 group-hover:text-blue-600 transition-colors">{dynamicGlanceCalculations.assessmentPercent}%</div>
-              </div>
-              <div className="text-[10px] text-emerald-600 font-semibold font-sans">On-track activity index</div>
-            </div>
-            <div className="w-full h-full flex flex-col justify-between p-4 bg-slate-50 hover:bg-slate-100/60 border border-slate-100 rounded-xl space-y-1 transition-all cursor-pointer hover:border-blue-200 hover:shadow-xs group" onClick={() => setSelectedComplianceItemDrill("all")} id="kpi-glance-compliance">
-              <div>
-                <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block tracking-wider">Compliance Score</span>
-                <div className="text-xl font-black text-emerald-700 group-hover:text-emerald-800 transition-colors">{dynamicGlanceCalculations.complianceScoreValue}%</div>
-              </div>
-              <div className="text-[10px] text-emerald-600 font-medium font-sans">CBSE aligned audits</div>
-            </div>
-            <div className="w-full h-full flex flex-col justify-between p-4 bg-slate-50 hover:bg-slate-100/60 border border-slate-100 rounded-xl space-y-1 transition-all cursor-pointer hover:border-blue-200 hover:shadow-xs group" onClick={() => { setActiveDrill("classroom"); setDrillSearch(""); }} id="kpi-glance-notebook">
-              <div>
-                <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block tracking-wider">Notebook Monitoring</span>
-                <div className="text-xl font-black text-slate-800 group-hover:text-blue-600 transition-colors">{dynamicGlanceCalculations.notebookCount} / {dynamicGlanceCalculations.totalClassroomsCount}</div>
-              </div>
-              <div className="text-[10px] text-slate-500 font-medium font-sans">{dynamicGlanceCalculations.pendingNotebooksReview} pending review</div>
-            </div>
-            <div className="w-full h-full flex flex-col justify-between p-4 bg-slate-50 hover:bg-slate-100/60 border border-slate-100 rounded-xl space-y-1 transition-all cursor-pointer hover:border-blue-200 hover:shadow-xs group" onClick={() => setSelectedClassroomMetricDrill("risk")} id="kpi-glance-risk">
-              <div>
-                <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block tracking-wider">High-Risk Pupils</span>
-                <div className="text-xl font-black text-rose-600 group-hover:text-rose-700 transition-colors">{highRiskStudents} Flagged</div>
-              </div>
-              <div className="text-[10px] text-rose-600 font-medium font-sans">Requires critical action</div>
-            </div>
+            ))}
           </div>
         </div>
-      )}
 
-
-
-
-
-      {/* If Principal or School Admin role is active, we render the Principal Specific Sections */}
-      {isPrincipalRole() && (
-        <div className="space-y-6 mt-6 animate-fade-in" id="principal-specific-dashboard-zones">
-          
-          {/* Alerts & Compliance row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" id="principal-alerts-compliance-container">
-            {/* Alerts & Principal Compliance KPIs (SDOS-22 compliance) */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between" id="principal-alerts-section">
-              <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <AlertTriangle className="text-amber-500" size={20} />
-                  <h2 className="text-md font-bold text-slate-900 font-sans tracking-tight">Alerts Requiring Attention</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" id="principal-alerts-compliance-container">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between h-[360px] overflow-hidden" id="principal-alerts-section">
+            <div>
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2 min-w-0">
+                  <AlertTriangle className="text-amber-500 shrink-0" size={20} />
+                  <h2 className="text-md font-bold text-slate-900 font-sans tracking-tight truncate">Alerts Requiring Attention</h2>
                 </div>
-
-                 {/* Alerts Requiring Attention details list in a single column */}
-                <div className="grid grid-cols-1 gap-3">
-                  {[
-                    { level: "critical", msg: "Missing Weekly Planners detected for Mr. Vijay Kumar (Grade VII History).", time: "1 hour ago" },
-                    { level: "high", msg: `SIS Risk Flag: ${highRiskStudents} of ${students.length} pupils mapped to High Attendance/Grade Risk tier (>70%); ${mediumRiskStudents} warning, ${normalStudents} normal standing (Average GPA: 3.18).`, time: "Just now" },
-                    { level: "warning", msg: `AI Suggestion: ${productivityTip}`, time: "Just now" },
-                    { level: "warning", msg: "Compliance Evidence Form buffer requires 4 outstanding files to clear statutory audits.", time: "1 day ago" }
-                  ].map((alert, aIdx) => (
-                    <div key={aIdx} className={`p-3 border rounded-xl flex items-start gap-2.5 text-xs text-slate-700 ${
-                      alert.level === 'critical' ? 'bg-rose-50/40 border-rose-100 text-rose-950' :
-                      alert.level === 'high' ? 'bg-amber-50/40 border-amber-100 text-amber-955' :
-                      'bg-blue-50/40 border-blue-105 text-blue-950'
-                    }`}>
-                      <div className="mt-0.5">
-                        {alert.level === 'critical' && <ShieldAlert size={14} className="text-rose-600" />}
-                        {alert.level === 'high' && <AlertTriangle size={14} className="text-amber-600" />}
-                        {alert.level === 'warning' && <AlertTriangle size={14} className="text-blue-600" />}
-                      </div>
-                      <div className="flex-1 select-all font-sans min-w-0">
-                        <span className="font-semibold block truncate leading-normal" title={alert.msg}>{alert.msg}</span>
-                        <span className="text-[10px] text-slate-400 font-mono select-none">{alert.time}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* CARD 3: COMPLIANCE WIDGET */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between relative min-h-[360px]" id="compliance-monitoring-card">
-              <div>
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4 select-none">
-                  <div className="space-y-0.5">
-                    <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">Compliance Monitoring</h3>
-                    <p className="text-[10px] uppercase font-mono font-bold text-emerald-700">
-                      Overall Score: {principalSandboxState === "active" ? `${calculatedOverallCompliance}%` : "—"}
-                    </p>
-                  </div>
+                {(principalDashboard?.alertsRequiringAttention?.length || 0) > 0 && (
                   <button
                     type="button"
-                    onClick={() => setShowComplianceConfig(!showComplianceConfig)}
-                    className={`p-1.5 rounded-lg cursor-pointer transition-colors ${
-                      showComplianceConfig ? 'bg-blue-50 text-blue-650' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-700'
-                    }`}
-                    title="Configure Weights"
+                    onClick={() => onToggleTab("dashboard-data-source")}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50 shrink-0"
                   >
-                    <Sliders size={15} />
+                    View All ({principalDashboard?.alertsRequiringAttention?.length || 0})
+                    <ChevronRight size={12} />
                   </button>
-                </div>
-
-                {/* Config Drawer for Compliance Weightings */}
-                {showComplianceConfig && (
-                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl mb-4 text-xs space-y-2.5 animate-fade-in select-none max-h-[220px] overflow-y-auto scrollbar-thin">
-                    <div className="flex items-center justify-between border-b border-slate-150 pb-1.5 mb-1">
-                      <span className="font-bold text-slate-800">Assign Scoring Weights</span>
-                      <span className="text-[10px] text-blue-600 font-mono font-bold uppercase block tracking-wider">Weighted calculations</span>
-                    </div>
-                    
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center font-sans">
-                        <span>Committee:</span>
-                        <input 
-                          type="number" min={0} max={100} value={committeeWeight}
-                          onChange={(e) => setCommitteeWeight(Math.max(0, Number(e.target.value)))}
-                          className="w-12 px-1 py-0.5 text-center font-bold border rounded-lg bg-white font-mono"
-                        />
-                      </div>
-                      <div className="flex justify-between items-center text-rose-700 font-semibold text-[11px] font-sans">
-                        <span>Safety (Critical):</span>
-                        <input 
-                          type="number" min={0} max={100} value={safetyWeight}
-                          onChange={(e) => setSafetyWeight(Math.max(0, Number(e.target.value)))}
-                          className="w-12 px-1 py-0.5 text-center font-bold border rounded-lg bg-white font-mono text-rose-700"
-                        />
-                      </div>
-                      <div className="flex justify-between items-center font-sans">
-                        <span className="font-medium">Forms:</span>
-                        <input 
-                          type="number" min={0} max={100} value={formsWeight}
-                          onChange={(e) => setFormsWeight(Math.max(0, Number(e.target.value)))}
-                          className="w-12 px-1 py-0.5 text-center font-bold border rounded-lg bg-white font-mono"
-                        />
-                      </div>
-                      <div className="flex justify-between items-center font-sans">
-                        <span>Staff CPD:</span>
-                        <input 
-                          type="number" min={0} max={100} value={cpdWeight}
-                          onChange={(e) => setCpdWeight(Math.max(0, Number(e.target.value)))}
-                          className="w-12 px-1 py-0.5 text-center font-bold border rounded-lg bg-white font-mono"
-                        />
-                      </div>
-                      <div className="flex justify-between items-center font-sans">
-                        <span>SQAA Evidence:</span>
-                        <input 
-                          type="number" min={0} max={100} value={sqaaWeight}
-                          onChange={(e) => setSqaaWeight(Math.max(0, Number(e.target.value)))}
-                          className="w-12 px-1 py-0.5 text-center font-bold border rounded-lg bg-white font-mono"
-                        />
-                      </div>
-                    </div>
-                    <div className="pt-2 border-t border-slate-150 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => setShowComplianceConfig(false)}
-                        className="px-2 py-1 bg-blue-600 text-white rounded-lg text-[9px] font-bold hover:bg-blue-700 cursor-pointer"
-                      >
-                        Save
-                      </button>
-                    </div>
-                  </div>
                 )}
-
-                {renderSectionState("compliance", (
-                  <div className="space-y-4">
-                    {/* Compliance list */}
-                    {complianceItemsWithStatus.map((item, idx) => {
-                      const markerColorClass = 
-                        item.status === "healthy" ? "bg-emerald-500" :
-                        item.status === "watch" ? "bg-amber-500" : "bg-rose-500";
-
-                      const textBadgeClass = 
-                        item.status === "healthy" ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
-                        item.status === "watch" ? "bg-amber-50 text-amber-705 border-amber-100" : "bg-rose-50 text-rose-700 border-rose-100";
-
-                      return (
-                        <div 
-                          key={idx}
-                          onClick={() => setSelectedComplianceItemDrill(item.key)}
-                          className="flex items-center justify-between p-1.5 rounded-lg cursor-pointer hover:bg-slate-50 group border border-transparent hover:border-slate-100 transition-all"
-                        >
-                          <div className="flex items-center gap-2.5 bg-transparent min-w-0">
-                            <span className={`w-2 h-2 rounded-full shrink-0 ${markerColorClass}`}></span>
-                            <span className="text-xs text-slate-805 font-medium block truncate group-hover:text-blue-650 transition-colors font-sans" title={item.label}>
-                              {item.label}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className={`inline-block px-1.5 py-0.5 rounded-md text-[8.5px] font-bold border capitalize leading-none font-mono font-sans ${textBadgeClass}`}>
-                              {item.status}
-                            </span>
-                            <span className="font-mono text-xs font-bold text-slate-700 shrink-0">
-                              {item.percentage}%
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
+              </div>
+              <div className="grid grid-cols-1 gap-3">
+                {[
+                  { level: "critical", msg: "Missing Weekly Planners detected for Mr. Vijay Kumar (Grade VII History).", time: "1 hour ago" },
+                  { level: "high", msg: `SIS Risk Flag: ${highRiskStudents} of ${students.length} pupils mapped to high attendance/grade risk tier; ${mediumRiskStudents} warning, ${normalStudents} normal standing.`, time: "Just now" },
+                  { level: "warning", msg: `AI Suggestion: ${productivityTip}`, time: "Just now" },
+                  { level: "warning", msg: "Compliance Evidence Form buffer requires outstanding files to clear statutory audits.", time: "1 day ago" }
+                ].map((alert, aIdx) => (
+                  <div key={aIdx} className={`p-3 border rounded-xl flex items-start gap-2.5 text-xs text-slate-700 ${
+                    alert.level === "critical" ? "bg-rose-50/40 border-rose-100 text-rose-950" :
+                    alert.level === "high" ? "bg-amber-50/40 border-amber-100 text-amber-955" :
+                    "bg-blue-50/40 border-blue-105 text-blue-950"
+                  }`}>
+                    <div className="mt-0.5">
+                      {alert.level === "critical" && <ShieldAlert size={14} className="text-rose-600" />}
+                      {alert.level === "high" && <AlertTriangle size={14} className="text-amber-600" />}
+                      {alert.level === "warning" && <AlertTriangle size={14} className="text-blue-600" />}
+                    </div>
+                    <div className="flex-1 select-all font-sans min-w-0">
+                      <span className="font-semibold block truncate leading-normal" title={alert.msg}>{alert.msg}</span>
+                      <span className="text-[10px] text-slate-400 font-mono select-none">{alert.time}</span>
+                    </div>
                   </div>
                 ))}
               </div>
-
-              <div className="pt-3 border-t border-slate-100 mt-4 select-none">
-                <button
-                  type="button"
-                  onClick={() => setSelectedComplianceItemDrill("gaps")}
-                  className="w-full text-center py-2 bg-slate-905 hover:bg-slate-805 text-white font-bold text-xs rounded-xl transition-colors cursor-pointer"
-                >
-                  View gaps
-                </button>
-              </div>
             </div>
           </div>
 
-          {/* Main Academic Monitoring and Classroom Monitoring widgets (SDOS-23) */}
-          <div className="space-y-6" id="principal-three-widgets">
-            {/* Desktop Widget Grid layout (2 cards: Equal width to align with Alerts row) */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              
-              {/* CARD 1: ACADEMIC MONITORING WIDGET (Reduced to match Alerts section) */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between col-span-1 relative min-h-[360px]" id="academic-monitoring-card">
-                <div>
-                  {/* Card Title & Config Toggle */}
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4 select-none">
-                    <div className="space-y-0.5">
-                      <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">Academic Monitoring</h3>
-                      <p className="text-[10px] uppercase font-mono font-bold text-slate-400">
-                        {PRINCIPAL_DASHBOARD_SEED.academicMonitoring.summaryLabelText[academicTab]}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowAcademicConfig(!showAcademicConfig)}
-                      className={`p-1.5 rounded-lg cursor-pointer transition-colors ${
-                        showAcademicConfig ? 'bg-blue-50 text-blue-600' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-700'
-                      }`}
-                      title="Configure Thresholds"
-                    >
-                      <Settings size={15} />
-                    </button>
-                  </div>
-
-                  {/* Config Drawer for Academic Thresholds */}
-                  {showAcademicConfig && (
-                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl mb-4 text-xs space-y-3 animate-fade-in select-none">
-                      <div className="flex items-center justify-between border-b border-slate-150 pb-1.5 mb-1 mb-2">
-                        <span className="font-bold text-slate-800 font-sans">Configure Status Thresholds</span>
-                        <span className="text-[10px] text-blue-600 font-mono font-bold uppercase">Dynamic overrides</span>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Healthy Threshold</label>
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="number"
-                              min={watchThreshold + 1}
-                              max={100}
-                              value={healthyThreshold}
-                              onChange={(e) => setHealthyThreshold(Number(e.target.value))}
-                              className="w-16 px-1.5 py-1 bg-white border border-slate-200 rounded-lg text-center font-bold text-slate-850"
-                            />
-                            <span className="text-slate-450 font-mono">%</span>
-                          </div>
-                          <span className="text-[9px] text-slate-450 leading-none block mt-1">Satisfying status (≥ value)</span>
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Watch Threshold</label>
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="number"
-                              min={0}
-                              max={healthyThreshold - 1}
-                              value={watchThreshold}
-                              onChange={(e) => setWatchThreshold(Number(e.target.value))}
-                              className="w-16 px-1.5 py-1 bg-white border border-slate-200 rounded-lg text-center font-bold text-slate-850"
-                            />
-                            <span className="text-slate-450 font-mono">%</span>
-                          </div>
-                          <span className="text-[9px] text-slate-450 leading-none block mt-1">Warning index (value to H-1)</span>
-                        </div>
-                      </div>
-                      <div className="pt-2 border-t border-slate-150 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => setShowAcademicConfig(false)}
-                          className="px-2.5 py-1 bg-blue-600 text-white rounded-lg text-[10px] font-bold hover:bg-blue-700 cursor-pointer"
-                        >
-                          Apply Configuration
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Tabs bar */}
-                  <div className="flex bg-slate-100 p-1 rounded-xl mb-4 select-none">
-                    {(["planner", "syllabus", "assessment"] as const).map((tab) => (
-                      <button
-                        key={tab}
-                        type="button"
-                        onClick={() => setAcademicTab(tab)}
-                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer capitalize ${
-                          academicTab === tab
-                            ? "bg-white text-slate-900 shadow-xs"
-                            : "text-slate-500 hover:text-slate-700 hover:bg-slate-50/50"
-                        }`}
-                      >
-                        {tab}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Tab Contents loaded based on state simulation */}
-                  {renderSectionState("academic", (
-                    <div className="space-y-4">
-                      {PRINCIPAL_DASHBOARD_SEED.academicMonitoring[academicTab].map((item, idx) => {
-                        const score = item.percentage;
-                        const status: "healthy" | "watch" | "critical" = 
-                          score >= healthyThreshold ? "healthy" : 
-                          score >= watchThreshold ? "watch" : "critical";
-                        
-                        const colorClass = 
-                          status === "healthy" ? "bg-emerald-500" :
-                          status === "watch" ? "bg-amber-500" : "bg-rose-500";
-                        
-                        const textBadgeClass = 
-                          status === "healthy" ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
-                          status === "watch" ? "bg-amber-50 text-amber-705 border-amber-100" : "bg-rose-50 text-rose-700 border-rose-100";
-
-                        return (
-                          <div 
-                            key={idx} 
-                            onClick={() => setSelectedAcademicLevelDrill(item.level)}
-                            className="space-y-1.5 cursor-pointer hover:bg-slate-50/60 p-1.5 rounded-xl transition-all group"
-                          >
-                            <div className="flex justify-between items-center select-none">
-                              <span className="text-xs font-bold text-slate-800 group-hover:text-blue-650 transition-colors font-sans">
-                                {item.level}
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono text-xs font-bold text-slate-700">
-                                  {score}%
-                                </span>
-                              </div>
-                            </div>
-                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full rounded-full transition-all duration-350 ${colorClass}`}
-                                style={{ width: `${score}%` }}
-                              ></div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between h-[360px] overflow-hidden relative" id="compliance-monitoring-card">
+            <div>
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4 select-none">
+                <div className="space-y-0.5">
+                  <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">Compliance Monitoring</h3>
+                  <p className="text-[10px] uppercase font-mono font-bold text-emerald-700">
+                    Overall Score: {principalSandboxState === "active" ? `${calculatedOverallCompliance}%` : " - "}
+                  </p>
                 </div>
-
-                <div className="pt-3 border-t border-slate-100 mt-4 flex items-center justify-between text-[11px] text-slate-400 font-mono select-none">
-                  <span>Index: H ≥{healthyThreshold}%, W ≥{watchThreshold}%</span>
-                  <span>Week 24 Pacing</span>
-                </div>
-              </div>
-
-              {/* CARD 2: CLASSROOM MONITORING WIDGET (Increased to equal 1/2 span) */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between col-span-1 relative min-h-[360px]" id="classroom-monitoring-card">
-                <div>
-                  <div className="pb-3 border-b border-slate-100 mb-4 select-none">
-                    <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">Classroom Monitoring</h3>
-                    <p className="text-[10px] uppercase font-mono font-bold text-slate-400">
-                      Coaching & LMS streams
-                    </p>
-                  </div>
-
-                  {renderSectionState("classroom", (
-                    <div className="space-y-3.5 select-none">
-                      {/* Interactive Metrics list */}
-                      <div 
-                        onClick={() => setSelectedClassroomMetricDrill("total")}
-                        className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 cursor-pointer transition-all"
-                      >
-                        <span className="text-xs text-slate-600 font-medium font-sans">Total Classrooms</span>
-                        <span className="px-2 py-0.5 font-bold font-mono text-xs bg-slate-100 border border-slate-200 text-slate-705 rounded-full shrink-0">
-                          {PRINCIPAL_DASHBOARD_SEED.classroomMonitoring.totalClassrooms}
-                        </span>
-                      </div>
-
-                      <div 
-                        onClick={() => setSelectedClassroomMetricDrill("posted")}
-                        className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 cursor-pointer transition-all"
-                      >
-                        <span className="text-xs text-slate-600 font-medium font-sans">Posted this week</span>
-                        <span className="px-2 py-0.5 font-bold font-mono text-xs bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-full shrink-0">
-                          {PRINCIPAL_DASHBOARD_SEED.classroomMonitoring.postedThisWeek} / {PRINCIPAL_DASHBOARD_SEED.classroomMonitoring.totalClassrooms}
-                        </span>
-                      </div>
-
-                      <div 
-                        onClick={() => setSelectedClassroomMetricDrill("inactive")}
-                        className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 cursor-pointer transition-all bg-rose-50/20"
-                      >
-                        <span className="text-xs text-rose-950 font-bold font-sans">Zero Activity</span>
-                        <span className="px-2 py-0.5 font-bold font-mono text-xs bg-rose-50 border border-rose-100 text-rose-700 rounded-full shrink-0 animate-pulse">
-                          {PRINCIPAL_DASHBOARD_SEED.classroomMonitoring.zeroActivityThisWeek} Classrooms
-                        </span>
-                      </div>
-
-                      <div 
-                        onClick={() => setSelectedClassroomMetricDrill("assignments")}
-                        className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 cursor-pointer transition-all"
-                      >
-                        <span className="text-xs text-slate-600 font-medium font-sans font-sans">Assignments metrics</span>
-                        <span className="px-2 py-0.5 font-bold font-mono text-xs bg-blue-50 border border-blue-105 text-blue-700 rounded-full shrink-0">
-                          {PRINCIPAL_DASHBOARD_SEED.classroomMonitoring.assignmentsCreatedThisWeek} this week
-                        </span>
-                      </div>
-
-                      <div 
-                        onClick={() => setSelectedClassroomMetricDrill("submissions")}
-                        className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 cursor-pointer transition-all"
-                      >
-                        <span className="text-xs text-slate-600 font-medium font-sans">Submission rate</span>
-                        <span className="px-2 py-0.5 font-bold font-mono text-xs bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-full shrink-0">
-                          {PRINCIPAL_DASHBOARD_SEED.classroomMonitoring.averageSubmissionRate}%
-                        </span>
-                      </div>
-
-                      <div 
-                        onClick={() => setSelectedClassroomMetricDrill("meet")}
-                        className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 cursor-pointer transition-all"
-                      >
-                        <span className="text-xs text-slate-600 font-medium font-sans">Meet sessions</span>
-                        <span className="px-2 py-0.5 font-bold font-mono text-xs bg-slate-55 border border-slate-150 text-slate-500 rounded-full shrink-0">
-                          {PRINCIPAL_DASHBOARD_SEED.classroomMonitoring.meetSessionsHeldThisWeek} held
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="pt-3 border-t border-slate-100 mt-4 select-none">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedClassroomMetricDrill("inactive")}
-                    className="w-full text-center py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-colors cursor-pointer"
-                  >
-                    View inactive classrooms
-                  </button>
-                </div>
-              </div>
-
-            </div>
-          </div>
-
-          {/* Side-by-side grid for Teacher Indicators & Monitoring Forms */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" id="principal-feeds-grid">
-            
-            {/* Required Principal Dashboard Section 1: Teacher Performance Indicators */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between" id="teacher-performance-card">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <h2 className="text-md font-bold text-slate-900 tracking-tight">Teacher Performance Indicators</h2>
-                </div>
-                
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs min-w-[340px]">
-                    <thead>
-                      <tr className="border-b border-slate-150 text-slate-450 font-mono tracking-wider font-extrabold uppercase">
-                        <th className="py-2.5">Teacher</th>
-                        <th className="py-2.5">Planner</th>
-                        <th className="py-2.5">Assess</th>
-                        <th className="py-2.5 text-center">Resources</th>
-                        <th className="py-2.5 text-right">Activity</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-105 font-medium text-slate-705">
-                      {teacherPerformanceData.map((row, rIdx) => (
-                        <tr key={rIdx} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="py-3.5 pr-2 truncate max-w-28 font-semibold text-slate-800">{row.teacher}</td>
-                          <td className="py-3.5">
-                            <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getBadgeStyles(row.plannerStatus)}`}>
-                              {row.plannerStatus}
-                            </span>
-                          </td>
-                          <td className="py-3.5">
-                            <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getBadgeStyles(row.assessmentStatus)}`}>
-                              {row.assessmentStatus}
-                            </span>
-                          </td>
-                          <td className="py-3.5 text-center font-mono text-[11px] text-slate-500">
-                            {row.resourceCount} files
-                          </td>
-                          <td className="py-3.5 text-right">
-                            <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getBadgeStyles(row.activityStatus)}`}>
-                              {row.activityStatus}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-slate-100 mt-4 flex justify-end">
                 <button
                   type="button"
-                  onClick={() => setShowTeacherReportsModal(true)}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-                  id="btn-teacher-full-report"
+                  onClick={() => setShowComplianceConfig(!showComplianceConfig)}
+                  className={`p-1.5 rounded-lg cursor-pointer transition-colors ${
+                    showComplianceConfig ? "bg-blue-50 text-blue-650" : "text-slate-400 hover:bg-slate-50 hover:text-slate-700"
+                  }`}
+                  title="Configure Weights"
                 >
-                  Full report <ArrowUpRight size={13} />
-                </button>
-              </div>
-            </div>
-
-            {/* Required Principal Dashboard Section 2: Monitoring Forms — Data Feeds */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between" id="monitoring-forms-card">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <h2 className="text-md font-bold text-slate-900 tracking-tight">Monitoring Forms — Data Feeds</h2>
-                </div>
-
-                <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                  {monitoringFormsData.map((form) => (
-                    <div 
-                      key={form.id} 
-                      onClick={() => setSelectedFormDetail(form)}
-                      className="p-3 border border-slate-100 hover:border-slate-300 hover:bg-slate-50/50 rounded-xl cursor-pointer flex items-center justify-between transition-all group animate-fade-in"
-                      id={`form-feed-row-${form.id}`}
-                    >
-                      <div className="flex items-start gap-3 min-w-0 pr-4">
-                        <div className={`p-2 rounded-xl shrink-0 ${
-                          form.statusType === 'good' ? 'bg-emerald-50 text-emerald-650' :
-                          form.statusType === 'warning' ? 'bg-amber-50 text-amber-650' :
-                          form.statusType === 'risk' ? 'bg-rose-50 text-rose-650' :
-                          'bg-blue-50 text-blue-650'
-                        }`}>
-                          <FileText size={16} />
-                        </div>
-                        <div className="min-w-0">
-                          <span className="text-xs font-bold text-slate-800 block truncate group-hover:text-blue-650 transition-colors">
-                            {form.name}
-                          </span>
-                          <span className="text-[11px] text-slate-500 block truncate leading-normal">
-                            {form.summary}
-                          </span>
-                        </div>
-                      </div>
-                      <div>
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
-                          form.statusType === 'good' ? 'bg-emerald-50 text-emerald-700 border-emerald-150' :
-                          form.statusType === 'warning' ? 'bg-amber-50 text-amber-705 border-amber-150' :
-                          form.statusType === 'risk' ? 'bg-rose-50 text-rose-700 border-rose-150' :
-                          'bg-blue-50 text-blue-700 border-blue-150'
-                        }`}>
-                          {form.statusLabel}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-          </div>
-
-          {/* Principal Additions: School-wide Assessment Tracking, Enrichment & Olympiads, Remedial Status */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in animate-duration-300 border-t border-slate-150 pt-6 mt-6 pb-2" id="principal-dashboard-additions-grid">
-            
-            {/* Card 1: Assessment Tracking (School-wide) */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative" id="principal-assessment-tracking-card">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <CheckSquare size={16} className="text-indigo-600 shrink-0" />
-                    <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">
-                      School Assessment Tracking
-                    </h3>
-                  </div>
-                  <span className="text-[10px] font-mono text-indigo-600 font-bold px-1.5 py-0.5 bg-indigo-50 rounded">
-                    UT4 Cycle
-                  </span>
-                </div>
-
-                <div className="space-y-3 my-2">
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">UT4 papers submitted</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-indigo-50 text-indigo-700 border-indigo-150 font-mono">
-                      38/48 teachers
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">UT4 deadline</span>
-                    <span className="px-2.5 py-0.5 rounded-md text-[10.5px] font-mono font-bold border bg-amber-50 text-amber-800 border-amber-200">
-                      Fri 30 May
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">UT3 results entered</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-150">
-                      All done
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">School avg UT3</span>
-                    <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold text-slate-800 bg-slate-100">
-                      69.5%
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Below 40% students</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-rose-50 text-rose-700 border-rose-150">
-                      64 students
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowPrincipalChasePendingModal(true)}
-                  className="text-xs font-bold text-blue-600 hover:text-blue-750 flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  Chase pending <ArrowRight size={14} />
-                </button>
-              </div>
-            </div>
-
-            {/* Card 2: Enrichment and Olympiads (School-wide) */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative" id="principal-enrichment-olympiads-card">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <Award size={16} className="text-indigo-600 shrink-0" />
-                    <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">
-                      School Enrichment & Olympiads
-                    </h3>
-                  </div>
-                  <span className="text-[10px] font-mono text-purple-600 font-bold px-1.5 py-0.5 bg-purple-50 rounded">
-                    Talent Pool
-                  </span>
-                </div>
-
-                <div className="space-y-3 my-2">
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Olympiad registrations</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-mono">
-                      184 students
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Enrichment posts — Classroom</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-150 font-mono">
-                      112 this term
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Resources in Enrichment folder</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-mono">
-                      145 files
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Students in enrichment programme</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-mono">
-                      142
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Next olympiad date</span>
-                    <span className="px-2.5 py-0.5 rounded-md text-[10.5px] font-mono font-bold border bg-slate-100 text-slate-700 border-slate-200">
-                      12 June 2026
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    logAction(currentUser, currentRole, "School Enrichment Open", "Principal viewed school-wide enrichment dashboard", "task");
-                    alert("Exporting school-wide talent pool registrations and achievement archives...");
-                  }}
-                  className="text-xs font-bold text-blue-600 hover:text-blue-750 flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  Manage talent <Sparkles size={13} className="text-blue-500" />
-                </button>
-              </div>
-            </div>
-
-            {/* Card 3: Remedial Status (School-wide) */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative" id="principal-remedial-status-card">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <GraduationCap size={16} className="text-emerald-600 shrink-0" />
-                    <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">
-                      School Remedial Status
-                    </h3>
-                  </div>
-                  <span className="text-[10px] font-mono text-emerald-600 font-bold px-1.5 py-0.5 bg-emerald-50 rounded">
-                    Intervention
-                  </span>
-                </div>
-
-                <div className="space-y-3 my-2">
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Identified for remedial</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-mono">
-                      198 students
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Remedial sessions held</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-150 font-mono">
-                      54 this term
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Resources in Remedial folder</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-mono">
-                      92 files
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Improved after remedial</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-150 font-mono">
-                      124 students
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Still needs support</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-rose-50 text-rose-700 border-rose-150 font-mono">
-                      74 students
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowFullRemedialModal(true)}
-                  className="text-xs font-bold text-blue-600 hover:text-blue-750 flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  Full report <ArrowRight size={14} />
-                </button>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* If School Coordinator or Examination Chair role is active, we render the Coordinator Specific Sections */}
-      {isCoordinatorRole() && (
-        <div className="space-y-6 mt-6 animate-fade-in" id="coordinator-specific-dashboard-zones">
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-8">
-            {/* CARD 1: REMEDIAL TRACKING */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between" id="remedial-tracking-card">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="space-y-0.5">
-                    <h3 className="text-base font-bold text-slate-900 tracking-tight font-sans">Remedial Tracking</h3>
-                    <p className="text-xs text-slate-500">
-                      Monitor students requiring diagnostic intervention and track remediation statuses.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Inline filter & search bar */}
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="Search student or class..."
-                      value={remedialSearch}
-                      onChange={(e) => setRemedialSearch(e.target.value)}
-                      className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/15 transition-all text-slate-800"
-                    />
-                    {remedialSearch && (
-                      <button 
-                        onClick={() => setRemedialSearch("")}
-                        className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 rounded-full"
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
-                  <select
-                    aria-label="Filter Remedial Status"
-                    value={remedialStatusFilter}
-                    onChange={(e) => setRemedialStatusFilter(e.target.value)}
-                    className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/15 cursor-pointer text-slate-705 font-sans font-medium"
-                  >
-                    <option value="all">All Statuses</option>
-                    <option value="Tracked">Tracked</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Untracked">Untracked</option>
-                  </select>
-                </div>
-
-                {/* List Container */}
-                <div className="space-y-2.5 max-h-[340px] overflow-y-auto pr-1">
-                  {(() => {
-                    const filtered = COORDINATOR_DASHBOARD_SEED.remedialStudents.filter(student => {
-                      const matchesSearch = student.name.toLowerCase().includes(remedialSearch.toLowerCase()) || 
-                                           student.grade.toLowerCase().includes(remedialSearch.toLowerCase()) || 
-                                           student.subject.toLowerCase().includes(remedialSearch.toLowerCase());
-                      const matchesStatus = remedialStatusFilter === "all" || student.status === remedialStatusFilter;
-                      return matchesSearch && matchesStatus;
-                    });
-
-                    if (filtered.length === 0) {
-                      return (
-                        <div className="py-12 text-center text-slate-400 text-xs">
-                          No students found matching your search and status criteria.
-                        </div>
-                      );
-                    }
-
-                    return filtered.map((row) => {
-                      const initials = row.name.split(' ').map(n => n[0]).join('');
-                      
-                      let badgeColors = "bg-rose-50 text-rose-700 border-rose-100";
-                      if (row.status === "Tracked") {
-                        badgeColors = "bg-emerald-50 text-emerald-700 border-emerald-100";
-                      } else if (row.status === "In Progress") {
-                        badgeColors = "bg-amber-50 text-amber-700 border-amber-100";
-                      }
-
-                      return (
-                        <div 
-                          key={row.id}
-                          onClick={() => setSelectedRemedialStudent(row)}
-                          className="flex items-center justify-between p-3 border border-slate-100 rounded-xl cursor-pointer hover:border-blue-200 hover:bg-slate-50/40 transition-all group lg:min-h-[58px]"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs ${
-                              row.status === 'Tracked' ? 'bg-emerald-50 text-emerald-700' :
-                              row.status === 'In Progress' ? 'bg-amber-50 text-amber-700' :
-                              'bg-rose-50 text-rose-700'
-                            }`}>
-                              {initials}
-                            </div>
-                            <div className="space-y-0.5">
-                              <span className="text-xs font-bold text-slate-800 block group-hover:text-blue-600 transition-colors">
-                                {row.name}
-                              </span>
-                              <span className="text-[10px] text-slate-400 block font-mono">
-                                {row.grade} · <span className="text-slate-500 font-semibold">{row.subject}</span>
-                              </span>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border capitalize ${badgeColors}`}>
-                              {row.status}
-                            </span>
-                            <ChevronRight size={14} className="text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all animate-none" />
-                          </div>
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-              </div>
-
-              {/* Card Actions Footer */}
-              <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
-                <div></div>
-                <button
-                  type="button"
-                  onClick={() => setShowFullRemedialModal(true)}
-                  className="text-xs text-blue-600 font-bold hover:text-blue-800 hover:underline flex items-center gap-1 cursor-pointer font-sans bg-transparent border-none outline-none"
-                >
-                  Full remedial report ↗
-                </button>
-              </div>
-            </div>
-
-            {/* CARD 2: CLASSROOM ACTIVITY — THIS WEEK */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between" id="classroom-activity-card">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="space-y-0.5">
-                    <h3 className="text-base font-bold text-slate-900 tracking-tight font-sans">Classroom Activity — This Week</h3>
-                    <p className="text-xs text-slate-500">
-                      Review Google Classroom stream execution and student assignment submissions.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Mini Stats KPI Rows Inside Card */}
-                <div className="grid grid-cols-3 gap-2.5 p-3.5 bg-slate-50 border border-slate-100 rounded-xl select-none">
-                  <div className="text-center space-y-0.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Assignments</span>
-                    <span className="text-lg font-black text-slate-800 block">84</span>
-                    <span className="text-[9px] text-emerald-600 font-semibold font-sans">Published on LMS</span>
-                  </div>
-                  <div className="text-center space-y-0.5 border-x border-slate-200">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Submission Rate</span>
-                    <span className="text-lg font-black text-emerald-600 block">86%</span>
-                    <span className="text-[9px] text-slate-400 font-sans font-medium">Avg class submission</span>
-                  </div>
-                  <div className="text-center space-y-0.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Enrichments</span>
-                    <span className="text-lg font-black text-blue-600 block">12</span>
-                    <span className="text-[9px] text-blue-500 font-medium font-sans">Department shares</span>
-                  </div>
-                </div>
-
-                {/* Class List Table */}
-                <div className="space-y-3 pt-1 font-sans">
-                  {COORDINATOR_DASHBOARD_SEED.classroomActivity.map((r, rIdx) => {
-                    let dotColor = "bg-rose-500";
-                    let badgeColors = "bg-rose-50 text-rose-700 border-rose-100";
-                    
-                    if (r.state === "high") {
-                      dotColor = "bg-emerald-500";
-                      badgeColors = "bg-emerald-50 text-emerald-700 border-emerald-100";
-                    } else if (r.state === "moderate") {
-                      dotColor = "bg-amber-500";
-                      badgeColors = "bg-amber-50 text-amber-705 border-amber-100";
-                    }
-
-                    return (
-                      <div key={rIdx} className="p-3 border border-slate-100 bg-slate-50/20 rounded-xl space-y-2 lg:min-h-[72px]">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-800 font-sans">
-                              {r.className}
-                            </span>
-                            <span className="text-[10px] font-semibold text-slate-400 font-mono">
-                              ({r.activeCount} Sections Active)
-                            </span>
-                          </div>
-                          
-                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border flex items-center gap-1 leading-none ${badgeColors}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`}></span>
-                            {r.status}
-                          </span>
-                        </div>
-
-                        {/* Submitting progress */}
-                        <div className="space-y-1">
-                          <div className="flex justify-between items-center text-[10px] text-slate-500 font-sans font-semibold">
-                            <span>{r.assignments} assignments · {r.enrichment} uploads</span>
-                            <span className="font-bold text-slate-700">{r.submissionRate}% Submitted</span>
-                          </div>
-                          <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full rounded-full transition-all duration-350 ${
-                                r.state === 'high' ? 'bg-emerald-500' :
-                                r.state === 'moderate' ? 'bg-amber-500' : 'bg-rose-500'
-                              }`}
-                              style={{ width: `${r.submissionRate}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Card Actions Footer */}
-              <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-[10px] text-slate-400 font-sans font-medium">
-                  Classroom telemetry updated 14 minutes ago
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowInactiveSectionsModal(true)}
-                  className="text-xs text-blue-600 font-bold hover:text-blue-800 hover:underline flex items-center gap-1 cursor-pointer font-sans bg-transparent border-none outline-none"
-                >
-                  View inactive sections ↗
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Coordinator Additions: Grade-level Assessment Tracking, Enrichment & Olympiads, Remedial Status */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in animate-duration-300 border-t border-slate-150 pt-6 mt-6 pb-2" id="coordinator-dashboard-additions-grid">
-            
-            {/* Card 1: Assessment Tracking (Coordinator Level) */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative" id="coordinator-assessment-tracking-card">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <CheckSquare size={16} className="text-indigo-600 shrink-0" />
-                    <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">
-                      Grade-Level Assessment Tracking
-                    </h3>
-                  </div>
-                  <span className="text-[10px] font-mono text-indigo-600 font-bold px-1.5 py-0.5 bg-indigo-50 rounded">
-                    UT4 Cycle
-                  </span>
-                </div>
-
-                <div className="space-y-3 my-2">
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">UT4 papers submitted</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-indigo-50 text-indigo-700 border-indigo-150 font-mono">
-                      18/24 teachers
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">UT4 deadline</span>
-                    <span className="px-2.5 py-0.5 rounded-md text-[10.5px] font-mono font-bold border bg-amber-50 text-amber-800 border-amber-200">
-                      Fri 30 May
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">UT3 results entered</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-150">
-                      All done
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Coordinated avg UT3</span>
-                    <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold text-slate-800 bg-slate-100">
-                      71.2%
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Below 40% students</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-rose-50 text-rose-700 border-rose-150">
-                      28 students
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowCoordinatorChasePendingModal(true)}
-                  className="text-xs font-bold text-blue-600 hover:text-blue-750 flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  Chase pending <ArrowRight size={14} />
-                </button>
-              </div>
-            </div>
-
-            {/* Card 2: Enrichment and Olympiads (Coordinator Level) */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative" id="coordinator-enrichment-olympiads-card">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <Award size={16} className="text-indigo-600 shrink-0" />
-                    <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">
-                      Grade Enrichment & Olympiads
-                    </h3>
-                  </div>
-                  <span className="text-[10px] font-mono text-purple-600 font-bold px-1.5 py-0.5 bg-purple-50 rounded">
-                    Talent Pool
-                  </span>
-                </div>
-
-                <div className="space-y-3 my-2">
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Olympiad registrations</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-mono">
-                      78 students
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Enrichment posts — Classroom</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-150 font-mono">
-                      42 this term
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Resources in Enrichment folder</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-mono">
-                      56 files
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Students in enrichment programme</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-mono">
-                      64
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Next olympiad date</span>
-                    <span className="px-2.5 py-0.5 rounded-md text-[10.5px] font-mono font-bold border bg-slate-100 text-slate-700 border-slate-200">
-                      12 June 2026
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    logAction(currentUser, currentRole, "Coordinator Enrichment Open", "Coordinator viewed grade-level enrichment", "task");
-                    alert("Exporting grade-level coordinator talent pools and academic enrichment index...");
-                  }}
-                  className="text-xs font-bold text-blue-600 hover:text-blue-750 flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  Manage talent <Sparkles size={13} className="text-blue-500" />
-                </button>
-              </div>
-            </div>
-
-            {/* Card 3: Remedial Status (Coordinator Level) */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative" id="coordinator-remedial-status-card">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <GraduationCap size={16} className="text-emerald-600 shrink-0" />
-                    <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">
-                      Grade Remedial Status
-                    </h3>
-                  </div>
-                  <span className="text-[10px] font-mono text-emerald-600 font-bold px-1.5 py-0.5 bg-emerald-50 rounded">
-                    Intervention
-                  </span>
-                </div>
-
-                <div className="space-y-3 my-2">
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Identified for remedial</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-mono">
-                      82 students
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Remedial sessions held</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-150 font-mono">
-                      24 this term
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Resources in Remedial folder</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-mono">
-                      38 files
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Improved after remedial</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-150 font-mono">
-                      48 students
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Still needs support</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-rose-50 text-rose-700 border-rose-150 font-mono">
-                      34 students
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowFullRemedialModal(true)}
-                  className="text-xs font-bold text-blue-600 hover:text-blue-750 flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  Full report <ArrowRight size={14} />
-                </button>
-              </div>
-            </div>
-
-          </div>
-          
-        </div>
-      )}
-
-      {/* Teacher Dashboard Specific Section */}
-      {isTeacherRole() && (
-        <div className="space-y-6 mt-6 animate-fade-in animate-duration-300" id="teacher-dashboard-main-view">
-          
-          {/* 2. KPI SUMMARY CARDS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="teacher-kpi-summary-cards">
-            
-            {/* KPI 1: Classes Today */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden flex flex-col justify-between h-32" id="kpi-teacher-classes-today">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Classes Today</span>
-                <span className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600"><Clock size={14} /></span>
-              </div>
-              <div className="mt-2">
-                <div className="text-2xl font-black text-slate-800 tracking-tight">
-                  {teachingTimetable.filter(t => t.classSubject !== "Free period").length}
-                </div>
-                <div className="text-[10px] text-slate-500 mt-1 font-sans flex items-center gap-1">
-                  <span className="text-emerald-600 font-bold">1 now</span> · 2 ahead
-                </div>
-              </div>
-            </div>
-
-            {/* KPI 2: Ungraded Work */}
-            <div 
-              onClick={() => setShowGradingInterface(true)}
-              className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all relative overflow-hidden flex flex-col justify-between h-32 cursor-pointer group"
-              id="kpi-teacher-ungraded-work"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Ungraded Work</span>
-                <span className="p-1.5 rounded-lg bg-rose-50 text-rose-600 group-hover:bg-rose-100 transition-colors"><CheckSquare size={14} /></span>
-              </div>
-              <div className="mt-2">
-                <div className="text-2xl font-black text-slate-800 tracking-tight">
-                  {teachingTasks.find(t => t.type === 'ungraded') ? parseInt(teachingTasks.find(t => t.type === 'ungraded')!.title) : 47}
-                </div>
-                <div className="text-[10px] text-rose-600 mt-1 font-sans font-semibold flex items-center gap-1">
-                  12 overdue 3+ days <span className="opacity-0 group-hover:opacity-100 transition-opacity text-indigo-600 ml-1">Grade →</span>
-                </div>
-              </div>
-            </div>
-
-            {/* KPI 3: Weekly Planner */}
-            <div 
-              onClick={() => setShowPlannerForm(true)}
-              className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all relative overflow-hidden flex flex-col justify-between h-32 cursor-pointer group"
-              id="kpi-teacher-weekly-planner"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Weekly Planner</span>
-                <span className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100 transition-colors"><Sparkles size={14} /></span>
-              </div>
-              <div className="mt-2">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-xl font-black text-emerald-700 tracking-tight font-sans">
-                    {plannerStatusValue}
-                  </span>
-                </div>
-                <div className="text-[10px] text-slate-500 mt-1 font-sans flex items-center justify-between w-full">
-                  <span>Today 7:45 AM</span>
-                  <span className="opacity-0 group-hover:opacity-100 transition-opacity text-indigo-600 font-bold">Update ↗</span>
-                </div>
-              </div>
-            </div>
-
-            {/* KPI 4: Resource Uploads */}
-            <div 
-              onClick={() => setShowResourceUploadForm(true)}
-              className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all relative overflow-hidden flex flex-col justify-between h-32 cursor-pointer group"
-              id="kpi-teacher-resource-uploads"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Resource Uploads</span>
-                <span className="p-1.5 rounded-lg bg-amber-50 text-amber-600 group-hover:bg-amber-100 transition-colors"><FileText size={14} /></span>
-              </div>
-              <div className="mt-2">
-                <div className="text-2xl font-black text-slate-800 tracking-tight">
-                  {resourceUploadCount}
-                </div>
-                <div className="text-[10px] text-slate-500 mt-1 font-sans flex items-center justify-between w-full">
-                  <span>This week in repository</span>
-                  <span className="opacity-0 group-hover:opacity-100 transition-opacity text-indigo-600 font-bold">Add ↗</span>
-                </div>
-              </div>
-            </div>
-
-          </div>
-
-          {/* 3. TODAY'S TIMETABLE & 4. PENDING TASKS SECTION (GRID) */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" id="teacher-timetable-and-tasks-grid">
-            
-            {/* TODAY'S TIMETABLE CARD (Col-Span 7) */}
-            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden lg:col-span-7 flex flex-col" id="teacher-timetable-card">
-              <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-2">
-                  <div className="p-1 rounded-lg bg-indigo-50 text-indigo-700">
-                    <Calendar size={14} />
-                  </div>
-                  <h3 className="text-xs font-extrabold text-slate-900 tracking-tight uppercase font-sans">Today's Timetable</h3>
-                </div>
-                <span className="text-[9px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-extrabold font-mono">Periods schedule</span>
-              </div>
-
-              <div className="divide-y divide-slate-100 overflow-x-auto min-w-full flex-1">
-                {/* TIMETABLE ROW */}
-                {teachingTimetable.map((row) => {
-                  const isNow = row.status === "Now";
-                  const isNext = row.status === "Next";
-                  const isDone = row.status === "Done";
-                  const isFree = row.status === "Free Period";
-
-                  return (
-                    <div 
-                      key={row.period} 
-                      className={`p-3.5 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                        isNow ? "bg-indigo-50/70 border-l-4 border-indigo-500 shadow-inner" : "hover:bg-slate-50/45"
-                      }`}
-                      id={`timetable-row-period-${row.period}`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs font-mono shrink-0 ${
-                          isNow ? "bg-indigo-650 text-white shadow-inner animate-pulse" :
-                          isNext ? "bg-indigo-50 text-indigo-650 border border-indigo-100" :
-                          isDone ? "bg-slate-100 text-slate-400" : "bg-slate-50 text-slate-500"
-                        }`}>
-                          {row.period}
-                        </div>
-                        <div className="space-y-0.5">
-                          <p className={`text-sm font-extrabold tracking-tight ${isDone ? "text-slate-400 line-through" : "text-slate-800"}`}>
-                            {row.classSubject}
-                          </p>
-                          <div className="flex items-center gap-1.5 text-[11px] text-slate-500 flex-wrap font-sans">
-                            <span className="font-semibold text-slate-600">{row.topic}</span>
-                            <span className="text-slate-300">•</span>
-                            <span className="bg-slate-100 text-slate-650 px-1.5 py-0.2 rounded font-mono text-[9px]">
-                              {row.room}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between sm:justify-end gap-3 border-t sm:border-none pt-2 sm:pt-0">
-                        <span className="text-xs text-slate-400 font-mono font-medium shrink-0">
-                          {row.time}
-                        </span>
-
-                        <div>
-                          {isNow && row.meetLink ? (
-                            <button
-                              onClick={() => {
-                                logAction(currentUser, currentRole, "In-App Meet Simulator Launched", "Teacher clicked Meet button for " + row.classSubject, "file_access");
-                                setActiveCallSim(true);
-                              }}
-                              className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold font-sans flex items-center gap-1 outline-none shadow-sm transition-colors cursor-pointer"
-                              id={`timetable-meet-btn-p${row.period}`}
-                            >
-                              <ExternalLink size={12} />
-                              Meet
-                            </button>
-                          ) : isDone ? (
-                            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-450 text-[9px] font-bold flex items-center gap-1">
-                              <Check size={10} /> Done
-                            </span>
-                          ) : isNext ? (
-                            <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-805 text-[9px] font-bold uppercase tracking-wider">
-                              Next
-                            </span>
-                          ) : isFree ? (
-                            <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-805 text-[9px] font-bold uppercase tracking-wider">
-                              Available
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-slate-400 italic">Scheduled</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* PENDING TASKS CARD (Col-Span 5) */}
-            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col justify-between col-span-1 lg:col-span-5" id="teacher-pending-tasks-card">
-              <div>
-                <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1 rounded-lg bg-orange-100 text-orange-700">
-                      <CheckSquare size={14} />
-                    </div>
-                    <h3 className="text-xs font-extrabold text-slate-905 tracking-tight uppercase font-sans">Pending Tasks</h3>
-                  </div>
-                  <span className="text-[9px] bg-rose-55 text-rose-700 px-2 py-0.5 rounded font-extrabold font-mono">Action required</span>
-                </div>
-
-                <div className="divide-y divide-slate-100">
-                  {teachingTasks.map((task) => {
-                    const isOverdue = task.status === "Overdue";
-                    const isDueToday = task.status === "Due today";
-                    const isDueSoon = task.status === "Due soon";
-                    const isCompleted = task.status === "Completed";
-
-                    return (
-                      <div 
-                        key={task.id} 
-                        className="p-3.5 hover:bg-slate-50/40 transition-colors flex items-start gap-3 justify-between"
-                        id={`pending-task-${task.id}`}
-                      >
-                        <div className="flex items-start gap-2">
-                          <span className={`p-1 rounded-lg mt-0.5 ${
-                            isCompleted ? "bg-emerald-50 text-emerald-600" :
-                            isOverdue ? "bg-rose-50 text-rose-600" :
-                            isDueToday ? "bg-orange-50 text-orange-600" : "bg-blue-50 text-blue-600"
-                          }`}>
-                            {isCompleted ? <Check size={12} /> : <AlertTriangle size={12} />}
-                          </span>
-                          <div className="space-y-0.5">
-                            <p className="text-xs font-bold text-slate-800 tracking-tight leading-tight">{task.title}</p>
-                            <p className="text-[10px] text-slate-500 font-sans leading-relaxed">{task.detail}</p>
-                          </div>
-                        </div>
-
-                        <div>
-                          {task.type === "ungraded" ? (
-                            <button
-                              onClick={() => setShowGradingInterface(true)}
-                              className="px-2.5 py-1 text-[10px] font-bold rounded-md bg-stone-100 text-indigo-700 hover:bg-indigo-50 hover:text-indigo-850 border border-slate-200 transition-colors cursor-pointer shrink-0 outline-none"
-                              id="pending-task-grade-action-btn"
-                            >
-                              Grade
-                            </button>
-                          ) : task.type === "lesson_plan" && !isCompleted ? (
-                            <button
-                              onClick={() => {
-                                setPlannerClass(task.detail.split(" ")[0]);
-                                setShowPlannerForm(true);
-                              }}
-                              className="px-2.5 py-1 text-[10px] font-bold rounded-md bg-orange-100 text-orange-800 hover:bg-orange-200 transition-colors cursor-pointer shrink-0 outline-none"
-                              id="pending-task-planner-action-btn"
-                            >
-                              Due today
-                            </button>
-                          ) : (
-                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold font-mono shrink-0 uppercase tracking-wider ${
-                              isCompleted ? "bg-emerald-100 text-emerald-800" :
-                              isOverdue ? "bg-rose-100 text-rose-800" :
-                              isDueToday ? "bg-orange-100 text-orange-800" : "bg-blue-100 text-blue-800"
-                            }`}>
-                              {task.actionLabel}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="bg-slate-50 px-5 py-3 border-t border-slate-100 text-[10px] text-slate-500 font-sans leading-relaxed">
-                💡 Evaluating submissions and publishing lesson planners updates tasks automatically.
-              </div>
-            </div>
-
-          </div>
-
-          {/* 5. QUICK LINKS SECTION CARD */}
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 animate-fade-in animate-duration-200" id="teacher-quick-links-card">
-            <div className="pb-3 border-b border-slate-100 mb-4 flex items-center gap-2">
-              <div className="p-1 rounded bg-indigo-50 text-indigo-700"><ExternalLink size={14} /></div>
-              <h3 className="text-xs font-extrabold text-slate-900 tracking-tight uppercase font-sans">Quick Links</h3>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              
-              {/* Quick Link 1 */}
-              <div className="border border-slate-150 rounded-xl p-3.5 hover:bg-slate-50 transition-colors flex items-center justify-between" id="quick-link-1">
-                <div>
-                  <h4 className="text-xs font-bold text-slate-900 font-sans">Class {teacherProfile.classTeacher || "8A"} Classroom</h4>
-                  <p className="text-[10px] text-slate-400 mt-0.5 font-mono">My primary workspace</p>
-                </div>
-                <button
-                  onClick={() => {
-                    logAction(currentUser, currentRole, "Classroom Opened via Quicklink", "Opened primary classroom page for class " + (teacherProfile.classTeacher || "8A"), "file_access");
-                    onToggleTab("classroom");
-                  }}
-                  className="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 text-indigo-705 hover:text-indigo-800 rounded text-[10px] font-bold font-sans cursor-pointer transition-colors"
-                >
-                  Open
+                  <Sliders size={15} />
                 </button>
               </div>
 
-              {/* Quick Link 2 */}
-              <div className="border border-slate-150 rounded-xl p-3.5 hover:bg-slate-50 transition-colors flex items-center justify-between" id="quick-link-2">
-                <div>
-                  <h4 className="text-xs font-bold text-slate-905 font-sans font-sans">My Repository Folder</h4>
-                  <p className="text-[10px] text-slate-400 mt-0.5 font-mono">Personal syllabi audits</p>
-                </div>
-                <button
-                  onClick={() => {
-                    logAction(currentUser, currentRole, "Google Drive Repository Opened via Quicklink", "Opened personal drive repository: /Schooly-Syllabus/" + teacherProfile.subject, "file_access");
-                    onToggleTab("search");
-                  }}
-                  className="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 text-indigo-705 hover:text-indigo-800 rounded text-[10px] font-bold font-sans cursor-pointer transition-colors"
-                >
-                  Open
-                </button>
-              </div>
-
-              {/* Quick Link 3 */}
-              <div className="border border-slate-150 rounded-xl p-3.5 hover:bg-slate-50 transition-colors flex items-center justify-between" id="quick-link-3">
-                <div>
-                  <h4 className="text-xs font-bold text-slate-905 font-sans font-sans">Submit Weekly Planner</h4>
-                  <p className="text-[10px] text-slate-400 mt-0.5 font-mono">Upload lesson layouts</p>
-                </div>
-                <button
-                  onClick={() => setShowPlannerForm(true)}
-                  className="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 text-indigo-705 hover:text-indigo-800 rounded text-[10px] font-bold font-sans cursor-pointer transition-colors"
-                >
-                  Form
-                </button>
-              </div>
-
-              {/* Quick Link 4 */}
-              <div className="border border-slate-150 rounded-xl p-3.5 hover:bg-slate-50 transition-colors flex items-center justify-between" id="quick-link-4">
-                <div>
-                  <h4 className="text-xs font-bold text-slate-905 font-sans">Apply for Leave</h4>
-                  <p className="text-[10px] text-slate-400 mt-0.5 font-mono">Time off routing tracker</p>
-                </div>
-                <button
-                  onClick={() => setShowLeaveForm(true)}
-                  className="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 text-indigo-705 hover:text-indigo-800 rounded text-[10px] font-bold font-sans cursor-pointer transition-colors"
-                >
-                  Form
-                </button>
-              </div>
-
-            </div>
-          </div>
-
-          {/* UT3 Performance and Classroom Posting Compliances (SDOS-25 additions) */}
-          {(() => {
-            const pctWarning = teacherDashboard.attentionThresholds?.performanceWarning || 70;
-            const attentionClasses = (teacherDashboard.assignedClasses || [])
-              .filter(c => c.classroomPostingDaysCompleted < 4)
-              .map(c => c.class);
-
-            let attentionMsg = "";
-            if (attentionClasses.length > 0) {
-              if (attentionClasses.length === 1) {
-                attentionMsg = `${attentionClasses[0]} needs attention this week`;
-              } else if (attentionClasses.length === 2) {
-                attentionMsg = `${attentionClasses[0]} and ${attentionClasses[1]} need attention this week`;
-              } else {
-                attentionMsg = `${attentionClasses.slice(0, -1).join(", ")}, and ${attentionClasses[attentionClasses.length - 1]} need attention this week`;
-              }
-            }
-
-            return (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in animate-duration-300 border-t border-slate-155 pt-6 mt-6" id="teacher-performance-posting-tracker">
-                {/* Card 1: UT3 Performance */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative" id="teacher-ut3-performance-card">
-                  <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-650 rounded-l-2xl"></div>
-                  <div>
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                      <div className="flex items-center gap-2">
-                        <Award className="text-indigo-650 shrink-0" size={16} />
-                        <h3 className="text-xs font-black text-slate-900 tracking-tight uppercase font-sans">
-                          MY CLASSES — UT3 PERFORMANCE
-                        </h3>
-                      </div>
-                      <span className="text-[10px] font-mono text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded font-extrabold uppercase shrink-0">
-                        {teacherDashboard.assessmentName || "UT3"} CYCLE
-                      </span>
-                    </div>
-
-                    <div className="space-y-4 my-2">
-                      {teacherDashboard.assignedClasses && teacherDashboard.assignedClasses.map((item) => {
-                        const pct = item.classPerformancePercent;
-                        const isBelowWarning = pct < pctWarning;
-                        const barColor = isBelowWarning ? "bg-amber-500 animate-pulse animate-duration-1000" : "bg-emerald-500";
-                        return (
-                          <div key={item.class} className="space-y-1.5" id={`ut3-perf-row-${item.class.replace(/\s+/g, '-').toLowerCase()}`}>
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="font-extrabold text-slate-700 font-sans">{item.class}</span>
-                              <span className={`font-mono font-bold ${isBelowWarning ? "text-amber-600" : "text-emerald-600"}`}>
-                                {pct}%
-                              </span>
-                            </div>
-                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden relative">
-                              <div 
-                                className={`h-full rounded-full transition-all duration-500 ease-out border-r border-white/20 ${barColor}`}
-                                style={{ width: `${pct}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+              {showComplianceConfig && (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl mb-4 text-xs space-y-2.5 animate-fade-in select-none max-h-[220px] overflow-y-auto scrollbar-thin">
+                  <div className="flex items-center justify-between border-b border-slate-150 pb-1.5 mb-1">
+                    <span className="font-bold text-slate-800">Assign Scoring Weights</span>
+                    <span className="text-[10px] text-blue-600 font-mono font-bold uppercase block tracking-wider">Weighted calculations</span>
                   </div>
-
-                  <div className="mt-5 pt-3.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-[11px]">
-                    <span className="text-slate-500 font-medium font-sans">
-                      School Maths avg: <span className="font-bold text-slate-700">{teacherDashboard.schoolSubjectAverage || 68}%</span> · My avg: <span className="font-extrabold text-indigo-600">{teacherDashboard.teacherAverage || 75}%</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        logAction(currentUser, currentRole, "Teacher Performance Drilldown Initiated", "Drilldown to classroom section assessment tabs", "navigation");
-                        onToggleTab("classroom");
-                      }}
-                      className="text-xs text-blue-600 font-extrabold hover:text-blue-700 hover:underline flex items-center gap-0.5 pointer-events-auto cursor-pointer self-end sm:self-auto"
-                      id="classes-perf-drilldown-btn"
-                    >
-                      Drill down <ArrowUpRight size={14} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Card 2: Classroom Postings */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative" id="teacher-classroom-posting-card">
-                  <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-650 rounded-l-2xl"></div>
-                  <div>
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                      <div className="flex items-center gap-2">
-                        <CheckSquare className="text-indigo-650 shrink-0" size={16} />
-                        <h3 className="text-xs font-black text-slate-900 tracking-tight uppercase font-sans">
-                          MY CLASSROOM POSTING — THIS WEEK
-                        </h3>
-                      </div>
-                      <span className="text-[10px] font-mono text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded font-extrabold uppercase shrink-0">
-                        POSTS VERIFIER
-                      </span>
-                    </div>
-
-                    <div className="divide-y divide-slate-50 my-2">
-                      {teacherDashboard.assignedClasses && teacherDashboard.assignedClasses.map((item) => {
-                        const completed = item.classroomPostingDaysCompleted;
-                        const expected = teacherDashboard.classroomPostingDaysExpected || 5;
-                        
-                        let badgeClass = "bg-rose-50 text-rose-700 border-rose-150";
-                        if (completed >= 5) {
-                          badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-150";
-                        } else if (completed === 4) {
-                          badgeClass = "bg-blue-50 text-blue-700 border-blue-150";
-                        } else if (completed === 3) {
-                          badgeClass = "bg-amber-50 text-amber-650 border-amber-200 animate-pulse animate-duration-1000";
-                        }
-
-                        return (
-                          <div key={item.class} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0" id={`posting-row-${item.class.replace(/\s+/g, '-').toLowerCase()}`}>
-                            <span className="text-xs font-extrabold text-slate-700 font-sans">{item.class}</span>
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-mono font-bold border ${badgeClass} shrink-0`}>
-                              {completed}/{expected} days
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="mt-5 pt-3.5 border-t border-slate-100 text-[11px] font-medium font-sans min-h-[22px]">
-                    {attentionClasses.length > 0 ? (
-                      <span className="flex items-center gap-1.5 text-rose-600 font-bold">
-                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
-                        {attentionMsg}
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1.5 text-emerald-600 font-bold">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                        All departments meet standard weekly posting compliance.
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Teacher Additions: Class-specific Assessment Tracking, Enrichment & Olympiads, Remedial Status */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in animate-duration-300 border-t border-slate-155 pt-6 mt-6 pb-2" id="teacher-dashboard-additions-grid">
-            
-            {/* Card 1: Assessment Tracking (My Classes) */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative" id="teacher-assessment-tracking-card">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <CheckSquare size={16} className="text-indigo-600 shrink-0" />
-                    <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">
-                      My Assessment Tracking
-                    </h3>
-                  </div>
-                  <span className="text-[10px] font-mono text-indigo-600 font-bold px-1.5 py-0.5 bg-indigo-50 rounded">
-                    UT4 Cycle
-                  </span>
-                </div>
-
-                <div className="space-y-3 my-2">
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">UT4 papers submitted</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-150 font-mono">
-                      Submitted (1/1)
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">UT4 deadline</span>
-                    <span className="px-2.5 py-0.5 rounded-md text-[10.5px] font-mono font-bold border bg-amber-50 text-amber-800 border-amber-200">
-                      Fri 30 May
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">UT3 results entered</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-150">
-                      All done
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Class avg UT3</span>
-                    <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold text-slate-800 bg-slate-100">
-                      74.5%
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Below 40% students</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-rose-50 text-rose-700 border-rose-150">
-                      4 students
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowTeacherChasePendingModal(true)}
-                  className="text-xs font-bold text-blue-600 hover:text-blue-750 flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  Follow up students <ArrowRight size={14} />
-                </button>
-              </div>
-            </div>
-
-            {/* Card 2: Enrichment and Olympiads (My Students) */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative" id="teacher-enrichment-olympiads-card">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <Award size={16} className="text-indigo-600 shrink-0" />
-                    <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">
-                      My Enrichment & Olympiads
-                    </h3>
-                  </div>
-                  <span className="text-[10px] font-mono text-purple-600 font-bold px-1.5 py-0.5 bg-purple-50 rounded">
-                    Talent Pool
-                  </span>
-                </div>
-
-                <div className="space-y-3 my-2">
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Olympiad registrations</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-mono">
-                      12 students
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Enrichment posts — Classroom</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-150 font-mono">
-                      6 this term
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Resources in Enrichment folder</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-mono">
-                      8 files
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Students in enrichment programme</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-mono">
-                      10
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Next olympiad date</span>
-                    <span className="px-2.5 py-0.5 rounded-md text-[10.5px] font-mono font-bold border bg-slate-100 text-slate-700 border-slate-200">
-                      12 June 2026
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    logAction(currentUser, currentRole, "Teacher Enrichment Folder Opened", "Teacher viewed class enrichment materials", "task");
-                    alert("Opening Google Classroom enrichment folders and posting resources...");
-                  }}
-                  className="text-xs font-bold text-blue-600 hover:text-blue-750 flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  Manage files <Sparkles size={13} className="text-blue-500" />
-                </button>
-              </div>
-            </div>
-
-            {/* Card 3: Remedial Status (My Focus Group) */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative" id="teacher-remedial-status-card">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <GraduationCap size={16} className="text-emerald-600 shrink-0" />
-                    <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">
-                      My Remedial Status
-                    </h3>
-                  </div>
-                  <span className="text-[10px] font-mono text-emerald-600 font-bold px-1.5 py-0.5 bg-emerald-50 rounded">
-                    Intervention
-                  </span>
-                </div>
-
-                <div className="space-y-3 my-2">
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Identified for remedial</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-mono">
-                      8 students
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Remedial sessions held</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-150 font-mono">
-                      4 this term
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Resources in Remedial folder</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-mono">
-                      6 files
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Improved after remedial</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-150 font-mono">
-                      5 students
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Still needs support</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-rose-50 text-rose-700 border-rose-150 font-mono">
-                      3 students
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    logAction(currentUser, currentRole, "Teacher Remedial Log Opened", "Teacher viewed personal remedial registry stats", "task");
-                    alert("Opening remedial tracking sheets for active classrooms...");
-                  }}
-                  className="text-xs font-bold text-blue-600 hover:text-blue-750 flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  Remedial log <ArrowRight size={14} />
-                </button>
-              </div>
-            </div>
-
-          </div>
-
-        </div>
-      )}
-
-
-
-      {/* Submit Weekly Planner Modal (SDOS-25) */}
-      {showPlannerForm && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs select-none">
-          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl border border-slate-200 relative animate-fade-in duration-200">
-            <button onClick={() => { setShowPlannerForm(false); setPlannerSyllabusCovered(""); setPlannerSuccessMsg(""); }} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg"><X size={16} /></button>
-            <h3 className="text-base font-bold text-slate-905 mb-2 font-sans flex items-center gap-2">
-              <Sparkles className="text-indigo-600" size={16} />
-              Submit Weekly Syllabus Planner
-            </h3>
-            <p className="text-xs text-slate-500 mb-4 font-sans leading-relaxed">Post weekly curriculum layout guidelines to coordinator reviews and Google Drive hierarchy.</p>
-            {plannerSuccessMsg ? (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center space-y-2">
-                <Check className="text-emerald-600 mx-auto" size={24} />
-                <p className="text-xs text-emerald-800 font-bold">{plannerSuccessMsg}</p>
-                <button onClick={() => { setShowPlannerForm(false); setPlannerSuccessMsg(""); }} className="mt-2 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg cursor-pointer">Done</button>
-              </div>
-            ) : (
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                setPlannerStatusValue("Posted");
-                logAction(currentUser, currentRole, "Planner Submitted", `Syllabus planner submitted for ${plannerClass} - ${plannerWeek}`, "task");
-                // Update pending task
-                setTeachingTasks(prev => prev.map(t => {
-                  if (t.type === "lesson_plan") {
-                    return { ...t, title: "No missing lesson plans", detail: `Successfully posted ${plannerClass} ${plannerWeek}`, status: "Completed", actionLabel: "Completed" };
-                  }
-                  return t;
-                }));
-                setPlannerSuccessMsg(`Syllabus planner posted successfully for ${plannerClass} (${plannerWeek})!`);
-              }} className="space-y-4">
-                <div>
-                  <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1 font-mono">Target Class / Section</label>
-                  <select value={plannerClass} onChange={(e) => setPlannerClass(e.target.value)} className="w-full text-xs p-2.5 border border-slate-250 rounded-lg outline-none focus:ring-1 focus:ring-indigo-400 bg-white text-slate-800">
-                    <option value="Class 8A">Class 8A - Mathematics</option>
-                    <option value="Class 8B">Class 8B - Mathematics</option>
-                    <option value="Class 8C">Class 8C - Mathematics</option>
-                    <option value="Class 8D">Class 8D - Mathematics</option>
-                    <option value="Class 9A">Class 9A - Mathematics</option>
-                    <option value="Class 9B">Class 9B - Mathematics</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1 font-mono">Academic Week</label>
-                  <select value={plannerWeek} onChange={(e) => setPlannerWeek(e.target.value)} className="w-full text-xs p-2.5 border border-slate-250 rounded-lg outline-none focus:ring-1 focus:ring-indigo-400 bg-white text-slate-800">
-                    <option value="Week 22">Week 22 (May 25 - May 29)</option>
-                    <option value="Week 23">Week 23 (Jun 01 - Jun 05)</option>
-                    <option value="Week 24">Week 24 (Jun 08 - Jun 12)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1 font-mono">Topics / Syllabus to Cover</label>
-                  <textarea rows={3} value={plannerSyllabusCovered} onChange={(e) => setPlannerSyllabusCovered(e.target.value)} className="w-full text-xs p-2.5 border border-slate-250 rounded-lg outline-none focus:ring-1 focus:ring-indigo-400 text-slate-800 bg-white font-sans" placeholder="Enunciate chapters and learning outcomes..."></textarea>
-                </div>
-                <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center cursor-pointer hover:bg-slate-50 transition-colors">
-                  <FileText className="text-slate-400 mx-auto mb-1.5" size={24} />
-                  <span className="text-[11px] text-slate-500 font-bold block">Attach Lesson Plan PDF/Doc</span>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">Drag & drop or match file from Drive</span>
-                </div>
-                <div className="flex justify-end gap-2 pt-2">
-                  <button type="button" onClick={() => setShowPlannerForm(false)} className="px-4 py-2 text-xs border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 cursor-pointer font-bold">Cancel</button>
-                  <button type="submit" className="px-4 py-2 text-xs bg-indigo-650 text-white rounded-lg hover:bg-indigo-700 cursor-pointer font-bold flex items-center gap-1">
-                    <Send size={12} /> Post Planner
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Apply for Leave Form Modal */}
-      {showLeaveForm && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs select-none">
-          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl border border-slate-200 relative animate-fade-in duration-200">
-            <button onClick={() => { setShowLeaveForm(false); setLeaveSuccessMsg(""); }} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg"><X size={16} /></button>
-            <h3 className="text-base font-bold text-slate-905 mb-2 font-sans flex items-center gap-2">
-              <Calendar className="text-indigo-600" size={16} />
-              Leave Application Form
-            </h3>
-            <p className="text-xs text-slate-500 mb-4 font-sans leading-relaxed">Your request will be routed instantly to the Vice Principal and Academic Coordinator for approval.</p>
-            {leaveSuccessMsg ? (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center space-y-2">
-                <Check className="text-emerald-600 mx-auto" size={24} />
-                <p className="text-xs text-emerald-800 font-bold">{leaveSuccessMsg}</p>
-                <button onClick={() => { setShowLeaveForm(false); setLeaveSuccessMsg(""); }} className="mt-2 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-750 text-white text-xs font-bold rounded-lg cursor-pointer">Done</button>
-              </div>
-            ) : (
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                logAction(currentUser, currentRole, "Leave Form Submitted", `Leave requested (${leaveType}) for ${leaveStart} to ${leaveEnd}`, "task");
-                setLeaveSuccessMsg("Leave application routed to portal successfully. Status: PENDING COORDINATOR ACTION.");
-              }} className="space-y-4 font-sans">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1 font-mono">Leave Type</label>
-                    <select value={leaveType} onChange={(e) => setLeaveType(e.target.value)} className="w-full text-xs p-2.5 border border-slate-250 rounded-lg outline-none focus:ring-1 focus:ring-indigo-400 bg-white text-slate-800 font-semibold">
-                      <option value="Casual Leave">Casual Leave</option>
-                      <option value="Sick Leave">Sick Leave / Medical</option>
-                      <option value="Earned Leave">Earned Leave</option>
-                      <option value="Maternity/Paternity Leave">Maternity/Paternity</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1 font-mono">Substitution arrangement</label>
-                    <select className="w-full text-xs p-2.5 border border-slate-250 rounded-lg outline-none focus:ring-1 focus:ring-indigo-400 bg-white text-slate-850">
-                      <option value="Yes">Yes (Internal substitute set)</option>
-                      <option value="No">No (Substitute needed)</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1 font-mono">Start Date</label>
-                    <input type="date" value={leaveStart} onChange={(e) => setLeaveStart(e.target.value)} className="w-full text-xs p-2.5 border border-slate-250 rounded-lg outline-none focus:ring-1 focus:ring-indigo-400 text-slate-805 bg-white font-medium" />
-                  </div>
-                  <div>
-                    <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1 font-mono">End Date</label>
-                    <input type="date" value={leaveEnd} onChange={(e) => setLeaveEnd(e.target.value)} className="w-full text-xs p-2.5 border border-slate-250 rounded-lg outline-none focus:ring-1 focus:ring-indigo-400 text-slate-850 bg-white font-medium" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1 font-mono">Reason for leave</label>
-                  <textarea rows={3} value={leaveReason} onChange={(e) => setLeaveReason(e.target.value)} required className="w-full text-xs p-2.5 border border-slate-250 rounded-lg outline-none focus:ring-1 focus:ring-indigo-400 text-slate-850 bg-white" placeholder="Please elaborate the purpose of leave..."></textarea>
-                </div>
-                <div className="flex justify-end gap-2 pt-2">
-                  <button type="button" onClick={() => setShowLeaveForm(false)} className="px-4 py-2 text-xs border border-slate-200 rounded-lg text-slate-505 hover:bg-slate-50 cursor-pointer font-bold">Cancel</button>
-                  <button type="submit" className="px-4 py-2 text-xs bg-indigo-650 text-white rounded-lg hover:bg-slate-900 cursor-pointer font-bold">Submit Form</button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Interactive Grading Interface (Grade Submissions Modal) */}
-      {showGradingInterface && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs select-none animate-fade-in duration-300">
-          <div className="bg-white rounded-2xl w-full max-w-2xl p-6 shadow-2xl border border-slate-200 relative flex flex-col max-h-[85vh]">
-            <button onClick={() => { setShowGradingInterface(false); setGradingSuccessMsg(""); }} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg"><X size={16} /></button>
-            <h3 className="text-base font-bold text-slate-905 mb-1 font-sans flex items-center gap-2 shrink-0">
-              <CheckSquare className="text-indigo-600" size={16} />
-              Syllabus Work Grading Interface
-            </h3>
-            <p className="text-xs text-slate-500 mb-4 shrink-0 font-sans">Input marks directly for recently submitted tasks to update student indicators and publish to SIS.</p>
-            
-            {gradingSuccessMsg ? (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 text-center space-y-2 my-auto shrink-0 animate-fade-in">
-                <Check className="text-emerald-650 mx-auto" size={28} />
-                <p className="text-sm text-emerald-805 font-extrabold font-sans">{gradingSuccessMsg}</p>
-                <button onClick={() => { setShowGradingInterface(false); setGradingSuccessMsg(""); }} className="mt-3 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg cursor-pointer font-sans">Back to Dashboard</button>
-              </div>
-            ) : (
-              <>
-                <div className="mb-4 shrink-0">
-                  <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1 font-mono">Select Active Assignment Track</label>
-                  <select value={selectedGradingAssignment} onChange={(e) => setSelectedGradingAssignment(e.target.value)} className="w-full text-xs p-2.5 border border-slate-250 rounded-lg outline-none focus:ring-1 focus:ring-indigo-400 font-bold bg-white text-slate-805">
-                    <option value="Class 8A (Ch 6 Triangles Assignment)">Class 8A - Ch 6 Triangles homework (12 pending)</option>
-                    <option value="Class 8B (Ch 6 Similarity Exercise)">Class 8B - Triangles similarity theorems (9 pending)</option>
-                    <option value="Class 8C (Ch 6 Practical Trigonometry)">Class 8C - Trigonometric applications (11 pending)</option>
-                    <option value="Class 9A (Ch 4 Quadratic Equations)">Class 9A - Quadratic formulas solving (8 pending)</option>
-                    <option value="Class 9B (Ch 4 Roots Identification)">Class 9B - Find the discriminant test (7 pending)</option>
-                  </select>
-                </div>
-
-                <div className="overflow-y-auto flex-1 border border-slate-100 rounded-xl divide-y divide-slate-150 mb-4 p-1">
-                  <div className="p-2 sm:grid sm:grid-cols-12 gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50">
-                    <div className="col-span-5 font-mono">Student Candidate</div>
-                    <div className="col-span-3 font-mono">Submission status</div>
-                    <div className="col-span-4 text-center font-mono">Award Score ( / 25 Marks )</div>
-                  </div>
-                  {Object.keys(gradingScores).map((student) => (
-                    <div key={student} className="p-2.5 sm:grid sm:grid-cols-12 gap-2 items-center hover:bg-slate-50/50 transition-colors">
-                      <div className="col-span-5 flex items-center gap-2">
-                        <span className="w-6 h-6 rounded-full bg-slate-105 text-slate-600 flex items-center justify-center text-[10px] font-black font-sans shrink-0 uppercase">
-                          {student.split(" ").map(n => n[0]).join("")}
-                        </span>
-                        <span className="text-xs font-bold text-slate-805 font-sans">{student}</span>
-                      </div>
-                      <div className="col-span-3">
-                        <span className="px-2 py-0.5 rounded-full bg-orange-50 text-orange-850 text-[9px] font-extrabold uppercase">Pending Review</span>
-                      </div>
-                      <div className="col-span-4 flex items-center gap-2 justify-center">
+                  <div className="space-y-1.5">
+                    {[
+                      ["Committee", committeeWeight, setCommitteeWeight],
+                      ["Safety", safetyWeight, setSafetyWeight],
+                      ["Forms", formsWeight, setFormsWeight],
+                      ["Staff CPD", cpdWeight, setCpdWeight],
+                      ["SQAA Evidence", sqaaWeight, setSqaaWeight]
+                    ].map(([label, value, setter]) => (
+                      <div key={String(label)} className="flex justify-between items-center font-sans">
+                        <span>{label}:</span>
                         <input
                           type="number"
-                          max={25}
                           min={0}
-                          value={gradingScores[student]}
-                          onChange={(e) => {
-                            const val = Math.min(25, Math.max(0, parseInt(e.target.value) || 0));
-                            setGradingScores(prev => ({ ...prev, [student]: val }));
-                          }}
-                          className="w-16 text-center text-xs p-1.5 border border-slate-300 rounded-lg focus:ring-1 focus:ring-indigo-400 font-mono font-bold text-slate-800 bg-white inline"
+                          max={100}
+                          value={value as number}
+                          onChange={(e) => (setter as React.Dispatch<React.SetStateAction<number>>)(Math.max(0, Number(e.target.value)))}
+                          className="w-12 px-1 py-0.5 text-center font-bold border rounded-lg bg-white font-mono"
                         />
-                        <span className="text-xs text-slate-450 font-mono">/ 25</span>
                       </div>
-                    </div>
+                    ))}
+                  </div>
+                  <div className="pt-2 border-t border-slate-150 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setShowComplianceConfig(false)}
+                      className="px-2 py-1 bg-blue-600 text-white rounded-lg text-[9px] font-bold hover:bg-blue-700 cursor-pointer"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {renderSectionState("compliance", (
+                <div className="space-y-4">
+                  {complianceItemsWithStatus.map((item, idx) => {
+                    const markerColorClass =
+                      item.status === "healthy" ? "bg-emerald-500" :
+                      item.status === "watch" ? "bg-amber-500" : "bg-rose-500";
+                    const textBadgeClass =
+                      item.status === "healthy" ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
+                      item.status === "watch" ? "bg-amber-50 text-amber-705 border-amber-100" : "bg-rose-50 text-rose-700 border-rose-100";
+                    return (
+                      <div
+                        key={idx}
+                        onClick={() => setSelectedComplianceItemDrill(item.key)}
+                        className="flex items-center justify-between p-1.5 rounded-lg cursor-pointer hover:bg-slate-50 group border border-transparent hover:border-slate-100 transition-all"
+                      >
+                        <div className="flex items-center gap-2.5 bg-transparent min-w-0">
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${markerColorClass}`}></span>
+                          <span className="text-xs text-slate-805 font-medium block truncate group-hover:text-blue-650 transition-colors font-sans" title={item.label}>
+                            {item.label}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`inline-block px-1.5 py-0.5 rounded-md text-[8.5px] font-bold border capitalize leading-none font-sans ${textBadgeClass}`}>
+                            {item.status}
+                          </span>
+                          <span className="font-sans text-xs font-bold text-slate-700 shrink-0">
+                            {item.percentage}%
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+            <div className="pt-3 border-t border-slate-100 mt-4 select-none flex items-center justify-between gap-2">
+              {complianceItemsWithStatus.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onToggleTab("dashboard-data-source")}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
+                >
+                  View All ({complianceItemsWithStatus.length})
+                  <ChevronRight size={12} />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setSelectedComplianceItemDrill("gaps")}
+                className="py-2 px-3 bg-slate-905 hover:bg-slate-805 text-white font-bold text-xs rounded-xl transition-colors cursor-pointer"
+              >
+                View Gaps
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-6" id="principal-three-widgets">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between h-[360px] overflow-hidden col-span-1 relative" id="academic-monitoring-card">
+              <div>
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4 select-none">
+                  <div className="space-y-0.5">
+                    <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">Academic Monitoring</h3>
+                    <p className="text-[10px] uppercase font-mono font-bold text-slate-400">
+                      {PRINCIPAL_DASHBOARD_SEED.academicMonitoring.summaryLabelText[academicTab]}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAcademicConfig(!showAcademicConfig)}
+                    className={`p-1.5 rounded-lg cursor-pointer transition-colors ${showAcademicConfig ? "bg-blue-50 text-blue-600" : "text-slate-400 hover:bg-slate-50 hover:text-slate-700"}`}
+                    title="Configure Thresholds"
+                  >
+                    <Settings size={15} />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 mb-4 flex-wrap">
+                  {(["planner", "syllabus", "assessment"] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setAcademicTab(tab)}
+                      className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${academicTab === tab ? "bg-blue-50 border-blue-200 text-blue-700" : "bg-white border-slate-200 text-slate-500"}`}
+                    >
+                      {tab}
+                    </button>
                   ))}
                 </div>
 
-                <div className="flex justify-end gap-2 shrink-0 pt-2 border-t border-slate-100">
-                  <button type="button" onClick={() => setShowGradingInterface(false)} className="px-4 py-2 text-xs border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 cursor-pointer font-bold font-sans">Cancel</button>
-                  <button 
-                    onClick={() => {
-                      logAction(currentUser, currentRole, "Student Grades Published", `Scores saved/published for ${selectedGradingAssignment}`, "task");
-                      // Decrease ungraded count dynamically
-                      setTeachingTasks(prev => prev.map(t => {
-                        if (t.type === "ungraded") {
-                          const originalCount = parseInt(t.title);
-                          const newCount = Math.max(0, originalCount - 5);
-                          return { ...t, title: `${newCount} ungraded submissions`, detail: `Class 8A: 7 · 8B: 9 · 8C: 11 · 9A: 8 · 9B: 7` };
-                        }
-                        return t;
-                      }));
-                      setGradingSuccessMsg("5 student tasks evaluated and grades published safely to student files. Outstanding task indicators updated.");
-                    }}
-                    type="button" 
-                    className="px-4 py-2 text-xs bg-indigo-650 hover:bg-indigo-750 text-white rounded-lg cursor-pointer font-bold font-sans"
-                  >
-                    Publish Grades to SIS
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Resource Upload Modal */}
-      {showResourceUploadForm && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs select-none">
-          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl border border-slate-200 relative animate-fade-in duration-200">
-            <button onClick={() => { setShowResourceUploadForm(false); setResourceSuccessMsg(""); }} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg"><X size={16} /></button>
-            <h3 className="text-base font-bold text-slate-905 mb-2 font-sans flex items-center gap-2">
-              <FileText className="text-indigo-600" size={16} />
-              Upload Teacher Resource
-            </h3>
-            <p className="text-xs text-slate-500 mb-4 font-sans leading-relaxed">Upload work sheets, extra teaching coordinates, and syllabus outlines directly to classroom repositories.</p>
-            {resourceSuccessMsg ? (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center space-y-2">
-                <Check className="text-emerald-600 mx-auto" size={24} />
-                <p className="text-xs text-emerald-800 font-bold font-sans">{resourceSuccessMsg}</p>
-                <button onClick={() => { setShowResourceUploadForm(false); setResourceSuccessMsg(""); }} className="mt-2 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg cursor-pointer font-sans">Done</button>
-              </div>
-            ) : (
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                setResourceUploadCount(prev => prev + 1);
-                logAction(currentUser, currentRole, "Resource Uploaded", `File uploaded to Drive: '${resourceTitle}' for ${resourceClass}`, "file_access");
-                setResourceSuccessMsg(`Resource worksheet '${resourceTitle}' uploaded and linked successfully to ${resourceClass} Shared Folder!`);
-              }} className="space-y-4">
-                <div>
-                  <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1 font-mono">Resource Title Name</label>
-                  <input type="text" value={resourceTitle} onChange={(e) => setResourceTitle(e.target.value)} required className="w-full text-xs p-2.5 border border-slate-250 rounded-lg outline-none focus:ring-1 focus:ring-indigo-400 text-slate-800 bg-white" placeholder="e.g. Unit 4 Quadratic Equation supplementary worksheets" />
-                </div>
-                <div>
-                  <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1 font-mono">Linked Classroom Section</label>
-                  <select value={resourceClass} onChange={(e) => setResourceClass(e.target.value)} className="w-full text-xs p-2.5 border border-slate-250 rounded-lg outline-none focus:ring-1 focus:ring-indigo-400 bg-white text-slate-850 font-medium">
-                    <option value="Class 8A">Class 8A - Mathematics</option>
-                    <option value="Class 8B">Class 8B - Mathematics</option>
-                    <option value="Class 8C">Class 8C - Mathematics</option>
-                    <option value="Class 9A">Class 9A - Mathematics</option>
-                    <option value="Class 9B">Class 9B - Mathematics</option>
-                  </select>
-                </div>
-                <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center cursor-pointer hover:bg-slate-50 transition-colors">
-                  <Download className="text-slate-400 mx-auto mb-2 animate-bounce" size={24} />
-                  <span className="text-xs font-extrabold text-slate-700 block font-sans">Drag & drop or Click to choose files</span>
-                  <span className="text-[10px] text-slate-450 block mt-0.5 font-sans">Supports PDF, Doc, Sheets, slides or image files (Max 15MB)</span>
-                </div>
-                <div className="flex justify-end gap-2 pt-2">
-                  <button type="button" onClick={() => setShowResourceUploadForm(false)} className="px-4 py-2 text-xs border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 cursor-pointer font-bold">Cancel</button>
-                  <button type="submit" className="px-4 py-2 text-xs bg-indigo-650 text-white rounded-lg hover:bg-indigo-755 cursor-pointer font-bold font-sans">Upload Resource</button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* In-Call Meet Simulator Dialogue */}
-      {activeCallSim && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center bg-slate-950 p-4 select-none animate-fade-in duration-300">
-          <div className="w-full h-full rounded-2xl border border-slate-800 bg-slate-900 overflow-hidden relative flex flex-col md:flex-row shadow-2xl">
-            
-            {/* Call Center Frame Screen */}
-            <div className="flex-1 relative flex flex-col justify-between p-5 min-h-0">
-              
-              <div className="flex items-center justify-between z-20">
-                <span className="bg-slate-950/70 border border-slate-800 px-3.5 py-1.5 rounded-lg text-white font-mono font-bold text-xs tracking-wide flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 bg-rose-600 rounded-full animate-ping shrink-0"></span>
-                  ● Classroom Meeting - Live Video Link
-                </span>
-                <span className="text-slate-300 text-[10px] font-bold font-mono bg-slate-950/70 border border-slate-800 px-3.5 py-1.5 rounded-lg">
-                  09 participants connected
-                </span>
-              </div>
-
-              {/* Central mock animation background space */}
-              <div className="absolute inset-0 flex items-center justify-center p-8 z-0 overflow-hidden bg-slate-900">
-                <div className="text-center space-y-4">
-                  <div className="w-20 h-20 rounded-full bg-indigo-500 text-white flex items-center justify-center font-extrabold text-2xl mx-auto shadow-indigo-500/30 shadow-2xl animate-pulse">
-                    {teacherProfile.initials}
-                  </div>
-                  <div>
-                    <h4 className="text-slate-100 font-extrabold font-sans text-sm">{teacherProfile.name}</h4>
-                    <p className="text-slate-450 text-[11px] font-mono mt-0.5">Teaching {teacherProfile.classes.split("·")[0]} Similarity Theorems</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Call Actions Footer controls */}
-              <div className="flex items-center justify-center gap-3.5 z-20 bg-slate-950/70 py-3 px-6 rounded-xl border border-slate-800 backdrop-blur-md max-w-md mx-auto w-full mb-2">
-                <button onClick={() => alert("Microphone muted successfully.")} className="p-2.5 bg-slate-800 hover:bg-slate-705 text-white rounded-full transition-colors cursor-pointer outline-none"><CheckSquare size={14} /></button>
-                <button onClick={() => alert("Camera stream toggled.")} className="p-2.5 bg-slate-800 hover:bg-slate-705 text-white rounded-full transition-colors cursor-pointer outline-none"><Settings size={14} /></button>
-                <button onClick={() => alert("Interactive workspace screen-sharing initiated.")} className="p-2.5 bg-slate-800 hover:bg-slate-705 text-white rounded-full transition-colors cursor-pointer outline-none"><ExternalLink size={14} /></button>
-                <button 
-                  onClick={() => {
-                    logAction(currentUser, currentRole, "Leave Live Call", "Exited remote meeting stream safely", "auth");
-                    setActiveCallSim(false);
-                  }}
-                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 font-semibold rounded-full text-xs text-white tracking-widest uppercase shadow-md hover:shadow-rose-500/10 cursor-pointer transition-colors outline-none font-sans"
-                >
-                  Leave
-                </button>
-              </div>
-
-            </div>
-
-            {/* Sidebar list participants */}
-            <div className="w-full md:w-64 border-t md:border-t-0 md:border-l border-slate-800 bg-slate-950 flex flex-col justify-between shrink-0 p-5 z-20 overflow-y-auto">
-              <div>
-                <h4 className="text-[10px] font-mono font-bold text-indigo-400 uppercase tracking-widest mb-4">Class candidates in meet</h4>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-850 flex items-center justify-center text-[10px] font-bold">AM</span>
-                    <span className="text-slate-250 text-xs font-bold font-sans">Aarav Mehta</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-full bg-pink-100 text-pink-850 flex items-center justify-center text-[10px] font-bold">AS</span>
-                    <span className="text-slate-255 text-xs font-bold font-sans">Ananya Sharma</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-850 flex items-center justify-center text-[10px] font-bold">DS</span>
-                    <span className="text-slate-255 text-xs font-bold font-sans">Dev Sharma</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-850 flex items-center justify-center text-[10px] font-bold">MG</span>
-                    <span className="text-slate-255 text-xs font-bold font-sans">Meher Gupta</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-850 flex items-center justify-center text-[10px] font-bold">PI</span>
-                    <span className="text-slate-255 text-xs font-bold font-sans">Priya Iyer</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="border-t border-slate-800 pt-4 mt-6 text-[10px] text-slate-500 font-sans font-medium select-none">
-                🔒 Protected by End-to-End Secure Classroom encryption. Mode of compliance: Google Meet API Bridge.
-              </div>
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* Drill-through Modal Overlays */}
-      {activeDrill && (
-        <div 
-          className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-905/75 backdrop-blur-xs select-none"
-          id={`drillthrough-modal-${activeDrill}`}
-          onClick={() => setActiveDrill(null)}
-        >
-          <div 
-            className="bg-white rounded-2xl w-full max-w-4xl p-6 shadow-2xl border border-slate-200 relative flex flex-col max-h-[85vh] animate-fade-in"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Close Button */}
-            <button 
-              onClick={() => setActiveDrill(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 cursor-pointer transition-colors"
-              id="close-drill-btn"
-            >
-              <X size={18} />
-            </button>
-
-            {/* Modal Header */}
-            <div className="flex items-start gap-3.5 mb-5 select-none">
-              <div className={`p-3 rounded-xl shrink-0 ${
-                activeDrill === 'documents' ? 'bg-blue-50 text-blue-600' :
-                activeDrill === 'classroom' ? 'bg-amber-50 text-amber-600' :
-                activeDrill === 'tasks' ? 'bg-rose-50 text-rose-600' : 'bg-rose-50 text-rose-700'
-              }`}>
-                {activeDrill === 'documents' && <FileText size={28} />}
-                {activeDrill === 'classroom' && <GraduationCap size={28} />}
-                {activeDrill === 'tasks' && <CheckSquare size={28} />}
-                {activeDrill === 'risks' && <AlertTriangle size={28} />}
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xl font-bold text-slate-950">
-                    {activeDrill === 'documents' && 'School Files Master Registry'}
-                    {activeDrill === 'classroom' && 'Google Classroom Streams & Coaching'}
-                    {activeDrill === 'tasks' && 'Pending Workspace Work'}
-                    {activeDrill === 'risks' && 'Student Records Alerts'}
-                  </h3>
-                  <span className="text-[10px] bg-slate-100 text-slate-500 font-mono font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
-                    Live Audit
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 leading-normal max-w-2xl">
-                  {activeDrill === 'documents' && 'Interactive overview list of documents indexed across Google Drive, Shared Folder structures, and local LMS cache layers.'}
-                  {activeDrill === 'classroom' && 'Direct syllabus status, current pupil tallies, and announcement logs from active classroom sync protocols.'}
-                  {activeDrill === 'tasks' && 'Consolidated view of team tasks divided by priority levels. Complete pending assignments, clear blocks, or assign priorities.'}
-                  {activeDrill === 'risks' && 'Predictive monitoring model identifying pupils placed in elevated threat indices due to current performance indicators.'}
-                </p>
-              </div>
-            </div>
-
-            {/* Search and Filters Bar */}
-            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between pb-4 border-b border-slate-150 mb-4 bg-transparent select-none">
-              {/* Search bar inside drillthrough */}
-              <div className="relative flex-1 max-w-md">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                <input 
-                  type="text"
-                  placeholder={
-                    activeDrill === 'documents' ? 'Filter by filename, path, source or owner...' :
-                    activeDrill === 'classroom' ? 'Filter classes, sections or teachers...' :
-                    activeDrill === 'tasks' ? 'Filter pending checklists or assignees...' :
-                    'Filter pupils by name, level or enrollment...'
-                  }
-                  value={drillSearch}
-                  onChange={(e) => setDrillSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 text-xs border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500 bg-slate-50/50"
-                  id="drill-search-input"
-                />
-                {drillSearch && (
-                  <button 
-                    onClick={() => setDrillSearch("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 font-bold text-xs"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-
-              {/* Specific Filter Segments */}
-              <div className="flex items-center gap-2">
-                {activeDrill === 'tasks' && (
-                  <div className="flex items-center gap-1">
-                    <Filter size={12} className="text-slate-400" />
-                    <span className="text-[11px] text-slate-500 font-mono font-medium">Priority:</span>
-                    <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-                      {['all', 'critical', 'high', 'medium', 'low'].map((p) => (
-                        <button
-                          key={p}
-                          onClick={() => setDrillPriority(p)}
-                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase transition-all cursor-pointer ${
-                            drillPriority === p 
-                              ? 'bg-white shadow-xs text-rose-600 font-extrabold' 
-                              : 'text-slate-500 hover:text-slate-805'
-                          }`}
-                        >
-                          {p}
-                        </button>
-                      ))}
+                {showAcademicConfig && (
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl mb-4 text-xs space-y-2.5 animate-fade-in select-none">
+                    <div className="text-[10px] uppercase font-mono font-black text-slate-400">Thresholds</div>
+                    <div className="flex items-center justify-between">
+                      <span>Healthy</span>
+                      <input value={healthyThreshold} onChange={(e) => setHealthyThreshold(Number(e.target.value))} type="number" className="w-16 px-2 py-1 rounded-lg border border-slate-200" />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Watch</span>
+                      <input value={watchThreshold} onChange={(e) => setWatchThreshold(Number(e.target.value))} type="number" className="w-16 px-2 py-1 rounded-lg border border-slate-200" />
                     </div>
                   </div>
                 )}
 
-                {activeDrill === 'risks' && (
-                  <div className="flex items-center gap-1">
-                    <Filter size={12} className="text-slate-400" />
-                    <span className="text-[11px] text-slate-500 font-mono font-medium">Risk Filter:</span>
-                    <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-                      {['all', 'high', 'medium', 'low'].map((r) => (
-                        <button
-                          key={r}
-                          onClick={() => setDrillRisk(r)}
-                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase transition-all cursor-pointer ${
-                            drillRisk === r 
-                              ? 'bg-rose-600 text-white shadow-xs font-extrabold' 
-                              : 'text-slate-500 hover:text-slate-805'
-                          }`}
-                        >
-                          {r}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Scrollable Content Pane */}
-            <div className="flex-1 overflow-x-auto overflow-y-auto pr-1 space-y-3 min-h-[250px] max-h-[50vh] scrollbar-thin" id="drill-scroll-container">
-              
-              {/* DOCUMENTS DRILL OUT */}
-              {activeDrill === 'documents' && (() => {
-                const filtered = files.filter(f => {
-                  const matchTxt = drillSearch.toLowerCase();
-                  return f.name.toLowerCase().includes(matchTxt) || 
-                         f.source.toLowerCase().includes(matchTxt) || 
-                         f.path.toLowerCase().includes(matchTxt) ||
-                         f.sharingRule.toLowerCase().includes(matchTxt) ||
-                         f.owner.toLowerCase().includes(matchTxt) ||
-                         f.tags.some(t => t.toLowerCase().includes(matchTxt));
-                });
-
-                return (
-                  <div className="space-y-4 font-sans text-left">
-                    {/* Premium Google Drive Sync & Connection Verification Panel */}
-                    <div className="bg-slate-50 border border-slate-205 rounded-2xl p-4 space-y-3.5" id="google-drive-sync-tester-dashboard">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-155">
-                        <div className="space-y-1">
-                          <h4 className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5 leading-none">
-                            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></span>
-                            Google Drive Access Verification Suite
-                          </h4>
-                          <p className="text-[10px] text-slate-500 font-semibold leading-relaxed">
-                            Interrogate directory endpoints, test session tokens, and trace live indexes.
-                          </p>
+                {renderSectionState("academic", (
+                  <div className="max-h-[250px] space-y-3 overflow-y-auto pr-2">
+                    {PRINCIPAL_DASHBOARD_SEED.academicMonitoring[academicTab].map((item: any, idx: number) => (
+                      <div key={`${academicTab}-${idx}`} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs font-medium text-slate-500">
+                          <span className="font-extrabold text-slate-705 font-sans">{item.level}</span>
+                          <span className="font-sans text-slate-700">{item.percentage}%</span>
                         </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={handleVerifyDriveConnection}
-                            disabled={testingDriveConnection}
-                            className={`px-3 py-1.5 rounded-xl text-[10.5px] font-bold cursor-pointer font-sans shadow-2xs transition-all flex items-center gap-1.5 border ${
-                              testingDriveConnection 
-                                ? 'bg-slate-100 border-slate-200 text-slate-400' 
-                                : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-250'
-                            }`}
-                          >
-                            <svg className={`w-3.5 h-3.5 text-blue-600 ${testingDriveConnection ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={testingDriveConnection ? 2.5 : 2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8.89M9 11l3 3L22 4" />
-                            </svg>
-                            <span>{testingDriveConnection ? "Pinging handshake..." : "Test Google Connection"}</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Connection metadata chips row */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-[10.5px]">
-                        <div className="bg-white border border-slate-150 p-2.5 rounded-xl space-y-1">
-                          <span className="text-[8px] font-bold font-mono text-slate-400 uppercase tracking-wider block">OAuth Account Identity</span>
-                          {firebaseUser ? (
-                            <div className="flex items-center gap-1.5 text-slate-800 font-bold">
-                              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></div>
-                              <span className="truncate" title={firebaseUser.email}>{firebaseUser.email}</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1.5 text-amber-700 font-bold">
-                              <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></div>
-                              <span>Simulated Fallback Mode</span>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="bg-white border border-slate-150 p-2.5 rounded-xl space-y-1">
-                          <span className="text-[8px] font-bold font-mono text-slate-400 uppercase tracking-wider block">Target Mapping Folder</span>
-                          <div className="text-slate-800 font-bold truncate" title={workspaceUrl || "Global Root"}>
-                            {workspaceUrl ? (
-                              <span className="text-blue-700 underline truncate">{workspaceUrl}</span>
-                            ) : (
-                              <span>/Google Drive/My Drive (Global)</span>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="bg-white border border-slate-150 p-2.5 rounded-xl space-y-1 sm:col-span-2 lg:col-span-1">
-                          <span className="text-[8px] font-bold font-mono text-slate-400 uppercase tracking-wider block">Index Status</span>
-                          <div className="flex items-center justify-between text-slate-800 font-bold">
-                            <span className="font-mono text-[10.5px] text-slate-600">
-                              {files.filter(f => f.source === "Drive" || f.source === "Shared Drive").length} linked files
-                            </span>
-                            <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-700 font-black tracking-wider uppercase block">
-                              Active
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Diagnostic hand-shake responses when clicked */}
-                      {driveConnectionResult && (
-                        <div className={`p-3 border rounded-xl space-y-2 animate-fade-in text-[10.5px] leading-relaxed ${
-                          driveConnectionResult.success 
-                            ? 'bg-emerald-50/50 border-emerald-200 text-emerald-950' 
-                            : 'bg-amber-50/50 border-amber-250 text-amber-955'
-                        }`} id="diagnostic-verification-results-overlay">
-                          <div className="flex items-center justify-between pb-1.5 border-b border-emerald-200/50">
-                            <div className="flex items-center gap-1.5 font-extrabold font-sans">
-                              {driveConnectionResult.success ? (
-                                <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                              ) : (
-                                <svg className="w-4 h-4 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                              )}
-                              <span>Handshake Status: {driveConnectionResult.success ? "Live Connection Established" : "Simulated Local Cache Mode"}</span>
-                            </div>
-                            <span className="font-mono text-[9px] text-slate-450 block">Checked at {driveConnectionResult.timestamp}</span>
-                          </div>
-                          
-                          <p className="font-semibold text-[10.5px] leading-relaxed">{driveConnectionResult.message}</p>
-                          
-                          <div className="space-y-1 block pt-1">
-                            <span className="font-bold text-[8.5px] text-slate-500 uppercase tracking-wider font-mono block">Top Synced Resource Samples:</span>
-                            {driveConnectionResult.retrievedCount > 0 ? (
-                              <ul className="list-disc pl-4 space-y-0.5 text-[10px] text-slate-600 font-mono font-medium">
-                                {driveConnectionResult.filesList.map((fname, fidx) => (
-                                  <li key={fidx} className="truncate select-all" title={fname}>{fname}</li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <p className="text-[10px] text-slate-450 italic leading-none font-semibold">No active synchronized assets matching the specific directory key returned. Use settings to map another folder ID.</p>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Standard directory search table */}
-                    {filtered.length === 0 ? (
-                      <div className="py-12 text-center text-slate-400 text-xs">
-                        No matching documents found matching your filter phrase. Try searching a different keyword!
-                      </div>
-                    ) : (
-                      <table className="w-full text-left border-collapse text-xs select-text">
-                        <thead>
-                          <tr className="border-b border-slate-150 text-[10px] text-slate-400 uppercase font-bold font-mono tracking-wider">
-                            <th className="py-2.5">Name</th>
-                            <th className="py-2.5">Source</th>
-                            <th className="py-2.5">Path / Repository</th>
-                            <th className="py-2.5">Size</th>
-                            <th className="py-2.5">Access</th>
-                            <th className="py-2.5 text-right font-semibold text-slate-500">Operational Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {filtered.map(file => (
-                            <tr 
-                              key={file.id} 
-                              className="hover:bg-slate-50 transition-colors group cursor-pointer"
-                              onClick={() => setInspectedRecord({
-                                title: file.name,
-                                type: "Google Drive File Index",
-                                data: file
-                              })}
-                            >
-                              <td className="py-3 font-semibold text-slate-905 flex items-center gap-2 max-w-sm">
-                                <span className={`p-1.5 rounded-lg shrink-0 ${
-                                  file.type === 'doc' ? 'bg-blue-50 text-blue-600' :
-                                  file.type === 'sheet' ? 'bg-emerald-50 text-emerald-600' :
-                                  file.type === 'slide' ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600'
-                                }`}>
-                                  <FileText size={12} />
-                                </span>
-                                <span className="truncate" title={file.name}>{file.name}</span>
-                                {(file.source === "Drive" || file.source === "Shared Drive" || file.tags.includes("Synced") || file.tags.includes("Live")) && (
-                                  <span className="px-1 py-0.5 rounded text-[7.5px] uppercase tracking-wider font-extrabold bg-blue-105 text-blue-750 font-mono inline-block shrink-0 animate-pulse border border-blue-200">
-                                    LIVE SYNC
-                                  </span>
-                                )}
-                              </td>
-                              <td className="py-3">
-                                <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-semibold font-mono text-[10px]">
-                                  {file.source}
-                                </span>
-                              </td>
-                              <td className="py-3 text-slate-500 font-mono text-[11px] max-w-[200px] truncate" title={file.path}>
-                            {file.path}
-                          </td>
-                          <td className="py-3 text-slate-500 font-mono">{file.size}</td>
-                          <td className="py-3">
-                            <span className="text-[10px] text-slate-600 font-medium">{file.sharingRule}</span>
-                          </td>
-                          <td className="py-3 text-right">
-                            <div className="flex items-center justify-end gap-1.5 bg-transparent">
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onToggleFavorite(file.id);
-                                }}
-                                className={`p-1.5 rounded-md hover:bg-slate-100 border border-transparent hover:border-slate-200 transition-all ${
-                                  file.isFavorite ? 'text-amber-500' : 'text-slate-400'
-                                }`}
-                                title="Pin as dashboard favorite bookmark"
-                              >
-                                <Star size={12} className={file.isFavorite ? "fill-amber-500" : ""} />
-                              </button>
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveDrill(null);
-                                  onSelectFile(file);
-                                }}
-                                className="px-2 py-1 bg-blue-50 hover:bg-blue-100 border border-blue-100 hover:border-blue-200 text-blue-700 font-bold rounded-lg text-[10px] transition-colors cursor-pointer"
-                              >
-                                Abstract Outline
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* CLASSROOM DRILL OUT */}
-              {activeDrill === 'classroom' && (() => {
-                const filtered = courses.filter(c => {
-                  const matchTxt = drillSearch.toLowerCase();
-                  return c.name.toLowerCase().includes(matchTxt) || 
-                         c.section.toLowerCase().includes(matchTxt) || 
-                         c.teacherName.toLowerCase().includes(matchTxt);
-                });
-
-                if (filtered.length === 0) {
-                  return (
-                    <div className="py-12 text-center text-slate-400 text-xs">
-                      No courses found matching your filter criteria.
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 select-text">
-                    {filtered.map(course => (
-                      <div 
-                        key={course.id} 
-                        className="p-4 border border-slate-150 rounded-2xl bg-slate-50/20 hover:bg-slate-50/40 hover:border-amber-300 transition-all shadow-2xs space-y-3 cursor-pointer"
-                        onClick={() => setInspectedRecord({
-                          title: course.name,
-                          type: "Google Classroom Course Stream",
-                          data: course
-                        })}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="space-y-0.5">
-                            <h4 className="font-bold text-slate-900 text-sm leading-tight">{course.name}</h4>
-                            <span className="text-[10px] text-slate-400 font-mono">Section: <span className="text-slate-600 font-bold">{course.section}</span></span>
-                          </div>
-                          <span className="px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-100 text-amber-800 font-bold font-mono text-[11px] shrink-0">
-                            {course.studentCount} Pupils
-                          </span>
-                        </div>
-
-                        <div className="text-[11px] font-mono text-slate-500 space-y-1">
-                          <div className="flex justify-between">
-                            <span>Assigned Lecturer:</span>
-                            <span className="font-bold text-slate-700">{course.teacherName}</span>
-                          </div>
-                        </div>
-
-                        <div className="bg-white border border-slate-100 rounded-xl p-3 space-y-1.5">
-                          <span className="text-[9px] text-slate-400 font-bold font-mono uppercase block tracking-wider">Latest Stream Announcement</span>
-                          <p className="text-xs text-slate-600 italic leading-relaxed">
-                            "{course.announcements[0] || 'No operational announcements posted.'}"
-                          </p>
+                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all duration-500 ease-out bg-blue-500" style={{ width: `${item.percentage}%` }} />
                         </div>
                       </div>
                     ))}
                   </div>
-                );
-              })()}
-
-              {/* TASKS DRILL OUT */}
-              {activeDrill === 'tasks' && (() => {
-                const filtered = tasks.filter(t => {
-                  const matchTxt = drillSearch.toLowerCase();
-                  const matchesSearch = t.title.toLowerCase().includes(matchTxt) || 
-                                        t.description.toLowerCase().includes(matchTxt) || 
-                                        t.assignedTo.toLowerCase().includes(matchTxt);
-                  const matchesPriority = drillPriority === 'all' || t.priority === drillPriority;
-                  return matchesSearch && matchesPriority;
-                });
-
-                if (filtered.length === 0) {
-                  return (
-                    <div className="py-12 text-center text-slate-400 text-xs">
-                      No operational tasks matched your search pattern or chosen priority.
-                    </div>
-                  );
-                }
-
-                return (
-                  <table className="w-full text-left border-collapse text-xs select-text">
-                    <thead>
-                      <tr className="border-b border-slate-150 text-[10px] text-slate-400 uppercase font-bold font-mono tracking-wider">
-                        <th className="py-2.5">Workflow Checklist Task</th>
-                        <th className="py-2.5">Priority</th>
-                        <th className="py-2.5">Status</th>
-                        <th className="py-2.5">Due Date</th>
-                        <th className="py-2.5 text-right font-semibold text-slate-500">Assignee Operator</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filtered.map(task => (
-                        <tr 
-                          key={task.id} 
-                          className="hover:bg-slate-50 transition-colors cursor-pointer"
-                          onClick={() => setInspectedRecord({
-                            title: task.title,
-                            type: "Institutional Task Registry Detail",
-                            data: task
-                          })}
-                        >
-                          <td className="py-3 font-semibold text-slate-900 max-w-sm">
-                            <span className="block truncate" title={task.title}>{task.title}</span>
-                            <span className="text-[10px] text-slate-400 font-normal mt-0.5 block truncate max-w-xs">{task.description}</span>
-                          </td>
-                          <td className="py-3">
-                            <span className={`px-2.5 py-0.5 rounded-full font-bold uppercase font-mono text-[9px] ${
-                              task.priority === 'critical' ? 'bg-red-100 text-red-700 font-extrabold animate-pulse' :
-                              task.priority === 'high' ? 'bg-amber-100 text-amber-700 font-extrabold' :
-                              task.priority === 'medium' ? 'bg-blue-50 text-blue-700 font-semibold' : 'bg-slate-100 text-slate-500 font-medium'
-                            }`}>
-                              {task.priority}
-                            </span>
-                          </td>
-                          <td className="py-3">
-                            <span className={`px-2 py-0.5 text-[10px] font-medium font-mono capitalize ${
-                              task.status === 'done' ? 'text-teal-600 font-bold' :
-                              task.status === 'in_progress' ? 'text-blue-600' : 'text-slate-400'
-                            }`}>
-                              {task.status.replace('_', ' ')}
-                            </span>
-                          </td>
-                          <td className="py-3 text-slate-500 font-mono text-[11px]">{new Date(task.dueDate).toLocaleDateString()}</td>
-                          <td className="py-3 text-right font-mono text-[11px] text-slate-600">{task.assignedTo}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                );
-              })()}
-
-              {/* RISKS DRILL OUT */}
-              {activeDrill === 'risks' && (() => {
-                const filtered = students.filter(s => {
-                  const matchTxt = drillSearch.toLowerCase();
-                  const matchesSearch = s.name.toLowerCase().includes(matchTxt) || 
-                                        s.gradeLevel.toLowerCase().includes(matchTxt) || 
-                                        s.enrollmentStatus.toLowerCase().includes(matchTxt) || 
-                                        s.email.toLowerCase().includes(matchTxt);
-                  const sRisk = s.riskFactor || 'low';
-                  const matchesRisk = drillRisk === 'all' || sRisk === drillRisk;
-                  return matchesSearch && matchesRisk;
-                });
-
-                if (filtered.length === 0) {
-                  return (
-                    <div className="py-12 text-center text-slate-400 text-xs">
-                      No pupil profiles found matching the selected risk bands.
-                    </div>
-                  );
-                }
-
-                return (
-                  <table className="w-full text-left border-collapse text-xs select-text">
-                    <thead>
-                      <tr className="border-b border-slate-150 text-[10px] text-slate-400 uppercase font-bold font-mono tracking-wider">
-                        <th className="py-2.5">Pupil Profile & Email</th>
-                        <th className="py-2.5 font-semibold">Grade Level</th>
-                        <th className="py-2.5">Current GPA</th>
-                        <th className="py-2.5">Enrollment Status</th>
-                        <th className="py-2.5">Risk Score Index</th>
-                        <th className="py-2.5 text-right font-semibold text-slate-500">Governance Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filtered.map(student => {
-                        const score = student.riskScore || (student.riskFactor === 'high' ? 88 : student.riskFactor === 'medium' ? 55 : 12);
-                        const risk = student.riskFactor || 'low';
-                        return (
-                          <tr 
-                            key={student.id} 
-                            className="hover:bg-slate-50 transition-colors cursor-pointer"
-                            onClick={() => setInspectedRecord({
-                              title: student.name,
-                              type: "Pupil Profile Data Inspect",
-                              data: student
-                            })}
-                          >
-                            <td className="py-3">
-                              <span className="font-bold text-slate-900 block">{student.name}</span>
-                              <span className="text-[10px] text-slate-400 font-mono block mt-0.5">{student.email}</span>
-                            </td>
-                            <td className="py-3 text-slate-700 font-medium font-mono">{student.gradeLevel}</td>
-                            <td className="py-3 font-semibold text-slate-900">
-                              <span className={`px-2 py-0.5 rounded-md ${
-                                student.gpa < 2.5 ? 'bg-rose-50 text-rose-700 font-extrabold' : 'bg-slate-50 text-slate-700'
-                              }`}>
-                                {student.gpa.toFixed(2)} GPA
-                              </span>
-                            </td>
-                            <td className="py-3">
-                              <span className="text-[11px] text-slate-500 font-medium font-mono">{student.enrollmentStatus}</span>
-                            </td>
-                            <td className="py-3">
-                              <div className="flex items-center gap-2">
-                                <span className={`font-bold font-mono text-[11px] ${
-                                  risk === 'high' ? 'text-rose-600' :
-                                  risk === 'medium' ? 'text-amber-500' : 'text-teal-600'
-                                }`}>
-                                  {score}%
-                                </span>
-                                <div className="w-16 bg-slate-150 h-1.5 rounded-full overflow-hidden shrink-0">
-                                  <div 
-                                    className={`h-full rounded-full ${
-                                      risk === 'high' ? 'bg-rose-500' :
-                                      risk === 'medium' ? 'bg-amber-550' : 'bg-teal-500'
-                                    }`}
-                                    style={{ width: `${score}%` }}
-                                  ></div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="py-3 text-right">
-                              <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase ${
-                                risk === 'high' ? 'bg-rose-100 text-rose-700 animate-pulse' :
-                                risk === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-teal-50 text-teal-700'
-                              }`}>
-                                {risk} Alert
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                );
-              })()}
-
-            </div>
-
-            {/* Modal Actions Footer */}
-            <div className="mt-5 pt-4 border-t border-slate-150 flex items-center justify-between select-none">
-              <span className="text-[10px] text-slate-400 font-mono">
-                Operator Action: Drill-through Mode Active
-              </span>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setActiveDrill(null)}
-                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
-                >
-                  Close Panel
-                </button>
-
-                {activeDrill === 'documents' && (
+                ))}
+              {PRINCIPAL_DASHBOARD_SEED.academicMonitoring[academicTab].length > 0 && (
+                <div className="pt-3 border-t border-slate-100 mt-4 flex justify-end">
                   <button
-                    onClick={() => {
-                      setActiveDrill(null);
-                      onToggleTab("search");
-                    }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                    type="button"
+                    onClick={() => onToggleTab("dashboard-data-source")}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
                   >
-                    Launch Full Search Room <ArrowUpRight size={13} />
+                    View All ({PRINCIPAL_DASHBOARD_SEED.academicMonitoring[academicTab].length})
+                    <ChevronRight size={12} />
                   </button>
-                )}
-
-                {activeDrill === 'classroom' && (
-                  <button
-                    onClick={() => {
-                      setActiveDrill(null);
-                      onToggleTab("classroom");
-                    }}
-                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-                  >
-                    Launch Classroom Manager <ArrowUpRight size={13} />
-                  </button>
-                )}
-
-                {activeDrill === 'tasks' && (
-                  <button
-                    onClick={() => {
-                      setActiveDrill(null);
-                      onToggleTab("tasks");
-                    }}
-                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-                  >
-                    Launch Tasks Kanban <ArrowUpRight size={13} />
-                  </button>
-                )}
-
-                {activeDrill === 'risks' && (
-                  <button
-                    onClick={() => {
-                      setActiveDrill(null);
-                      onToggleTab("governance");
-                    }}
-                    className="px-4 py-2 bg-red-700 hover:bg-red-800 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-                  >
-                    Audit System Logs <ArrowUpRight size={13} />
-                  </button>
-                )}
+                </div>
+              )}
               </div>
             </div>
 
-          </div>
-        </div>
-      )}
-
-      {/* Dynamic Drilldown Overlays for Principal Dashboard (SDOS-23) */}
-      {selectedAcademicLevelDrill && (
-        <div 
-          className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs select-none animate-fade-in"
-          onClick={() => setSelectedAcademicLevelDrill(null)}
-        >
-          <div 
-            className="bg-white rounded-2xl w-full max-w-4xl p-6 shadow-2xl border border-slate-200 relative flex flex-col max-h-[85vh]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button 
-              onClick={() => setSelectedAcademicLevelDrill(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 cursor-pointer"
-              aria-label="Close academic modal"
-            >
-              <X size={16} />
-            </button>
-
-            <div className="flex items-center gap-2 mb-4">
-              <Sparkles size={18} className="text-blue-600 fill-blue-50" />
-              <h3 className="text-base font-bold text-slate-900 font-sans tracking-tight">
-                Academic Progress Details: {selectedAcademicLevelDrill} Level
-              </h3>
-            </div>
-
-            {/* In-page drilldown filters applied */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-3 bg-slate-50 border border-slate-150 rounded-xl text-xs mb-4 select-none">
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between h-[360px] overflow-hidden col-span-1 relative" id="classroom-monitoring-card">
               <div>
-                <label className="block text-[9px] font-bold text-slate-450 uppercase mb-1">Academic Year</label>
-                <select className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500/10" aria-label="Select Academic-Year filter">
-                  <option>2025-2026 (Current)</option>
-                  <option>2024-2025</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[9px] font-bold text-slate-450 uppercase mb-1">Academic Week</label>
-                <select className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500/10" aria-label="Select Academic-Week filter">
-                  <option>Week 24 (May 28 - Jun 3)</option>
-                  <option>Week 23</option>
-                  <option>Week 22</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[9px] font-bold text-slate-450 uppercase mb-1">Planner Status</label>
-                <select className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500/10" aria-label="Select Planner-Status filter">
-                  <option value="all">All statuses</option>
-                  <option value="Done">Submitted</option>
-                  <option value="Missing">Pending / Overdue</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[9px] font-bold text-slate-450 uppercase mb-1">Subject Area</label>
-                <select className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500/10" aria-label="Select Subject-Area filter">
-                  <option value="all">All subjects</option>
-                  <option>Mathematics</option>
-                  <option>Science</option>
-                  <option>English</option>
-                  <option>Social Science</option>
-                </select>
-              </div>
-            </div>
-
-            {/* List Table of drilldown results */}
-            <div className="overflow-y-auto flex-1 border border-slate-150 rounded-xl font-sans">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-450 font-mono tracking-wider font-extrabold uppercase border-b border-slate-150 sticky top-0">
-                  <tr>
-                    <th className="py-2.5 px-4">Class-Sec</th>
-                    <th className="py-2.5 px-4">Subject</th>
-                    <th className="py-2.5 px-4">Primary Teacher</th>
-                    <th className="py-2.5 px-4 text-center">Planner</th>
-                    <th className="py-2.5 px-4 text-center">Syllabus Pacing</th>
-                    <th className="py-2.5 px-4 text-center">Assessment Status</th>
-                    <th className="py-2.5 px-4 text-right pr-4">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-150 font-medium text-slate-705">
-                  {courses.map(course => {
-                    const plannerDone = hasCoursePlanner(course, files);
-                    const assessmentDone = hasCourseAssessment(course, files);
-                    const level = getCourseAcademicLevel(course.name);
-                    const score = plannerDone ? 92 : 74;
-                    const syllabusText = plannerDone ? `${score}% (Ahead)` : `${score}% (At Risk)`;
-                    return {
-                      class: course.section,
-                      teacher: course.teacherName,
-                      subject: course.name,
-                      planner: plannerDone ? "Done" : "Missing",
-                      syllabus: syllabusText,
-                      assessment: assessmentDone ? "Done" : "Missing",
-                      score: score,
-                      level: level
-                    };
-                  })
-                  .filter(item => {
-                    if (selectedAcademicLevelDrill === "All Levels") return true;
-                    if (selectedAcademicLevelDrill === "Pre-Primary" && item.level !== "Pre-Primary") return false; 
-                    if (selectedAcademicLevelDrill === "Primary" && item.level !== "Primary") return false;
-                    if (selectedAcademicLevelDrill === "Middle" && item.level !== "Middle") return false; 
-                    if (selectedAcademicLevelDrill === "Secondary" && item.level !== "Secondary") return false;
-                    if (selectedAcademicLevelDrill === "Sr Secondary" && item.level !== "Sr Secondary") return false;
-                    return true;
-                  })
-                  .map((row, idx) => (
-                    <tr 
-                      key={idx} 
-                      className="hover:bg-slate-50 transition-colors cursor-pointer"
-                      onClick={() => setInspectedRecord({
-                        title: `${row.class} - ${row.subject}`,
-                        type: "Academic Performance Checkpoint",
-                        data: row
-                      })}
-                    >
-                      <td className="py-3 px-4 font-bold text-slate-800">{row.class}</td>
-                      <td className="py-3 px-4 text-slate-500 font-sans">{row.subject}</td>
-                      <td className="py-3 px-4 font-semibold text-slate-700">{row.teacher}</td>
-                      <td className="py-3 px-4 text-center">
-                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold border ${
-                          row.planner === "Done" ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-rose-50 text-rose-700 border-rose-100"
-                        }`}>
-                          {row.planner === "Done" ? "Submitted" : "Overdue"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs">{row.syllabus}</span>
-                          <div className="w-16 bg-slate-100 h-1.5 rounded-full overflow-hidden shrink-0">
-                            <div className={`h-full ${row.score >= healthyThreshold ? 'bg-emerald-500' : row.score >= watchThreshold ? 'bg-amber-500' : 'bg-rose-500'}`} style={{ width: `${row.score}%` }}></div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold border ${
-                          row.assessment === "Done" ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-rose-50 text-rose-700 border-rose-100"
-                        }`}>
-                          {row.assessment === "Done" ? "On Track" : "Pending"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right pr-4">
-                        <button 
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            console.log(`Direct notification dispatched to ${row.teacher} for ${row.class} ${row.subject} planner status follow-up.`);
-                          }}
-                          className="px-2.5 py-1 text-[10px] bg-slate-905 text-white rounded-lg hover:bg-slate-805 font-bold font-sans cursor-pointer transition-all"
-                        >
-                          Ping Teacher
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {/* Empty subset check */}
-                  {selectedAcademicLevelDrill === "Pre-Primary" && (
-                    <tr>
-                      <td colSpan={7} className="py-8 text-center text-xs text-slate-400 font-sans">
-                        No submissions or records tracked for Pre-Primary level this week. All records synced cleanly with Drive root.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-slate-150 flex items-center justify-between text-xs text-slate-400 select-none">
-              <span>Selected Scope: {selectedAcademicLevelDrill} Level · Preserving filters</span>
-              <button 
-                type="button"
-                onClick={() => setSelectedAcademicLevelDrill(null)}
-                className="px-4 py-2 text-xs text-slate-500 hover:text-slate-800 font-bold hover:bg-slate-100 rounded-xl cursor-pointer"
-              >
-                Close View
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {selectedClassroomMetricDrill && (
-        <div 
-          className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs select-none animate-fade-in"
-          onClick={() => setSelectedClassroomMetricDrill(null)}
-        >
-          <div 
-            className="bg-white rounded-2xl w-full max-w-4xl p-6 shadow-2xl border border-slate-200 relative flex flex-col max-h-[85vh]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button 
-              onClick={() => setSelectedClassroomMetricDrill(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 cursor-pointer"
-              aria-label="Close classroom modal"
-            >
-              <X size={16} />
-            </button>
-
-            <div className="flex items-center gap-2 mb-4">
-              <GraduationCap size={18} className="text-amber-605 fill-amber-50" />
-              <h3 className="text-base font-bold text-slate-900 font-sans tracking-tight">
-                Classroom Monitoring Details: Streams Check
-              </h3>
-            </div>
-
-            {/* Classroom category chips */}
-            <div className="flex flex-wrap items-center gap-2 mb-4 select-none">
-              <span className="text-xs text-slate-500 font-semibold mr-1 font-sans">Quick Subsets:</span>
-              {[
-                { key: "total", label: `All Classrooms (${PRINCIPAL_DASHBOARD_SEED.classroomMonitoring.totalClassrooms})` },
-                { key: "posted", label: `Active This Week (${PRINCIPAL_DASHBOARD_SEED.classroomMonitoring.postedThisWeek})` },
-                { key: "inactive", label: `Zero Activity (${PRINCIPAL_DASHBOARD_SEED.classroomMonitoring.zeroActivityThisWeek})` },
-                { key: "assignments", label: `Assignments (${PRINCIPAL_DASHBOARD_SEED.classroomMonitoring.assignmentsCreatedThisWeek})` },
-                { key: "submissions", label: `High Submissions (≥${PRINCIPAL_DASHBOARD_SEED.classroomMonitoring.averageSubmissionRate}%)` },
-                { key: "meet", label: `Meet Sessions (${PRINCIPAL_DASHBOARD_SEED.classroomMonitoring.meetSessionsHeldThisWeek})` }
-              ].map((chip) => (
-                <button
-                  key={chip.key}
-                  type="button"
-                  onClick={() => setSelectedClassroomMetricDrill(chip.key)}
-                  className={`px-3 py-1 text-[11px] font-bold rounded-lg transition-all border cursor-pointer font-sans leading-none ${
-                    selectedClassroomMetricDrill === chip.key
-                      ? "bg-amber-600 border-amber-600 text-white shadow-xs"
-                      : "bg-slate-50 hover:bg-slate-100 hover:text-slate-800 text-slate-600 border-slate-200"
-                  }`}
-                >
-                  {chip.label}
-                </button>
-              ))}
-            </div>
-
-            {/* List Table of drilldown results */}
-            <div className="overflow-y-auto flex-1 border border-slate-150 rounded-xl font-sans">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-450 font-mono tracking-wider font-extrabold uppercase border-b border-slate-150 sticky top-0">
-                  <tr>
-                    <th className="py-2.5 px-4 font-sans font-extrabold">Course / Section</th>
-                    <th className="py-2.5 px-4 font-sans font-extrabold">Primary Instructor</th>
-                    <th className="py-2.5 px-4 text-center font-sans font-extrabold">Weekly Posts</th>
-                    <th className="py-2.5 px-4 text-center font-sans font-extrabold">Assignments Created</th>
-                    <th className="py-2.5 px-4 text-center font-sans font-extrabold">Submission %</th>
-                    <th className="py-2.5 px-4 text-center font-sans font-extrabold">Meet Linked</th>
-                    <th className="py-2.5 px-4 text-right pr-4 font-sans font-extrabold">Current Standing</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-150 font-medium text-slate-705">
-                  {[
-                    { name: "Grade VII - Section A (History)", teacher: "Mr. Vijay Kumar", posts: 0, assignments: 0, submissions: 42, meet: false, isInactive: true },
-                    { name: "Grade VII - Section B (Science)", teacher: "Mr. Rahul Kapoor", posts: 0, assignments: 0, submissions: 58, meet: true, isInactive: true },
-                    { name: "Grade VIII - Section A (History)", teacher: "Mr. Vijay Kumar", posts: 4, assignments: 2, submissions: 82, meet: true, isInactive: false },
-                    { name: "Grade IX - Section B (Science)", teacher: "Mr. Rahul Kapoor", posts: 6, assignments: 8, submissions: 90, meet: true, isInactive: false },
-                    { name: "Grade X - Section A (Mathematics)", teacher: "Ms. Priya Nair", posts: 12, assignments: 14, submissions: 95, meet: true, isInactive: false },
-                    { name: "Grade XI - Section A (Physics)", teacher: "Academic Coordinator", posts: 0, assignments: 0, submissions: 48, meet: false, isInactive: true },
-                    { name: "Grade XII - Section C (Computer Science)", teacher: "Ms. Priya Nair", posts: 18, assignments: 20, submissions: 100, meet: true, isInactive: false }
-                  ]
-                  .filter(row => {
-                    if (selectedClassroomMetricDrill === "posted") return row.posts > 0;
-                    if (selectedClassroomMetricDrill === "inactive") return row.isInactive;
-                    if (selectedClassroomMetricDrill === "assignments") return row.assignments > 0;
-                    if (selectedClassroomMetricDrill === "submissions") return row.submissions >= PRINCIPAL_DASHBOARD_SEED.classroomMonitoring.averageSubmissionRate;
-                    if (selectedClassroomMetricDrill === "meet") return row.meet;
-                    return true;
-                  })
-                  .map((row, idx) => (
-                    <tr 
-                      key={idx} 
-                      className={`hover:bg-slate-50 transition-colors cursor-pointer ${row.isInactive ? 'bg-rose-50/10' : ''}`}
-                      onClick={() => setInspectedRecord({
-                        title: row.name,
-                        type: "Google Classroom Course Metrics",
-                        data: row
-                      })}
-                    >
-                      <td className="py-3 px-4 font-bold text-slate-800">{row.name}</td>
-                      <td className="py-3 px-4 font-semibold text-slate-700">{row.teacher}</td>
-                      <td className="py-3 px-4 text-center font-mono font-bold text-slate-500">{row.posts} posts</td>
-                      <td className="py-3 px-4 text-center font-mono text-slate-500">{row.assignments} assigned</td>
-                      <td className="py-3 px-4 text-center font-mono font-bold text-slate-850">{row.submissions}%</td>
-                      <td className="py-3 px-4 text-center font-sans">
-                        {row.meet ? (
-                          <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-sm border border-emerald-100 font-bold font-sans">Active Meet Link</span>
-                        ) : (
-                          <span className="text-slate-400">None linked</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-right pr-4">
-                        {row.isInactive ? (
-                          <span className="px-2 py-0.5 bg-rose-50 border border-rose-100 text-rose-700 rounded-md font-bold text-[9px] uppercase tracking-wide animate-pulse inline-block">
-                            Zero stream activity
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-md font-semibold text-[9px] uppercase tracking-wide inline-block">
-                            Pacing active
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-slate-150 flex items-center justify-between text-xs text-slate-400 select-none">
-              <span>Classrooms Stream Range: Filter subset matching &quot;{selectedClassroomMetricDrill}&quot;</span>
-              <div className="flex gap-2">
-                <button 
-                  type="button"
-                  onClick={() => alert("Broadcast direct reminder alert dispatched to educators of inactive classrooms (LMS connection active).")}
-                  className="px-3 py-2 bg-slate-905 text-white rounded-xl text-xs font-bold font-sans hover:bg-slate-805 cursor-pointer transition-all shadow-xs"
-                >
-                  Broadcast Direct Reminders
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => setSelectedClassroomMetricDrill(null)}
-                  className="px-4 py-2 text-xs text-slate-500 hover:text-slate-800 font-bold hover:bg-slate-100 rounded-xl cursor-pointer"
-                >
-                  Close Panel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {selectedComplianceItemDrill && (
-        <div 
-          className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs select-none animate-fade-in"
-          onClick={() => setSelectedComplianceItemDrill(null)}
-        >
-          <div 
-            className="bg-white rounded-2xl w-full max-w-4xl p-6 shadow-2xl border border-slate-200 relative flex flex-col max-h-[85vh]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button 
-              onClick={() => setSelectedComplianceItemDrill(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 cursor-pointer"
-              aria-label="Close compliance modal"
-            >
-              <X size={16} />
-            </button>
-
-            <div className="flex items-center gap-2 mb-4">
-              <ShieldAlert size={18} className="text-red-600 fill-rose-50" />
-              <h3 className="text-base font-bold text-slate-900 font-sans tracking-tight">
-                Compliance Auditing & Gaps Analysis: Category Detail
-              </h3>
-            </div>
-
-            {/* Sub-header statistics */}
-            <div className="bg-slate-50 border border-slate-150 rounded-xl p-3 mb-4 select-none flex items-center justify-between font-mono text-xs text-slate-600">
-              <span className="font-sans font-medium text-slate-500">Filters: Preserve Academic Year (2025-26) · Term (Term 1) · Statutory Records Range</span>
-              <span className="font-mono text-blue-650 font-bold">Audit Mode: CBSE Standardized Annexure</span>
-            </div>
-
-            {/* List Table of compliance items */}
-            <div className="overflow-y-auto flex-1 border border-slate-150 rounded-xl font-sans text-xs">
-              <table className="w-full text-left">
-                <thead className="bg-slate-50 text-slate-450 font-mono tracking-wider font-extrabold uppercase border-b border-slate-150 sticky top-0">
-                  <tr>
-                    <th className="py-2.5 px-4 font-sans font-extrabold">Statutory Category Identifier</th>
-                    <th className="py-2.5 px-4 font-sans font-extrabold">Auditing Coordinator</th>
-                    <th className="py-2.5 px-4 text-center font-sans font-extrabold">Statutory Status</th>
-                    <th className="py-2.5 px-4 text-center font-sans font-extrabold">Completion Index</th>
-                    <th className="py-2.5 px-4 text-center font-sans font-extrabold">Deadline</th>
-                    <th className="py-2.5 px-4 text-center font-sans font-extrabold">Evidence Check</th>
-                    <th className="py-2.5 px-4 text-right pr-4 font-sans font-extrabold">Direct Action Plan</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-150 font-medium text-slate-705">
-                  {[
-                    { label: "Committee records", owner: "Principal", percentage: 90, status: "healthy", dueDate: "2026-06-15", hasEvidence: true, folder: "SDOS-Drive/Committee-Minutes" },
-                    { label: "Safety records", owner: "Estate Manager", percentage: 60, status: "critical", dueDate: "2026-06-10", hasEvidence: false, folder: "SDOS-Drive/Safety-Inspection" },
-                    { label: "Mandatory forms", owner: "Registrar", percentage: 84, status: "watch", dueDate: "2026-06-20", hasEvidence: true, folder: "SDOS-Drive/Ingestion-Forms" },
-                    { label: "Staff CPD records", owner: "Academic Coordinator", percentage: 72, status: "watch", dueDate: "2026-06-12", hasEvidence: true, folder: "SDOS-Drive/Professional-Dev" },
-                    { label: "SQAA evidence", owner: "Internal Quality Liaison", percentage: 78, status: "watch", dueDate: "2026-06-25", hasEvidence: false, folder: "SDOS-Drive/Quality-Assessment" }
-                  ]
-                  .filter(row => {
-                    const mappedItemStatus = row.percentage >= healthyThreshold ? "healthy" : row.percentage >= watchThreshold ? "watch" : "critical";
-                    if (selectedComplianceItemDrill === "gaps") {
-                      return mappedItemStatus !== "healthy";
-                    }
-                    if (selectedComplianceItemDrill !== "all" && selectedComplianceItemDrill !== null) {
-                      let tagKey = "committee";
-                      if (row.label.includes("Committee")) tagKey = "committee";
-                      else if (row.label.includes("Safety")) tagKey = "safety";
-                      else if (row.label.includes("Mandatory")) tagKey = "forms";
-                      else if (row.label.includes("CPD")) tagKey = "cpd";
-                      else if (row.label.includes("SQAA")) tagKey = "sqaa";
-                      return tagKey === selectedComplianceItemDrill;
-                    }
-                    return true;
-                  })
-                  .map((row, idx) => {
-                    const mappedItemStatus = row.percentage >= healthyThreshold ? "healthy" : row.percentage >= watchThreshold ? "watch" : "critical";
-                    
-                    const textBadgeClass = 
-                      mappedItemStatus === "healthy" ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
-                      mappedItemStatus === "watch" ? "bg-amber-50 text-amber-705 border-amber-100" : "bg-rose-50 text-rose-700 border-rose-100";
-
-                    return (
-                      <tr 
-                        key={idx} 
-                        className="hover:bg-slate-50 transition-colors cursor-pointer"
-                        onClick={() => setInspectedRecord({
-                          title: row.label,
-                          type: "Statutory Compliance Registry Record",
-                          data: row
-                        })}
-                      >
-                        <td className="py-3 px-4 text-slate-800 font-bold">{row.label}</td>
-                        <td className="py-3 px-4 font-semibold text-slate-700">{row.owner}</td>
-                        <td className="py-3 px-4 text-center">
-                          <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold border capitalize leading-none font-sans ${textBadgeClass}`}>
-                            {mappedItemStatus}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2 justify-center">
-                            <span className="font-mono font-bold text-slate-800">{row.percentage}%</span>
-                            <div className="w-12 bg-slate-100 h-1.5 rounded-full overflow-hidden shrink-0">
-                              <div className={`h-full ${mappedItemStatus === 'healthy' ? 'bg-emerald-500' : mappedItemStatus === 'watch' ? 'bg-amber-500' : 'bg-rose-500'}`} style={{ width: `${row.percentage}%` }}></div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-center text-slate-500 font-mono">{row.dueDate}</td>
-                        <td className="py-3 px-4 text-center font-sans">
-                          {row.hasEvidence ? (
-                            <span 
-                              className="text-blue-600 font-medium hover:underline cursor-pointer flex items-center justify-center gap-1 leading-none" 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                alert(`Opening Google Drive folder pipeline: ${row.folder}`);
-                              }}
-                            >
-                              <FileText size={12} /> {row.folder.split("/")[1]}
-                            </span>
-                          ) : (
-                            <span className="text-rose-600 font-bold bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded-sm">Missing Evidence Gaps</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-right pr-4">
-                          <button 
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              alert(`Statutory compliance citation email dispatched directly to Category Coordinator: ${row.owner} for ${row.label}. Please submit records immediately.`);
-                            }}
-                            className="px-2.5 py-1 text-[10px] bg-slate-905 text-white rounded-lg hover:bg-slate-805 font-bold font-sans cursor-pointer transition-all leading-none"
-                          >
-                            Ask for Evidence
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-slate-150 flex items-center justify-between text-xs text-slate-400 select-none">
-              <span>Audit Target: Gaps listed below {healthyThreshold}% threshold</span>
-              <div className="flex gap-2">
-                <button 
-                  type="button" 
-                  onClick={() => setSelectedComplianceItemDrill("all")}
-                  className="px-3 py-1.5 text-xs text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-205 rounded-xl font-bold cursor-pointer font-sans leading-none"
-                >
-                  Show All Audits
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => setSelectedComplianceItemDrill(null)}
-                  className="px-4 py-2 text-xs text-slate-500 hover:text-slate-800 font-bold hover:bg-slate-100 rounded-xl cursor-pointer"
-                >
-                  Close View
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Modal Dialog for KPI Cards */}
-      {editingCardId && (
-        <div 
-          className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs select-none animate-fade-in"
-          onClick={() => setEditingCardId(null)}
-        >
-          <div 
-            className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-200 relative flex flex-col max-h-[90vh]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button 
-              onClick={() => setEditingCardId(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 cursor-pointer"
-              id="close-card-edit-btn"
-            >
-              <X size={16} />
-            </button>
-
-            <div className="flex items-center gap-2 mb-4">
-              <Edit3 size={18} className="text-blue-600" />
-              <h3 className="text-base font-bold text-slate-900">
-                Edit KPI Card Parameters
-              </h3>
-            </div>
-            
-            <p className="text-xs text-slate-500 mb-4 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-              Overriding card configurations updates the dashboard layouts instantly. Clear the <strong className="text-slate-700">Override Count</strong> field to automatically fallback to database values.
-            </p>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Card Title Label</label>
-                <input 
-                  type="text" 
-                  value={tempEditTitle}
-                  onChange={(e) => setTempEditTitle(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500 focus:outline-hidden"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Override Count / Value</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. 50 Metrics / Clear for auto-sync"
-                  value={tempEditCount}
-                  onChange={(e) => setTempEditCount(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500 focus:outline-hidden"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Source / Scope Indicator Description</label>
-                <input 
-                  type="text" 
-                  value={tempEditSource}
-                  onChange={(e) => setTempEditSource(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500 focus:outline-hidden"
-                />
-              </div>
-            </div>
-
-            <div className="mt-6 flex items-center justify-end gap-2.5">
-              <button
-                onClick={() => setEditingCardId(null)}
-                className="px-3.5 py-1.5 text-xs text-slate-500 hover:text-slate-800 rounded-lg cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveEditModal}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs cursor-pointer shadow-xs"
-              >
-                Save overrides
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Selected Remedial Student Profile Details Modal */}
-      {selectedRemedialStudent && (
-        <div 
-          className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs select-none animate-fade-in"
-          onClick={() => setSelectedRemedialStudent(null)}
-        >
-          <div 
-            className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl border border-slate-200 relative flex flex-col max-h-[85vh] animate-fade-in text-left"
-            onClick={(e) => e.stopPropagation()}
-            id="remedial-profile-modal"
-          >
-            <button 
-              onClick={() => setSelectedRemedialStudent(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 cursor-pointer border-none outline-none"
-              title="Close Panel"
-            >
-              <X size={16} />
-            </button>
-
-            <div className="flex items-center gap-3.5 pb-4 border-b border-slate-100 mb-5">
-              <div className={`w-14 h-14 rounded-full flex items-center justify-center font-bold text-lg leading-none ${
-                selectedRemedialStudent.status === 'Tracked' ? 'bg-emerald-50 text-emerald-700' :
-                selectedRemedialStudent.status === 'In Progress' ? 'bg-amber-50 text-amber-700' :
-                'bg-rose-50 text-rose-700'
-              }`}>
-                {selectedRemedialStudent.name.split(' ').map(n => n[0]).join('')}
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-lg font-extrabold text-slate-900 font-sans tracking-tight">
-                  {selectedRemedialStudent.name}
-                </h3>
-                <span className="text-xs px-2.5 py-0.5 rounded-full border border-slate-200 bg-slate-50 text-slate-600 font-semibold inline-block font-sans">
-                  {selectedRemedialStudent.grade} · {selectedRemedialStudent.subject}
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-4 text-xs font-sans">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
-                  <span className="text-[10px] text-slate-400 uppercase font-mono font-bold block leading-none">Assigned Teacher</span>
-                  <span className="font-bold text-slate-800 text-[11px] block">{selectedRemedialStudent.teacher}</span>
-                </div>
-                <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
-                  <span className="text-[10px] text-slate-400 uppercase font-mono font-bold block leading-none">Current Attendance</span>
-                  <span className="font-bold text-slate-800 text-[11px] block">{selectedRemedialStudent.attendRate}</span>
-                </div>
-                <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
-                  <span className="text-[10px] text-slate-400 uppercase font-mono font-bold block leading-none">Latest Risk Score</span>
-                  <span className="font-bold text-rose-700 font-mono text-[11px] block">{selectedRemedialStudent.lastRiskScore}% Severity</span>
-                </div>
-                <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
-                  <span className="text-[10px] text-slate-400 uppercase font-mono font-bold block leading-none">Remedial Status</span>
-                  <span className={`inline-block px-2 py-0.5 text-[10px] font-bold border capitalize leading-none rounded-full mt-0.5 ${
-                    selectedRemedialStudent.status === 'Tracked' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                    selectedRemedialStudent.status === 'In Progress' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                    'bg-rose-50 text-rose-700 border-rose-200'
-                  }`}>
-                    {selectedRemedialStudent.status}
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="font-bold text-slate-800 font-sans text-xs">Diagnostic Issue Details</h4>
-                <p className="bg-slate-50 p-3 rounded-xl border border-slate-100 italic text-slate-600 leading-relaxed text-[11px]">
-                  "{selectedRemedialStudent.issue || "No diagnostic issue specified."}"
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="font-bold text-slate-800 font-sans text-xs">Academic Remediative Action Plan</h4>
-                <div className="p-3 border border-blue-100 bg-blue-50/30 rounded-xl text-blue-900 font-medium leading-relaxed text-[11px]">
-                  {selectedRemedialStudent.actionPlan || "Action plan pending design by subject coordinator."}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between select-none font-sans">
-              <span className="text-[10px] text-slate-400 font-mono">
-                System Reference ID: rmd-{selectedRemedialStudent.id}
-              </span>
-              <button
-                onClick={() => setSelectedRemedialStudent(null)}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs cursor-pointer shadow-xs border-none outline-none"
-              >
-                Close Profile
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Full Remedial Report Modal */}
-      {showFullRemedialModal && (
-        <div 
-          className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs select-none animate-fade-in"
-          onClick={() => setShowFullRemedialModal(false)}
-        >
-          <div 
-            className="bg-white rounded-2xl w-full max-w-4xl p-6 shadow-2xl border border-slate-200 relative flex flex-col max-h-[85vh] animate-fade-in text-left font-sans"
-            onClick={(e) => e.stopPropagation()}
-            id="full-remedial-report-modal"
-          >
-            <button 
-              onClick={() => setShowFullRemedialModal(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 cursor-pointer border-none outline-none"
-            >
-              <X size={16} />
-            </button>
-
-            <div className="flex items-center gap-2 mb-4 select-none">
-              <GraduationCap className="text-blue-600" size={20} />
-              <div className="space-y-0.5">
-                <h3 className="text-base font-extrabold text-slate-900 font-sans tracking-tight leading-tight">
-                  Academic Remedial Log - Session 2026
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Detailed register of identified students requiring learning support interventions.
-                </p>
-              </div>
-            </div>
-
-            {/* Quick stats panel inside modal */}
-            <div className="grid grid-cols-4 gap-3 mb-4 select-none">
-              <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
-                <span className="text-[9px] font-bold text-slate-400 block uppercase leading-none">Total Flagged</span>
-                <span className="text-sm font-black text-slate-800 block leading-none">
-                  {COORDINATOR_DASHBOARD_SEED.remedialStudents.length} Students
-                </span>
-              </div>
-              <div className="p-3 bg-rose-50/40 border border-rose-100 rounded-xl space-y-1">
-                <span className="text-[9px] font-bold text-rose-550 block uppercase leading-none">Untracked Gaps</span>
-                <span className="text-sm font-black text-rose-700 block leading-none">
-                  {COORDINATOR_DASHBOARD_SEED.remedialStudents.filter(s => s.status === "Untracked").length}
-                </span>
-              </div>
-              <div className="p-3 bg-amber-50/40 border border-amber-100 rounded-xl space-y-1">
-                <span className="text-[9px] font-bold text-amber-600 block uppercase leading-none">In Progress</span>
-                <span className="text-sm font-black text-amber-700 block leading-none">
-                  {COORDINATOR_DASHBOARD_SEED.remedialStudents.filter(s => s.status === "In Progress").length}
-                </span>
-              </div>
-              <div className="p-3 bg-emerald-50/40 border border-emerald-100 rounded-xl space-y-1">
-                <span className="text-[9px] font-bold text-emerald-600 block uppercase leading-none">Tracked/Stable</span>
-                <span className="text-sm font-black text-emerald-700 block leading-none">
-                  {COORDINATOR_DASHBOARD_SEED.remedialStudents.filter(s => s.status === "Tracked").length}
-                </span>
-              </div>
-            </div>
-
-            {/* Scrollable table */}
-            <div className="overflow-y-auto flex-1 min-h-[300px] border border-slate-200 rounded-xl">
-              <table className="w-full text-left font-sans text-xs">
-                <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200 uppercase tracking-wider select-none">
-                  <tr>
-                    <th className="py-3 px-4">Student</th>
-                    <th className="py-3 px-4">Grade & Section</th>
-                    <th className="py-3 px-4">Subject Intervened</th>
-                    <th className="py-3 px-4">Assigned Evaluator</th>
-                    <th className="py-3 px-4">Risk Severity</th>
-                    <th className="py-3 px-4">Status Badging</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-sans">
-                  {COORDINATOR_DASHBOARD_SEED.remedialStudents.map((student) => {
-                    let textBadgeClass = "bg-rose-50 text-rose-700 border-rose-100";
-                    if (student.status === "Tracked") {
-                      textBadgeClass = "bg-emerald-50 text-emerald-700 border-emerald-100";
-                    } else if (student.status === "In Progress") {
-                      textBadgeClass = "bg-amber-50 text-amber-700 border-amber-100";
-                    }
-
-                    return (
-                      <tr 
-                        key={student.id}
-                        className="hover:bg-slate-50/70 cursor-pointer transition-colors"
-                        onClick={() => { setSelectedRemedialStudent(student); }}
-                      >
-                        <td className="py-3 px-4 font-bold text-slate-800">{student.name}</td>
-                        <td className="py-3 px-4 font-mono text-[11px] text-slate-500 select-all">{student.grade}</td>
-                        <td className="py-3 px-4 font-bold text-blue-700">{student.subject}</td>
-                        <td className="py-3 px-4 text-slate-600 font-medium">{student.teacher}</td>
-                        <td className="py-3 px-4 font-mono text-rose-600 font-extrabold">{student.lastRiskScore}% Severity</td>
-                        <td className="py-3 px-4">
-                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-extrabold border uppercase ${textBadgeClass}`}>
-                            {student.status}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between select-none">
-              <span className="text-[10px] text-slate-400 font-mono">
-                CBSE Mandatory Intervention Record Schema Level 1
-              </span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    let csvContent = "ID,Name,Grade,Subject,Teacher,RiskScore,Attendance,Status,Issue,ActionPlan\n" +
-                      COORDINATOR_DASHBOARD_SEED.remedialStudents.map(s => 
-                        `"${s.id}","${s.name}","${s.grade}","${s.subject}","${s.teacher}",${s.lastRiskScore},"${s.attendRate}","${s.status}","${s.issue.replace(/"/g, '""')}","${s.actionPlan.replace(/"/g, '""')}"`
-                      ).join("\n");
-                    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement("a");
-                    link.href = url;
-                    link.setAttribute("download", "Coordinator_Remedial_Log.csv");
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                  }}
-                  className="px-3.5 py-2 text-xs text-blue-700 bg-blue-550/5 hover:bg-blue-105/10 border border-blue-100 rounded-xl font-bold cursor-pointer font-sans"
-                >
-                  Download Report (CSV)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowFullRemedialModal(false)}
-                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs cursor-pointer shadow-xs border-none outline-none"
-                >
-                  Close Register
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Inactive Sections Modal */}
-      {showInactiveSectionsModal && (
-        <div 
-          className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs select-none animate-fade-in"
-          onClick={() => setShowInactiveSectionsModal(false)}
-        >
-          <div 
-            className="bg-white rounded-2xl w-full max-w-3xl p-6 shadow-2xl border border-slate-200 relative flex flex-col max-h-[85vh] animate-fade-in text-left font-sans"
-            onClick={(e) => e.stopPropagation()}
-            id="inactive-sections-modal"
-          >
-            <button 
-              onClick={() => setShowInactiveSectionsModal(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 cursor-pointer border-none outline-none"
-            >
-              <X size={16} />
-            </button>
-
-            <div className="flex items-center gap-2 mb-4 select-none">
-              <AlertTriangle className="text-rose-500 animate-pulse" size={20} />
-              <div className="space-y-1">
-                <h3 className="text-base font-extrabold text-slate-900 font-sans tracking-tight leading-tight">
-                  LMS Inactive Sections Registry
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Review classroom streams showing zero or extremely low instructional activity metrics this week.
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-rose-50/50 border border-rose-100 p-3 rounded-xl mb-4 text-xs text-rose-950 font-semibold select-none leading-relaxed">
-              ⚠️ <strong>Critical Compliance Warning:</strong> Department guidelines mandate a minimum of <strong>2 homework assignments</strong> and <strong>1 subject announcement</strong> weekly per active Google Classroom stream.
-            </div>
-
-            <div className="overflow-y-auto flex-1 border border-slate-200 rounded-xl">
-              <table className="w-full text-left font-sans text-xs">
-                <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200 uppercase tracking-wider select-none font-sans">
-                  <tr>
-                    <th className="py-2.5 px-4">Classroom Group</th>
-                    <th className="py-2.5 px-4">Instructing Teacher</th>
-                    <th className="py-2.5 px-4">Pupil Count</th>
-                    <th className="py-2.5 px-4">Last Activity Check</th>
-                    <th className="py-2.5 px-4">Inactive Reason / Violation Detail</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {COORDINATOR_DASHBOARD_SEED.inactiveSections.map((row) => (
-                    <tr key={row.id} className="hover:bg-slate-50/40 transition-colors">
-                      <td className="py-3 px-4">
-                        <span className="font-extrabold text-slate-800">{row.className} - {row.section}</span>
-                        <span className="block text-[10px] text-slate-400 font-mono mt-0.5">{row.subject}</span>
-                      </td>
-                      <td className="py-3 px-4 font-bold text-slate-700">{row.teacher}</td>
-                      <td className="py-3 px-4 font-mono font-bold text-slate-650">{row.studentCount} Students</td>
-                      <td className="py-3 px-4">
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-extrabold bg-rose-50 text-rose-600 border border-rose-100">
-                          {row.lastActive}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="text-[11px] text-slate-600 leading-normal block font-medium">
-                          {row.inactiveReason}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between select-none font-sans">
-              <span className="text-[10px] text-slate-400 font-mono">
-                Synced from LMS Live streams
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => alert("Notification alerts successfully dispatched to listed class instructors.")}
-                  className="px-3.5 py-2 text-xs text-white bg-blue-600 hover:bg-blue-700 font-bold rounded-xl cursor-pointer border-none outline-none shadow-xs"
-                >
-                  Dispatch Alerts to Teachers
-                </button>
-                <button
-                  onClick={() => setShowInactiveSectionsModal(false)}
-                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs cursor-pointer shadow-xs border-none outline-none"
-                >
-                  Close Registry
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* HOD Dashboard Core Section */}
-      {isHodRole() && (
-        <div className="space-y-6 mt-6 animate-fade-in" id="hod-specific-dashboard-zones">
-          {/* 1. HOD Summary KPI Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="hod-kpi-cards-grid">
-            {/* KPI Card 1: Repository Resources */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative">
-              <div className="space-y-1">
-                <span className="text-slate-400 font-extrabold text-[10px] tracking-wider uppercase block">
-                  Repository resources
-                </span>
-                <div className="text-2xl font-extrabold text-slate-800 leading-tight">
-                  {computeHODKPIs().repoResources}
-                </div>
-              </div>
-              <div className="mt-2 text-[11px] text-slate-500 font-sans leading-tight">
-                Files across all classes
-              </div>
-            </div>
-
-            {/* KPI Card 2: Chapters Fully Resourced */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative">
-              <div className="space-y-1">
-                <span className="text-slate-400 font-extrabold text-[10px] tracking-wider uppercase block">
-                  Chapters fully resourced
-                </span>
-                <div className="text-2xl font-extrabold text-slate-800 leading-tight">
-                  {computeHODKPIs().chaptersResourced}%
-                </div>
-              </div>
-              <div className="mt-2 text-[11px] text-amber-600 font-semibold font-sans leading-tight flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block animate-pulse"></span>
-                {100 - computeHODKPIs().chaptersResourced}% need attention
-              </div>
-            </div>
-
-            {/* KPI Card 3: QB Questions Added */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative">
-              <div className="space-y-1">
-                <span className="text-slate-400 font-extrabold text-[10px] tracking-wider uppercase block">
-                  QB questions added
-                </span>
-                <div className="text-2xl font-extrabold text-slate-800 leading-tight">
-                  {computeHODKPIs().qbQuestions}
-                </div>
-              </div>
-              <div className="mt-2 text-[11px] text-slate-500 font-sans leading-tight">
-                This term
-              </div>
-            </div>
-
-            {/* KPI Card 4: Department Average */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative">
-              <div className="space-y-1">
-                <span className="text-slate-400 font-extrabold text-[10px] tracking-wider uppercase block">
-                  Dept avg — {hodPeriod}
-                </span>
-                <div className="text-2xl font-extrabold text-slate-800 leading-tight">
-                  {computeHODKPIs().deptAvg}%
-                </div>
-              </div>
-              <div className="mt-2 text-[11px] text-emerald-600 font-semibold font-sans leading-tight flex items-center gap-1">
-                <Check size={12} className="text-emerald-500" />
-                School avg {computeHODKPIs().schoolAvg}%
-              </div>
-            </div>
-          </div>
-
-          {/* Desktop: Two column layout for Repository Health and Teacher Activity */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pb-8" id="hod-dashboard-split-grid">
-            
-            {/* 2. Repository Health — By Class */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm lg:col-span-5 flex flex-col justify-between" id="hod-repo-health-card">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <h3 className="text-md font-bold text-slate-900 tracking-tight font-sans">
-                    Repository Health — By Class
-                  </h3>
+                <div className="pb-3 border-b border-slate-100 mb-4 select-none">
+                  <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">Classroom Monitoring</h3>
+                  <p className="text-[10px] uppercase font-mono font-bold text-slate-400">Coaching & LMS streams</p>
                 </div>
 
-                <div className="space-y-3.5 my-2">
-                  {getRepositoryHealthData().map((row) => {
-                    const percentage = row.completion;
-                    let barColor = "bg-rose-500";
-                    let textColor = "text-rose-600";
-                    let bgChip = "bg-rose-50 border-rose-100";
-                    if (percentage >= 80) {
-                      barColor = "bg-emerald-500";
-                      textColor = "text-emerald-600";
-                      bgChip = "bg-emerald-50 border-emerald-100";
-                    } else if (percentage >= 70) {
-                      barColor = "bg-amber-500";
-                      textColor = "text-amber-600";
-                      bgChip = "bg-amber-50 border-amber-100";
-                    }
-
-                    return (
-                      <div key={row.className} className="space-y-1">
-                        <div className="flex items-center justify-between text-xs font-semibold">
-                          <span className="text-slate-800 font-sans">{row.className}</span>
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${textColor} ${bgChip}`}>
-                            {percentage}%
-                          </span>
-                        </div>
-                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden select-none">
-                          <div 
-                            className={`h-full rounded-full transition-all duration-300 ${barColor}`} 
-                            style={{ width: `${percentage}%` }}
-                          ></div>
-                        </div>
+                {renderSectionState("classroom", (
+                  <div className="space-y-3.5 select-none">
+                    {legacyClassroomMetricRows.map(([label, value]) => (
+                      <div key={String(label)} className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 cursor-pointer transition-all">
+                        <span className="text-xs text-slate-600 font-medium font-sans">{label}</span>
+                        <span className="px-2 py-0.5 font-bold tabular-nums text-xs bg-slate-100 border border-slate-200 text-slate-705 rounded-full shrink-0">{value as string | number}</span>
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
+                ))}
+                <div className="pt-3 border-t border-slate-100 mt-4 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => onToggleTab("dashboard-data-source")}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
+                  >
+                    View All ({legacyClassroomMetricRows.length})
+                    <ChevronRight size={12} />
+                  </button>
                 </div>
-
-                <div className="text-[11px] text-slate-400 font-mono italic leading-tight">
-                  % of chapters with complete resource set
-                </div>
-              </div>
-
-              <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowHODGapDrilldown(true)}
-                  className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-                >
-                  Fix gaps <ArrowUpRight size={14} />
-                </button>
               </div>
             </div>
-
-            {/* 3. Teacher Activity — This Week */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm lg:col-span-7 flex flex-col justify-between" id="hod-teacher-activity-card">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <h3 className="text-md font-bold text-slate-900 tracking-tight font-sans">
-                    Teacher Activity — This Week
-                  </h3>
-                </div>
-
-                <div className="overflow-x-auto select-none">
-                  <table className="w-full text-left text-xs min-w-[420px]">
-                    <thead>
-                      <tr className="border-b border-slate-150 text-slate-450 font-mono tracking-wider font-extrabold uppercase">
-                        <th className="py-2.5">Teacher</th>
-                        <th className="py-2.5 text-center">Planner</th>
-                        <th className="py-2.5 text-center font-semibold">Uploads</th>
-                        <th className="py-2.5 text-center font-semibold">QB</th>
-                        <th className="py-2.5 text-right">Classroom</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-105 font-medium text-slate-705">
-                      {(() => {
-                        const dept = hodDepartment;
-                        const teachItems: Record<string, any[]> = {
-                          Mathematics: [
-                            { teacher: "Ms. Priya Nair", planner: "Done", uploads: 8, qb: 12, classroom: "Active", classesHandled: "Class 6, 8, 9, 10", lessonPlans: "4/4", pendingActions: "None", lastUpdated: "Today 10:15 AM", suggestedFollowup: "Acknowledge high productivity" },
-                            { teacher: "Mr. Arjun Das", planner: "Done", uploads: 5, qb: 3, classroom: "Active", classesHandled: "Class 7, 11, 12", lessonPlans: "3/3", pendingActions: "None", lastUpdated: "Yesterday 4:30 PM", suggestedFollowup: "Keep it up" },
-                            { teacher: "Ms. Kavita Singh", planner: "Missing", uploads: 1, qb: 0, classroom: "Low", classesHandled: "Class 6, 8", lessonPlans: "0/2", pendingActions: "Syllabus planner overdue", lastUpdated: "May 25, 2026", suggestedFollowup: "Provide planning assistance, check why QB and uploads are minimal" },
-                            { teacher: "Mr. Rahul Verma", planner: "Done", uploads: 6, qb: 8, classroom: "Active", classesHandled: "Class 9, 10, 11", lessonPlans: "3/3", pendingActions: "None", lastUpdated: "Today 8:00 AM", suggestedFollowup: "Support resources sharing" },
-                          ],
-                          Science: [
-                            { teacher: "Dr. Sarah Henderson", planner: "Done", uploads: 12, qb: 15, classroom: "Active", classesHandled: "Class 8, 9, 10, 11", lessonPlans: "4/4", pendingActions: "None", lastUpdated: "Today 2:10 PM", suggestedFollowup: "Excellent engagement" },
-                            { teacher: "Mr. Anthony Wright", planner: "Done", uploads: 4, qb: 2, classroom: "Active", classesHandled: "Class 11, 12", lessonPlans: "2/2", pendingActions: "None", lastUpdated: "May 24, 2026", suggestedFollowup: "Encourage more questions uploads" },
-                            { teacher: "Miss Melissa Green", planner: "Missing", uploads: 0, qb: 1, classroom: "Low", classesHandled: "Class 6, 7", lessonPlans: "0/2", pendingActions: "2 Planners outstanding", lastUpdated: "May 22, 2026", suggestedFollowup: "Check compliance standards, issue action request" },
-                            { teacher: "Dr. Robert Boyle", planner: "Done", uploads: 7, qb: 9, classroom: "Active", classesHandled: "Class 9, 12", lessonPlans: "2/2", pendingActions: "None", lastUpdated: "Yesterday 11:15 AM", suggestedFollowup: "Steady delivery" }
-                          ],
-                          English: [
-                            { teacher: "Mrs. Beatrice Smith", planner: "Done", uploads: 9, qb: 11, classroom: "Active", classesHandled: "Class 6, 7, 8, 12", lessonPlans: "4/4", pendingActions: "None", lastUpdated: "Today 8:40 AM", suggestedFollowup: "Commend high execution" },
-                            { teacher: "Mr. Charles Dickens", planner: "Done", uploads: 6, qb: 4, classroom: "Active", classesHandled: "Class 9, 10", lessonPlans: "2/2", pendingActions: "None", lastUpdated: "May 24, 2026", suggestedFollowup: "Support syllabus alignments" },
-                            { teacher: "Miss Jane Austen", planner: "Missing", uploads: 2, qb: 0, classroom: "Low", classesHandled: "Class 8, 11", lessonPlans: "0/2", pendingActions: "Syllabus planner overdue", lastUpdated: "May 24, 2026", suggestedFollowup: "Assist with planners template setup" },
-                            { teacher: "Mr. George Orwell", planner: "Done", uploads: 8, qb: 7, classroom: "Active", classesHandled: "Class 10, 11, 12", lessonPlans: "3/3", pendingActions: "None", lastUpdated: "Yesterday 3:00 PM", suggestedFollowup: "Affirm good tracking log metrics" }
-                          ]
-                        };
-
-                        const rows = teachItems[dept] || teachItems["Mathematics"];
-                        const lowestTeacher = getLowestTeacher(rows);
-
-                        return (
-                          <>
-                            {rows.map((row) => (
-                              <tr 
-                                key={row.teacher} 
-                                onClick={() => setSelectedHODTeacher(row)}
-                                className="hover:bg-slate-50/70 transition-colors cursor-pointer group"
-                              >
-                                <td className="py-3 pr-2 font-bold text-slate-800 truncate block max-w-40 group-hover:text-blue-650 transition-colors">
-                                  {row.teacher}
-                                </td>
-                                <td className="py-3 text-center">
-                                  <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                                    row.planner === "Done" ? "bg-emerald-50 text-emerald-700 border-emerald-150" : "bg-rose-50 text-rose-700 border-rose-150"
-                                  }`}>
-                                    {row.planner}
-                                  </span>
-                                </td>
-                                <td className="py-3 text-center">
-                                  <span className={`inline-block px-2 py-0.5 rounded-full text-[10.5px] font-mono font-bold ${
-                                    row.uploads > 4 ? "bg-indigo-50 text-indigo-700 font-extrabold" : "bg-slate-100 text-slate-500 font-normal"
-                                  }`}>
-                                    {row.uploads}
-                                  </span>
-                                </td>
-                                <td className="py-3 text-center">
-                                  <span className={`inline-block px-2 py-0.5 rounded-full text-[10.5px] font-mono font-bold ${
-                                    row.qb === 0 ? "bg-slate-100 text-slate-400 font-normal" : "bg-indigo-50 text-indigo-700 font-extrabold"
-                                  }`}>
-                                    {row.qb}
-                                  </span>
-                                </td>
-                                <td className="py-3 text-right">
-                                  <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                                    row.classroom === "Active" ? "bg-emerald-50 text-emerald-700 border-emerald-150" : "bg-amber-50 text-amber-705 border-amber-150"
-                                  }`}>
-                                    {row.classroom}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-
-                            {/* 3.1 Weekly Follow-up Alert dynamic rendering */}
-                            <tr className="bg-transparent border-none">
-                              <td colSpan={5} className="pt-4 pb-0">
-                                <div className="p-3 bg-amber-50/70 border border-amber-150 rounded-xl flex items-center gap-2 text-xs text-amber-900 select-none">
-                                  <AlertTriangle size={14} className="text-amber-500 shrink-0" />
-                                  <span className="font-sans">
-                                    <strong>Compliance Alert:</strong> <span className="underline font-semibold">{lowestTeacher?.teacher}</span> needs follow-up this week.
-                                  </span>
-                                </div>
-                              </td>
-                            </tr>
-                          </>
-                        );
-                      })()}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              
-              <div className="text-[11px] text-slate-400 font-sans leading-normal pt-4 mt-1 border-t border-slate-50 select-none">
-                Click on any teacher&apos;s row to open detailed activity logs and suggestive coaching logs.
-              </div>
-            </div>
-
-          </div>
-
-          {/* New HOD Additions: Assessment Tracking, Enrichment & Olympiads, Remedial Status */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in animate-duration-300" id="hod-dashboard-additions-grid">
-            
-            {/* Card 1: Assessment Tracking */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative" id="hod-assessment-tracking-card">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <CheckSquare size={16} className="text-indigo-600 shrink-0" />
-                    <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">
-                      Assessment Tracking
-                    </h3>
-                  </div>
-                  <span className="text-[10px] font-mono text-indigo-600 font-bold px-1.5 py-0.5 bg-indigo-50 rounded">
-                    UT4 Cycle
-                  </span>
-                </div>
-
-                <div className="space-y-3 my-2">
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">UT4 papers submitted</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-indigo-50 text-indigo-700 border-indigo-150 font-mono">
-                      5/8 teachers
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">UT4 deadline</span>
-                    <span className="px-2.5 py-0.5 rounded-md text-[10.5px] font-mono font-bold border bg-amber-50 text-amber-800 border-amber-200">
-                      Fri 30 May
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">UT3 results entered</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-150">
-                      All done
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Dept avg UT3</span>
-                    <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold text-slate-800 bg-slate-100">
-                      {computeHODKPIs().deptAvg}%
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Below 40% students</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-rose-50 text-rose-700 border-rose-150">
-                      14 students
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowHODChasePendingModal(true)}
-                  className="text-xs font-bold text-blue-600 hover:text-blue-750 flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  Chase pending <ArrowRight size={14} />
-                </button>
-              </div>
-            </div>
-
-            {/* Card 2: Enrichment and Olympiads */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative" id="hod-enrichment-olympiads-card">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <Award size={16} className="text-indigo-600 shrink-0" />
-                    <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">
-                      Enrichment and Olympiads
-                    </h3>
-                  </div>
-                  <span className="text-[10px] font-mono text-purple-600 font-bold px-1.5 py-0.5 bg-purple-50 rounded">
-                    Talent Pool
-                  </span>
-                </div>
-
-                <div className="space-y-3 my-2">
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Olympiad registrations</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-mono">
-                      34 students
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Enrichment posts — Classroom</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-150 font-mono">
-                      18 this term
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Resources in Enrichment folder</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-mono">
-                      24 files
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Students in enrichment programme</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-mono">
-                      28
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Next olympiad date</span>
-                    <span className="px-2.5 py-0.5 rounded-md text-[10.5px] font-mono font-bold border bg-slate-100 text-slate-705 border-slate-200">
-                      12 June 2026
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    logAction(currentUser, currentRole, "Enrichment Folder Opened", "HOD viewed classroom enrichment logs", "task");
-                    alert(`Olympiad preparations and enrichment materials exported for ${hodDepartment} teachers & student roster.`);
-                  }}
-                  className="text-xs font-bold text-blue-600 hover:text-blue-750 flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  Manage talent <Sparkles size={13} className="text-blue-500" />
-                </button>
-              </div>
-            </div>
-
-            {/* Card 3: Remedial Status */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative" id="hod-remedial-status-card">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <GraduationCap size={16} className="text-emerald-600 shrink-0" />
-                    <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">
-                      Remedial Status
-                    </h3>
-                  </div>
-                  <span className="text-[10px] font-mono text-emerald-600 font-bold px-1.5 py-0.5 bg-emerald-50 rounded">
-                    Intervention
-                  </span>
-                </div>
-
-                <div className="space-y-3 my-2">
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Identified for remedial</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-mono">
-                      38 students
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Remedial sessions held</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-150 font-mono">
-                      12 this term
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Resources in Remedial folder</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-mono">
-                      16 files
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Improved after remedial</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-150 font-mono">
-                      22 students
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-500 font-medium font-sans text-xs">Still needs support</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-rose-50 text-rose-700 border-rose-150 font-mono">
-                      16 students
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowFullRemedialModal(true)}
-                  className="text-xs font-bold text-blue-600 hover:text-blue-750 flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  Full report <ArrowRight size={14} />
-                </button>
-              </div>
-            </div>
-
           </div>
         </div>
-      )}
 
-      {/* HOD Fix Gaps Drilldown Modal */}
-      {showHODGapDrilldown && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 font-sans select-none animate-fade-in" id="hod-gap-drilldown-modal">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-4xl w-full max-h-[85vh] flex flex-col overflow-hidden">
-            
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-150 font-mono text-[9px] font-bold rounded-md uppercase">Gaps Detected</span>
-                  <span className="text-[11px] text-slate-400">•</span>
-                  <span className="text-xs text-slate-500 font-mono">{hodDepartment} Department</span>
-                </div>
-                <h3 className="text-base font-bold text-slate-900">
-                  Repository Completion Gaps &amp; Actions
-                </h3>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" id="principal-feeds-grid">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between h-[360px] overflow-hidden" id="teacher-performance-card">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <h2 className="text-md font-bold text-slate-900 tracking-tight">Teacher Performance Indicators</h2>
               </div>
-              <button
-                onClick={() => setShowHODGapDrilldown(false)}
-                className="p-1 px-2.5 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors font-semibold text-xs shrink-0 cursor-pointer bg-white"
-              >
-                Close
-              </button>
-            </div>
-
-            {/* Main Table */}
-            <div className="p-6 overflow-y-auto flex-1">
-              <div className="border border-slate-150 rounded-xl overflow-hidden shadow-2xs">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-450 font-mono tracking-wider font-extrabold uppercase border-b border-slate-150">
-                    <tr>
-                      <th className="py-2.5 px-4 font-semibold">Class</th>
-                      <th className="py-2.5 px-4 font-semibold">Chapter / Topic</th>
-                      <th className="py-2.5 px-4 font-semibold text-center">Required</th>
-                      <th className="py-2.5 px-4 font-semibold text-center">Uploaded</th>
-                      <th className="py-2.5 px-4 font-semibold text-center">Missing</th>
-                      <th className="py-2.5 px-4 font-semibold">Teacher</th>
-                      <th className="py-2.5 px-4 text-center">Status</th>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs min-w-[340px]">
+                  <thead>
+                    <tr className="border-b border-slate-150 text-slate-450 font-mono tracking-wider font-extrabold uppercase">
+                      <th className="py-2.5">Teacher</th>
+                      <th className="py-2.5">Planner</th>
+                      <th className="py-2.5">Assess</th>
+                      <th className="py-2.5 text-center">Resources</th>
+                      <th className="py-2.5 text-right">Activity</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-105 font-medium text-slate-705">
-                    {(() => {
-                      const gapsItems: Record<string, any[]> = {
-                        Mathematics: [
-                          { classText: "Class 11", subject: "Mathematics", chapter: "Ch 3 Trigonometric Functions", required: "5 Worksheets, 2 Syllabus Audits", uploaded: "3 Worksheets, 1 Syllabus Audit", missing: "2 Worksheets, 1 Syllabus Audit", teacher: "Mr. Rahul Verma", updated: "2026-05-18", status: "Critical" },
-                          { classText: "Class 9", subject: "Mathematics", chapter: "Ch 4 Quadratic Equations", required: "4 Worksheets, 2 Quizzes", uploaded: "3 Worksheets, 1 Quiz", missing: "1 Worksheet, 1 Quiz", teacher: "Ms. Priya Nair", updated: "2026-05-22", status: "Medium" },
-                          { classText: "Class 8", subject: "Mathematics", chapter: "Ch 6 Triangles", required: "6 Worksheets, 3 Notes", uploaded: "5 Worksheets, 2 Notes", missing: "1 Worksheet, 1 Note", teacher: "Ms. Kavita Singh", updated: "2026-05-20", status: "Medium" },
-                          { classText: "Class 11", subject: "Mathematics", chapter: "Ch 8 Binomial Theorem", required: "4 Worksheets, 1 Mock Paper", uploaded: "1 Worksheet", missing: "3 Worksheets, 1 Mock Paper", teacher: "Mr. Arjun Das", updated: "2026-05-15", status: "Critical" }
-                        ],
-                        Science: [
-                          { classText: "Class 9", subject: "Science", chapter: "Ch 3 Atoms & Molecules", required: "4 Sheets, 2 Audio Clips", uploaded: "2 Sheets", missing: "2 Sheets, 2 Audio Clips", teacher: "Dr. Sarah Henderson", updated: "2026-05-19", status: "Critical" },
-                          { classText: "Class 11", subject: "Science", chapter: "Ch 5 Chemical Bonding", required: "5 Sheets, 3 virtual labs", uploaded: "4 Sheets, 1 lab", missing: "1 Sheet, 2 virtual labs", teacher: "Mr. Anthony Wright", updated: "2026-05-16", status: "Critical" }
-                        ],
-                        English: [
-                          { classText: "Class 11", subject: "English", chapter: "Ch 2 Tenses & Voice", required: "4 Quizzes, 2 Writeups", uploaded: "3 Quizzes", missing: "1 Quiz, 2 Writeups", teacher: "Mrs. Beatrice Smith", updated: "2026-05-21", status: "Medium" }
-                        ]
-                      };
-
-                      const activeGaps = gapsItems[hodDepartment] || gapsItems["Mathematics"];
-
-                      if (activeGaps.length === 0) {
-                        return (
-                          <tr>
-                            <td colSpan={7} className="py-8 text-center text-slate-405 font-sans italic">
-                              No outstanding resource repository gaps detected for the active department scope!
-                            </td>
-                          </tr>
-                        );
-                      }
-
-                      return activeGaps.map((row, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50/50 transition-colors leading-relaxed">
-                          <td className="py-3 px-4 font-bold text-slate-800">{row.classText}</td>
-                          <td className="py-3 px-4">
-                            <div className="font-semibold text-slate-800">{row.chapter}</div>
-                            <div className="text-[10px] text-slate-400">Last updated: {row.updated}</div>
-                          </td>
-                          <td className="py-3 px-4 text-center font-mono text-[11px] text-slate-500">{row.required}</td>
-                          <td className="py-3 px-4 text-center font-mono text-[11px] text-emerald-600 font-bold">{row.uploaded}</td>
-                          <td className="py-3 px-4 text-center font-mono text-[11px] text-rose-500 font-bold">{row.missing}</td>
-                          <td className="py-3 px-4 text-slate-650">{row.teacher}</td>
-                          <td className="py-3 px-4 text-center">
-                            <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                              row.status === "Critical" ? "bg-rose-50 text-rose-700 border-rose-150" : "bg-amber-50 text-amber-705 border-amber-150"
-                            }`}>
-                              {row.status} Gap
-                            </span>
-                          </td>
-                        </tr>
-                      ));
-                    })()}
+                    {teacherPerformanceData.map((row, rIdx) => (
+                      <tr key={rIdx} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="py-3.5 pr-2 max-w-36 font-semibold text-slate-800">
+                          <div className="truncate">{row.teacher}</div>
+                          <div className="text-[10px] text-slate-500 truncate">{[row.class, row.subject].filter(Boolean).join(" · ") || row.dateRange || "Live row"}</div>
+                        </td>
+                        <td className="py-3.5"><span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getBadgeStyles(row.plannerStatus)}`}>{row.plannerStatus}</span></td>
+                        <td className="py-3.5"><span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getBadgeStyles(row.assessmentStatus)}`}>{row.assessmentStatus}</span></td>
+                        <td className="py-3.5 text-center text-[11px] text-slate-500 tabular-nums">{row.resourceCount} files</td>
+                        <td className="py-3.5 text-right"><span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getBadgeStyles(row.activityStatus)}`}>{row.activityStatus}</span></td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
             </div>
-
-            {/* Footer */}
-            <div className="px-6 py-3.5 border-t border-slate-100 bg-slate-50 flex items-center justify-between text-xs text-slate-500">
-              <span className="font-sans leading-tight">These gaps are generated dynamically checking statutory chapter indices.</span>
+            <div className="pt-4 border-t border-slate-100 mt-4 flex justify-end">
               <button
                 type="button"
-                onClick={() => {
-                  logAction(currentUser, currentRole, "Gaps Report Downloaded", `Exported gaps sheet for ${hodDepartment} department`, "task");
-                  alert(`Gaps spreadsheet report exported successfully for ${hodDepartment} department. Copy dispatched to School Coordinators.`);
-                }}
-                className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
+                onClick={() => setShowTeacherReportsModal(true)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                id="btn-teacher-full-report"
               >
-                Export Sheet <ChevronRight size={14} />
+                View All <ArrowUpRight size={13} />
               </button>
             </div>
-
           </div>
-        </div>
-      )}
 
-      {/* Selected HOD Teacher Activity Logs Drilldown Modal */}
-      {selectedHODTeacher && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 font-sans select-none animate-fade-in" id="hod-teacher-detail-modal">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-lg w-full overflow-hidden">
-            
-            {/* Header */}
-            <div className="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <div className="space-y-0.5">
-                <div className="text-[10px] font-mono text-slate-400 uppercase font-bold tracking-wider">{hodDepartment} Staff Activity Detail</div>
-                <h3 className="text-base font-bold text-slate-900">{selectedHODTeacher.teacher}</h3>
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between h-[360px] overflow-hidden" id="monitoring-forms-card">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <h2 className="text-md font-bold text-slate-900 tracking-tight">Monitoring Forms  -  Data Feeds</h2>
               </div>
-              <button
-                onClick={() => setSelectedHODTeacher(null)}
-                className="p-1 px-2.5 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors font-semibold text-xs shrink-0 cursor-pointer bg-white"
-              >
-                Close
-              </button>
-            </div>
-
-            {/* Main Content Body */}
-            <div className="p-6 space-y-4 text-xs">
-              {/* Classes Handled */}
-              <div className="grid grid-cols-3 gap-1 grid-flow-row items-baseline bg-slate-50 p-3 rounded-xl border border-slate-100">
-                <span className="text-slate-400 font-bold uppercase text-[9px] font-mono">Classes Handled</span>
-                <span className="col-span-2 text-slate-800 font-semibold text-right">{selectedHODTeacher.classesHandled}</span>
-              </div>
-
-              {/* Detailed Metrics */}
-              <div className="space-y-2.5">
-                <div className="flex items-center justify-between py-1.5 border-b border-slate-105">
-                  <span className="text-slate-500 font-medium font-sans">Weekly Planner Status</span>
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                    selectedHODTeacher.planner === "Done" ? "bg-emerald-50 text-emerald-700 border-emerald-150" : "bg-rose-50 text-rose-700 border-rose-150"
-                  }`}>
-                    {selectedHODTeacher.planner}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between py-1.5 border-b border-slate-105">
-                  <span className="text-slate-500 font-medium font-sans">Lesson Plans Submitted</span>
-                  <span className="font-mono font-bold text-slate-800">{selectedHODTeacher.lessonPlans} submission(s)</span>
-                </div>
-
-                <div className="flex items-center justify-between py-1.5 border-b border-slate-105">
-                  <span className="text-slate-500 font-medium font-sans">Resources Uploaded</span>
-                  <span className="font-mono font-bold text-indigo-750 bg-indigo-50 px-2 py-0.5 rounded">{selectedHODTeacher.uploads} files</span>
-                </div>
-
-                <div className="flex items-center justify-between py-1.5 border-b border-slate-105">
-                  <span className="text-slate-500 font-medium font-sans">QB Questions Added</span>
-                  <span className="font-mono font-bold text-indigo-755 bg-indigo-50 px-2 py-0.5 rounded">{selectedHODTeacher.qb} questions</span>
-                </div>
-
-                <div className="flex items-center justify-between py-1.5 border-b border-slate-105">
-                  <span className="text-slate-500 font-medium font-sans">Google Classroom Stream Activity</span>
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                    selectedHODTeacher.classroom === "Active" ? "bg-emerald-50 text-emerald-700 border-emerald-150" : "bg-amber-50 text-amber-705 border-amber-150"
-                  }`}>
-                    {selectedHODTeacher.classroom}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between py-1.5 border-b border-slate-105">
-                  <span className="text-slate-500 font-medium font-sans">Last Activity Synced</span>
-                  <span className="font-sans text-slate-700">{selectedHODTeacher.lastUpdated}</span>
-                </div>
-              </div>
-
-              {/* Action Blocks */}
-              <div className="space-y-2 pt-2">
-                <div className="space-y-1 bg-transparent">
-                  <span className="text-[9px] uppercase font-mono font-extrabold text-slate-450 block">Pending Mandatory Actions</span>
-                  <div className={`p-2.5 rounded-lg border font-mono text-[10.5px] leading-relaxed ${
-                    selectedHODTeacher.pendingActions === "None" ? "bg-slate-50 text-slate-500 border-slate-150" : "bg-rose-50 text-rose-700 border-rose-150"
-                  }`}>
-                    {selectedHODTeacher.pendingActions}
-                  </div>
-                </div>
-
-                <div className="space-y-1 bg-transparent">
-                  <span className="text-[9px] uppercase font-mono font-extrabold text-slate-450 block">Suggested Coaching/Follow-up Action</span>
-                  <div className="p-2.5 rounded-lg bg-blue-50/50 border border-blue-150 font-sans text-slate-750 leading-relaxed text-[11px]">
-                    {selectedHODTeacher.suggestedFollowup}
-                  </div>
-                </div>
-              </div>
-
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4.5 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between">
-              <button
-                onClick={() => {
-                  logAction(currentUser, currentRole, "Coaching Log Opened", `Opened coaching action sheet for ${selectedHODTeacher.teacher}`, "task");
-                  alert(`Performance guidance checklist successfully logged. Notification & guidance agenda dispatched to ${selectedHODTeacher.teacher}.`);
-                }}
-                className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1 cursor-pointer transition-colors border-none outline-none"
-              >
-                Issue Performance Guidance Checklist
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* HOD Chase Pending Submissions Modal */}
-      {showHODChasePendingModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 font-sans select-none animate-fade-in" id="hod-chase-pending-modal">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-lg w-full overflow-hidden">
-            
-            {/* Header */}
-            <div className="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <div className="space-y-0.5">
-                <span className="px-2 py-0.5 bg-rose-50 text-rose-750 border border-rose-150 font-mono text-[9px] font-bold rounded-md uppercase">Action Required</span>
-                <h3 className="text-base font-bold text-slate-900">Chase UT4 Submissions</h3>
-              </div>
-              <button
-                onClick={() => setShowHODChasePendingModal(false)}
-                className="p-1 px-2.5 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors font-semibold text-xs shrink-0 cursor-pointer bg-white"
-              >
-                Close
-              </button>
-            </div>
-
-            {/* Content list */}
-            <div className="p-6 space-y-4 text-xs">
-              <p className="text-slate-505 font-medium leading-relaxed font-sans">
-                The following teachers in the <strong className="text-slate-800">{hodDepartment} Department</strong> have pending UT4 question paper drafts or submissions. Use the actions below to dispatch immediate follow-up alerts:
-              </p>
-
-              <div className="space-y-3">
-                {(() => {
-                  const pendingByDept: Record<string, any[]> = {
-                    Mathematics: [
-                      { name: "Ms. Kavita Singh", role: "Class 6-8 Math Teacher", status: "Overdue", lastNotify: "Yesterday" },
-                      { name: "Mr. Arjun Das", role: "Class 11-12 Math Teacher", status: "Due Fri 30 May", lastNotify: "2 days ago" },
-                      { name: "Mr. Rahul Verma", role: "Class 9-10 Math Teacher", status: "In Progress", lastNotify: "Never" }
-                    ],
-                    Science: [
-                      { name: "Miss Melissa Green", role: "Class 6-7 Science Teacher", status: "Overdue", lastNotify: "3 days ago" },
-                      { name: "Mr. Anthony Wright", role: "Class 11-12 Physics Teacher", status: "Due Fri 30 May", lastNotify: "Never" }
-                    ],
-                    English: [
-                      { name: "Miss Jane Austen", role: "Class 8, 11 English Teacher", status: "Overdue", lastNotify: "Yesterday" },
-                      { name: "Mr. Charles Dickens", role: "Class 9-10 English Teacher", status: "In Progress", lastNotify: "Never" }
-                    ]
-                  };
-
-                  const list = pendingByDept[hodDepartment] || pendingByDept["Mathematics"];
-
-                  return list.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-150 rounded-xl">
-                      <div className="space-y-1">
-                        <div className="font-bold text-slate-800 font-sans text-xs">{item.name}</div>
-                        <div className="text-[10px] text-slate-450 font-medium font-sans">{item.role}</div>
-                        <div className="text-[9px] text-slate-400 font-mono">Last reminder: {item.lastNotify}</div>
-                      </div>
-
-                      <div className="flex flex-col items-end gap-2">
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border font-mono ${
-                          item.status === "Overdue" ? "bg-rose-50 text-rose-700 border-rose-150" : 
-                          item.status === "In Progress" ? "bg-amber-50 text-amber-705 border-amber-150" :
-                          "bg-slate-100 text-slate-600 border-slate-200"
-                        }`}>
-                          {item.status}
-                        </span>
-                        
-                        <button
-                          type="button"
-                          onClick={() => {
-                            logAction(currentUser, currentRole, "Chase Dispatched", `Sent UT4 paper reminder to ${item.name}`, "task");
-                            alert(`Chase reminder successfully dispatched to ${item.name} via WhatsApp Link & Schooly instant SMS push! Link: http://wa.me/reminder-ut4`);
-                          }}
-                          className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-md font-bold text-[10px] text-blue-600 cursor-pointer shadow-3xs transition-all flex items-center gap-1"
-                        >
-                          Remind Now <Send size={10} />
-                        </button>
-                      </div>
-                    </div>
-                  ));
-                })()}
-              </div>
-
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4.5 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  logAction(currentUser, currentRole, "Bulk Chase Triggered", `Sent department-wide UT4 bulk follow-up reminder`, "task");
-                  alert(`Bulk WhatsApp alerts and high-priority push emails dispatched to all pending teachers in the ${hodDepartment} Department.`);
-                  setShowHODChasePendingModal(false);
-                }}
-                className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1 cursor-pointer transition-colors border-none"
-              >
-                Send Bulk Chase to All Pending Teachers
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* Principal Chase Pending Submissions Modal */}
-      {showPrincipalChasePendingModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 font-sans select-none animate-fade-in" id="principal-chase-pending-modal">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-lg w-full overflow-hidden">
-            
-            {/* Header */}
-            <div className="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <div className="space-y-0.5">
-                <span className="px-2 py-0.5 bg-rose-50 text-rose-750 border border-rose-150 font-mono text-[9px] font-bold rounded-md uppercase">School-wide Oversight</span>
-                <h3 className="text-base font-bold text-slate-900">Chase UT4 Paper Submissions</h3>
-              </div>
-              <button
-                onClick={() => setShowPrincipalChasePendingModal(false)}
-                className="p-1 px-2.5 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors font-semibold text-xs shrink-0 cursor-pointer bg-white"
-              >
-                Close
-              </button>
-            </div>
-
-            {/* Content list */}
-            <div className="p-6 space-y-4 text-xs">
-              <p className="text-slate-505 font-medium leading-relaxed font-sans">
-                The school-wide assessment compliance report shows outstanding UT4 draft papers. Dispatch high-priority reminder alerts to the respective department coordinators or teachers below:
-              </p>
-
-              <div className="space-y-3">
-                {[
-                  { name: "Ms. Kavita Singh", dept: "Mathematics", role: "Class 6-8 Math Teacher", status: "Overdue", lastNotify: "Yesterday" },
-                  { name: "Miss Melissa Green", dept: "Science", role: "Class 6-7 Science Teacher", status: "Overdue", lastNotify: "3 days ago" },
-                  { name: "Miss Jane Austen", dept: "English", role: "Class 8, 11 English Teacher", status: "Overdue", lastNotify: "Yesterday" },
-                  { name: "Mr. Vikram Roy", dept: "Social Science", role: "Class 9-10 Geography Teacher", status: "Overdue", lastNotify: "2 days ago" }
-                ].map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-150 rounded-xl">
-                    <div className="space-y-1">
-                      <div className="font-bold text-slate-800 font-sans text-xs">{item.name}</div>
-                      <div className="text-[10px] text-slate-400 font-medium font-sans">{item.role} · <strong className="text-indigo-600">{item.dept}</strong></div>
-                      <div className="text-[9px] text-slate-400 font-mono">Last reminder: {item.lastNotify}</div>
-                    </div>
-
-                    <div className="flex flex-col items-end gap-2">
-                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold border font-mono bg-rose-50 text-rose-700 border-rose-150">
-                        {item.status}
-                      </span>
-                      
-                      <button
-                        type="button"
-                        onClick={() => {
-                          logAction(currentUser, currentRole, "Principal Chase Dispatched", `Sent administrative UT4 paper reminder to ${item.name}`, "task");
-                          alert(`Official administrative reminder successfully dispatched to ${item.name} (${item.dept}) via automated WhatsApp call & high-priority SMS push!`);
-                        }}
-                        className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-md font-bold text-[10px] text-blue-600 cursor-pointer shadow-3xs transition-all flex items-center gap-1"
-                      >
-                        Remind Now <Send size={10} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4.5 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  logAction(currentUser, currentRole, "School-wide Bulk Chase Triggered", "Sent executive school-wide pending paper alerts", "task");
-                  alert("Bulk executive warnings and Schooly push notifications pushed out to all outstanding academic instructors.");
-                  setShowPrincipalChasePendingModal(false);
-                }}
-                className="w-full py-2 bg-indigo-650 hover:bg-indigo-755 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1 cursor-pointer transition-colors border-none"
-              >
-                Send Administrative Bulk Chase to All Overdue
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* Coordinator Chase Pending Submissions Modal */}
-      {showCoordinatorChasePendingModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 font-sans select-none animate-fade-in" id="coordinator-chase-pending-modal">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-lg w-full overflow-hidden">
-            
-            {/* Header */}
-            <div className="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <div className="space-y-0.5">
-                <span className="px-2 py-0.5 bg-amber-50 text-amber-750 border border-amber-150 font-mono text-[9px] font-bold rounded-md uppercase">Coordinated Grades</span>
-                <h3 className="text-base font-bold text-slate-900">Follow up on Guided Submissions</h3>
-              </div>
-              <button
-                onClick={() => setShowCoordinatorChasePendingModal(false)}
-                className="p-1 px-2.5 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors font-semibold text-xs shrink-0 cursor-pointer bg-white"
-              >
-                Close
-              </button>
-            </div>
-
-            {/* Content list */}
-            <div className="p-6 space-y-4 text-xs">
-              <p className="text-slate-505 font-medium leading-relaxed font-sans">
-                Review pending drafts under your grade level coordination (Grades 6-12). Instantly escalate reminders to keep compliance indices high:
-              </p>
-
-              <div className="space-y-3">
-                {[
-                  { name: "Mr. Arjun Das", role: "Class 11-12 Math Teacher", status: "Assigned", lastNotify: "2 days ago" },
-                  { name: "Miss Jane Austen", role: "Class 8, 11 English Teacher", status: "Overdue", lastNotify: "Yesterday" },
-                  { name: "Miss Melissa Green", role: "Class 6-7 Science Teacher", status: "Overdue", lastNotify: "3 days ago" }
-                ].map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-150 rounded-xl">
-                    <div className="space-y-1">
-                      <div className="font-bold text-slate-800 font-sans text-xs">{item.name}</div>
-                      <div className="text-[10px] text-slate-450 font-medium font-sans">{item.role}</div>
-                      <div className="text-[9px] text-slate-400 font-mono">Last reminder: {item.lastNotify}</div>
-                    </div>
-
-                    <div className="flex flex-col items-end gap-2">
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border font-mono ${
-                        item.status === "Overdue" ? "bg-rose-50 text-rose-700 border-rose-150" : "bg-amber-50 text-amber-705 border-amber-150"
+              <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                {monitoringFormsData.map((form) => (
+                  <div
+                    key={form.id}
+                    onClick={() => setSelectedFormDetail(form)}
+                    className="p-3 border border-slate-100 hover:border-slate-300 hover:bg-slate-50/50 rounded-xl cursor-pointer flex items-center justify-between transition-all group animate-fade-in"
+                    id={`form-feed-row-${form.id}`}
+                  >
+                    <div className="flex items-start gap-3 min-w-0 pr-4">
+                      <div className={`p-2 rounded-xl shrink-0 ${
+                        form.statusType === "good" ? "bg-emerald-50 text-emerald-650" :
+                        form.statusType === "warning" ? "bg-amber-50 text-amber-650" :
+                        form.statusType === "risk" ? "bg-rose-50 text-rose-650" :
+                        "bg-blue-50 text-blue-650"
                       }`}>
-                        {item.status}
-                      </span>
-                      
-                      <button
-                        type="button"
-                        onClick={() => {
-                          logAction(currentUser, currentRole, "Coordinator Escalated Reminder", `Escalated compliance reminder to ${item.name}`, "task");
-                          alert(`Escalated draft reminder successfully triggered for ${item.name} via high-priority email notification.`);
-                        }}
-                        className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-md font-bold text-[10px] text-blue-600 cursor-pointer shadow-3xs transition-all flex items-center gap-1"
-                      >
-                        Escalate <Send size={10} />
-                      </button>
+                        <FileText size={16} />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-800 block truncate group-hover:text-blue-650 transition-colors">{form.name}</span>
+                        <span className="text-[11px] text-slate-500 block truncate leading-normal">{form.summary}</span>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-500">
+                          {form.responsibleOwner && <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 font-bold text-slate-600">{form.responsibleOwner}</span>}
+                          {form.linkedClassSection && <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 font-bold text-slate-600">{renderClassLabel(form.linkedClassSection)}</span>}
+                          {form.lastSubmittedDate && <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 font-bold text-slate-600">{form.lastSubmittedDate}</span>}
+                          {form.evidenceLinkLabel && <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 font-bold text-slate-600">{form.evidenceLinkLabel}</span>}
+                          {form.source && <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 font-bold text-slate-600">{form.source}</span>}
+                        </div>
+                      </div>
                     </div>
+                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
+                      form.statusType === "good" ? "bg-emerald-50 text-emerald-700 border-emerald-150" :
+                      form.statusType === "warning" ? "bg-amber-50 text-amber-705 border-amber-150" :
+                      form.statusType === "risk" ? "bg-rose-50 text-rose-700 border-rose-150" :
+                      "bg-blue-50 text-blue-700 border-blue-150"
+                    }`}>
+                      {form.statusLabel}
+                    </span>
                   </div>
                 ))}
               </div>
-
             </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4.5 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  logAction(currentUser, currentRole, "Coordinator Bulk Reminder", "Fired coordinator bulk notifications", "task");
-                  alert("Coordinated grade alerts and dashboard task ticks successfully dispatched.");
-                  setShowCoordinatorChasePendingModal(false);
-                }}
-                className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1 cursor-pointer transition-colors border-none"
-              >
-                Dispatch Coordinated Grades Recall Push Alert
-              </button>
-            </div>
-
           </div>
         </div>
-      )}
 
-      {isAdminRole() && (
-        <RoleDashboards
-          role="admin"
-          currentUser={currentUser}
-          currentRole={currentRole}
-          files={files}
-          courses={courses}
-          tasks={tasks}
-          students={students}
-          renderWelcomeHeader={renderWelcomeHeader}
-          logAction={logAction}
-        />
-      )}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6" id="principal-dashboard-additions-grid">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between h-[360px] overflow-hidden" id="principal-assessment-tracking-card">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <CheckSquare size={16} className="text-indigo-600 shrink-0" />
+                  <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">School Assessment Tracking</h3>
+                </div>
+                <span className="text-[10px] font-mono text-indigo-600 font-bold px-1.5 py-0.5 bg-indigo-50 rounded">UT4 Cycle</span>
+              </div>
+                <div className="space-y-3 my-2">
+                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
+                    <span className="text-slate-500 font-medium font-sans text-xs">Assessment rows submitted</span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-indigo-50 text-indigo-700 border-indigo-150 tabular-nums">{principalDashboard?.academicMonitoring?.assessment?.length || 0} rows</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
+                    <span className="text-slate-500 font-medium font-sans text-xs">Academic year</span>
+                    <span className="px-2.5 py-0.5 rounded-md text-[10.5px] font-bold border bg-amber-50 text-amber-800 border-amber-200">{activeAcademicYearLabel || dashboardSourceState.activeAcademicYearLabel || "Pending"}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
+                    <span className="text-slate-500 font-medium font-sans text-xs">Coverage trend</span>
+                    <span className="px-2 py-0.5 rounded text-[11px] font-bold tabular-nums text-slate-800 bg-slate-100">{dynamicGlanceCalculations.assessmentPercent}%</span>
+                  </div>
+                <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
+                  <span className="text-slate-500 font-medium font-sans text-xs">Below 40% students</span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-rose-50 text-rose-700 border-rose-150">{highRiskStudents} students</span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-end">
+              <button type="button" onClick={() => setShowPrincipalChasePendingModal(true)} className="text-xs font-bold text-blue-600 hover:text-blue-750 flex items-center gap-1 cursor-pointer transition-colors">
+                Chase pending <ArrowRight size={14} />
+              </button>
+            </div>
+          </div>
 
-      {isManagerRole() && (
-        <RoleDashboards
-          role="manager"
-          currentUser={currentUser}
-          currentRole={currentRole}
-          files={files}
-          courses={courses}
-          tasks={tasks}
-          students={students}
-          renderWelcomeHeader={renderWelcomeHeader}
-          logAction={logAction}
-        />
-      )}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between h-[360px] overflow-hidden" id="principal-enrichment-olympiads-card">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <Award size={16} className="text-indigo-600 shrink-0" />
+                  <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">School Enrichment & Olympiads</h3>
+                </div>
+                <span className="text-[10px] font-mono text-purple-600 font-bold px-1.5 py-0.5 bg-purple-50 rounded">Talent Pool</span>
+              </div>
+              <div className="space-y-3 my-2">
+                <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
+                  <span className="text-slate-500 font-medium font-sans text-xs">Olympiad registrations</span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-sans">{students.length} students</span>
+                </div>
+                <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
+                  <span className="text-slate-500 font-medium font-sans text-xs">Enrichment posts  -  Classroom</span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-150 font-sans">{enrichmentCount} active classes</span>
+                </div>
+                <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
+                  <span className="text-slate-500 font-medium font-sans text-xs">Resources in Enrichment folder</span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-sans">{courses.reduce((sum, course) => sum + (course.announcements?.length || 0), 0)} notes</span>
+                </div>
+                <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
+                  <span className="text-slate-500 font-medium font-sans text-xs">Students in enrichment programme</span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-blue-50 text-blue-700 border-blue-150 font-sans">{students.length - highRiskStudents}</span>
+                </div>
+              </div>
+            </div>
+          </div>
 
-      {isHrRole() && (
-        <RoleDashboards
-          role="hr"
-          currentUser={currentUser}
-          currentRole={currentRole}
-          files={files}
-          courses={courses}
-          tasks={tasks}
-          students={students}
-          renderWelcomeHeader={renderWelcomeHeader}
-          logAction={logAction}
-        />
-      )}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between h-[360px] overflow-hidden" id="principal-remedial-card">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <ShieldAlert size={16} className="text-rose-600 shrink-0" />
+                  <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">School Remedial Stats</h3>
+                </div>
+                <span className="text-[10px] font-mono text-rose-600 font-bold px-1.5 py-0.5 bg-rose-50 rounded">Support Review</span>
+              </div>
+              <div className="space-y-3 my-2">
+                <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
+                  <span className="text-slate-500 font-medium font-sans text-xs">Students flagged</span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-rose-50 text-rose-700 border-rose-150 font-sans">{remedialCount}</span>
+                </div>
+                <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
+                  <span className="text-slate-500 font-medium font-sans text-xs">In progress</span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-amber-50 text-amber-700 border-amber-150 font-sans">{mediumRiskStudents}</span>
+                </div>
+                <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
+                  <span className="text-slate-500 font-medium font-sans text-xs">Tracked</span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-150 font-sans">{normalStudents}</span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-end">
+              <button type="button" onClick={() => setShowFullRemedialModal(true)} className="text-xs font-bold text-blue-600 hover:text-blue-750 flex items-center gap-1 cursor-pointer transition-colors">
+                Full remedial report <ArrowRight size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
 
-      {isExamsRole() && (
-        <RoleDashboards
-          role="exams"
-          currentUser={currentUser}
-          currentRole={currentRole}
-          files={files}
-          courses={courses}
-          tasks={tasks}
-          students={students}
-          renderWelcomeHeader={renderWelcomeHeader}
-          logAction={logAction}
-        />
-      )}
-
-      {isParentRole() && (
-        <RoleDashboards
-          role="parent"
-          currentUser={currentUser}
-          currentRole={currentRole}
-          files={files}
-          courses={courses}
-          tasks={tasks}
-          students={students}
-          renderWelcomeHeader={renderWelcomeHeader}
-          logAction={logAction}
-        />
-      )}
-
-      {isStudentRole() && (
-        <RoleDashboards
-          role="student"
-          currentUser={currentUser}
-          currentRole={currentRole}
-          files={files}
-          courses={courses}
-          tasks={tasks}
-          students={students}
-          renderWelcomeHeader={renderWelcomeHeader}
-          logAction={logAction}
-        />
-      )}
-
-      {/* Classroom Active Stream Updates */}
-      {!isHodRole() && isWidgetAuthorized("classroom_announcements") && (
-        <div className="bg-slate-50/50 hover:bg-white border border-slate-205 rounded-3xl p-6 shadow-xs hover:shadow-md transition-all duration-300 mt-8" id="classroom-stream-card">
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4" id="classroom-stream-card">
           <div className="flex items-center justify-between pb-4 border-b border-slate-100">
             <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
               <span className="p-2 bg-blue-50 text-blue-600 rounded-xl">
@@ -6825,225 +5427,807 @@ export default function DashboardOverview({
               </span>
               Recent Classroom Announcements
             </h3>
-            <button 
+            <button
               onClick={() => onToggleTab("classroom")}
               className="text-xs text-blue-600 font-bold hover:text-blue-750 flex items-center gap-1 cursor-pointer bg-white border border-slate-200 px-3 py-1.5 rounded-xl hover:shadow-2xs transition-all duration-200"
             >
               Track Class Syllabi <ChevronRight size={14} />
             </button>
           </div>
-
           <div className="space-y-3 mt-4">
-            {courses.map(course => (
-              <div 
-                key={course.id} 
+            {classroomAnnouncements.map((course) => (
+              <div
+                key={course.id}
                 className="p-4 bg-white border border-slate-100 border-l-4 border-l-indigo-500 rounded-xl space-y-2 hover:bg-slate-50/50 hover:shadow-2xs transition-all duration-200"
               >
                 <div className="flex items-center justify-between">
                   <span className="text-[10.5px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100">
-                    {course.name} - {course.section}
+                    {course.title}
                   </span>
-                  <span className="text-[10px] text-slate-400 font-mono font-medium bg-slate-50 border border-slate-100 rounded px-2 py-0.5">{course.teacherName}</span>
+                  <span className="text-[10px] text-slate-500 font-mono">{course.meta}</span>
                 </div>
-                <p className="text-xs text-slate-650 leading-relaxed font-sans pl-1">
-                  "{course.announcements[0] || "No announcements this week."}"
-                </p>
+                <p className="text-sm text-slate-700">{course.subtitle}</p>
               </div>
             ))}
           </div>
         </div>
-      )}
+      </div>
+    );
+  };
 
-      {/* Teacher Chase Pending Submissions Modal */}
-      {showTeacherChasePendingModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 font-sans select-none animate-fade-in" id="teacher-chase-pending-modal">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-lg w-full overflow-hidden">
-            
-            {/* Header */}
-            <div className="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <div className="space-y-0.5">
-                <span className="px-2 py-0.5 bg-rose-50 text-rose-750 border border-rose-150 font-mono text-[9px] font-bold rounded-md uppercase">My Student Queue</span>
-                <h3 className="text-base font-bold text-slate-900">Chase Pending Grade Submissions</h3>
-              </div>
-              <button
-                onClick={() => setShowTeacherChasePendingModal(false)}
-                className="p-1 px-2.5 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors font-semibold text-xs shrink-0 cursor-pointer bg-white"
+  const renderPrincipalDashboardSections = () => {
+    if (!isPrincipalRole()) {
+      return null;
+    }
+
+    const liveAlerts = (principalDashboard?.alertsRequiringAttention || []) as Array<{
+      severity?: string;
+      title?: string;
+      text?: string;
+      message?: string;
+      statusLabel?: string;
+      source?: any;
+      sourceLabel?: string;
+      classLabel?: string;
+      sectionLabel?: string;
+      subjectLabel?: string;
+      dueLabel?: string;
+    }>;
+    const liveRemedialRows = (principalDashboard?.remedialRisk || []) as Array<Record<string, any>>;
+    const visibleLiveAlerts = liveAlerts.slice(0, DASHBOARD_ROW_LIMIT);
+    const visibleRemedialRows = liveRemedialRows.slice(0, DASHBOARD_ROW_LIMIT);
+    const activeClassSections = principalDashboard?.classroomMonitoring?.activeClassSections || principalDashboard?.classroomMonitoring?.totalClassrooms || 0;
+    const googleClassroomCourses = principalDashboard?.classroomMonitoring?.googleClassroomCourseCount || courses.length;
+    const monitoredClassrooms = principalDashboard?.classroomMonitoring?.monitoredClassroomsCount || courses.filter((course) => (course.announcements?.length || 0) > 0 || (course.materials?.length || 0) > 0).length;
+    const teacherAllocationCoverage = teacherPerformanceData.length > 0
+      ? Math.round((teacherPerformanceData.filter((row) => row.plannerStatus === "Done").length / teacherPerformanceData.length) * 100)
+      : 0;
+
+    const glanceCards = [
+      { label: "Active Students", value: students.length, note: "Live enrollment rows" },
+      { label: "Active Staff", value: teacherPerformanceData.length, note: "Live allocation rows" },
+      { label: "Active Class Sections", value: activeClassSections, note: "From Classes_Sections" },
+      { label: "Teacher Allocation Coverage", value: `${teacherAllocationCoverage}%`, note: "Planner rows completed" },
+      { label: "Google Classroom Courses", value: googleClassroomCourses, note: "Live Classroom course map" },
+      { label: "Attendance / Engagement", value: `${principalDashboard?.classroomMonitoring?.averageSubmissionRate || principalDashboard?.classroomMonitoring?.avgSubmissionRate || 0}%`, note: `${monitoredClassrooms} monitored classrooms` }
+    ];
+    const principalClassroomMetricRows = [
+      ["Total Classrooms", principalDashboard?.classroomMonitoring?.totalClassrooms || 0],
+      ["Posted this week", `${principalDashboard?.classroomMonitoring?.postedThisWeek || 0} / ${principalDashboard?.classroomMonitoring?.totalClassrooms || 0}`],
+      ["Zero Activity", `${principalDashboard?.classroomMonitoring?.zeroActivityThisWeek || 0} classrooms`],
+      ["Assignments", `${principalDashboard?.classroomMonitoring?.assignmentsCreatedThisWeek || 0} this week`],
+      ["Submission rate", `${principalDashboard?.classroomMonitoring?.averageSubmissionRate || principalDashboard?.classroomMonitoring?.avgSubmissionRate || 0}%`],
+      ["Meet sessions", `${principalDashboard?.classroomMonitoring?.meetSessionsHeldThisWeek || 0} held`]
+    ];
+
+    return (
+      <div className="space-y-6 mt-2 animate-fade-in" id="principal-specific-dashboard-zones">
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4" id="school-at-a-glance-card">
+          <div className="flex items-center gap-2">
+            <LayoutGrid className="text-blue-600" size={18} />
+            <h2 className="text-base font-extrabold text-slate-905 font-sans tracking-tight">School at a Glance</h2>
+          </div>
+          <div
+            className="grid gap-4"
+            style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}
+            id="school-glance-grid"
+          >
+            {glanceCards.map((item) => (
+              <div
+                key={item.label}
+                className="w-full h-full flex flex-col justify-between p-4 bg-slate-50 hover:bg-slate-100/60 border border-slate-100 rounded-xl space-y-1 transition-all cursor-default hover:border-blue-200 hover:shadow-xs group"
               >
-                Close
+                <div>
+                  <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block tracking-wider">{item.label}</span>
+                  <div className="text-xl font-black tabular-nums text-slate-800 group-hover:text-blue-600 transition-colors">
+                    {item.value}
+                  </div>
+                </div>
+                <div className="text-[10px] text-slate-500 font-medium font-sans">{item.note}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" id="principal-alerts-compliance-container">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between h-[360px] overflow-hidden" id="principal-alerts-section">
+            <div>
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2 min-w-0">
+                  <AlertTriangle className="text-rose-600 shrink-0" size={20} />
+                  <h2 className="text-md font-bold text-slate-900 font-sans tracking-tight truncate">Alerts Requiring Attention</h2>
+                </div>
+                {liveAlerts.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onToggleTab("dashboard-data-source")}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-2 text-[11px] font-extrabold text-rose-700 hover:bg-rose-50 shrink-0"
+                  >
+                    View All ({liveAlerts.length})
+                    <ChevronRight size={12} />
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-1 gap-3">
+                {visibleLiveAlerts.length > 0 ? visibleLiveAlerts.map((alert, aIdx) => {
+                  const title = alert.title || alert.text || alert.message || "Alert requires attention";
+                  const subtitle = alert.message || alert.text || alert.statusLabel || "";
+                  const sourceLabel = typeof alert.source === "string"
+                    ? alert.source
+                    : alert.source && typeof alert.source === "object"
+                      ? [alert.source.workbook, alert.source.tab].filter(Boolean).join(" / ") || alert.sourceLabel || "Dashboard Alerts"
+                      : alert.sourceLabel || "Dashboard Alerts";
+                  return (
+                    <div key={aIdx} className="p-3 border rounded-xl flex items-start gap-2.5 text-xs text-slate-700 bg-blue-50/40 border-blue-100 text-blue-950">
+                      <div className="mt-0.5">
+                        {(alert.severity || "").toLowerCase().includes("critical") && <ShieldAlert size={14} className="text-rose-600" />}
+                        {(alert.severity || "").toLowerCase().includes("high") && <AlertTriangle size={14} className="text-amber-600" />}
+                        {!(alert.severity || "").toLowerCase().includes("critical") && !(alert.severity || "").toLowerCase().includes("high") && <AlertTriangle size={14} className="text-blue-600" />}
+                      </div>
+                      <div className="flex-1 min-w-0 font-sans space-y-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-semibold block truncate leading-normal" title={title}>{title}</span>
+                          {alert.statusLabel && (
+                            <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-600">
+                              {alert.statusLabel}
+                            </span>
+                          )}
+                        </div>
+                        {subtitle && <div className="text-[11px] text-slate-600 line-clamp-2">{subtitle}</div>}
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-slate-500">
+                          <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 font-bold text-slate-600">{sourceLabel}</span>
+                          {alert.classLabel && <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 font-bold text-slate-600">{renderClassLabel(alert.classLabel)}{alert.sectionLabel ? `-${alert.sectionLabel}` : ""}</span>}
+                          {alert.subjectLabel && <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 font-bold text-slate-600">{alert.subjectLabel}</span>}
+                          {alert.dueLabel && <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 font-bold text-slate-600">{formatDashboardDateValue(alert.dueLabel)}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }) : (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-600">
+                    No alert rows found in the dashboard source.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between h-[360px] overflow-hidden relative" id="compliance-monitoring-card">
+            <div>
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4 select-none">
+                <div className="space-y-0.5">
+                  <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">Compliance Monitoring</h3>
+                  <p className="text-[10px] uppercase font-mono font-bold text-emerald-700">Overall Score: {calculatedOverallCompliance}%</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowComplianceConfig(!showComplianceConfig)}
+                  className={`p-1.5 rounded-lg cursor-pointer transition-colors ${
+                    showComplianceConfig ? "bg-blue-50 text-blue-650" : "text-slate-400 hover:bg-slate-50 hover:text-slate-700"
+                  }`}
+                  title="Configure Weights"
+                >
+                  <Sliders size={15} />
+                </button>
+              </div>
+
+              {showComplianceConfig && (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl mb-4 text-xs space-y-2.5 animate-fade-in select-none max-h-[220px] overflow-y-auto scrollbar-thin">
+                  <div className="flex items-center justify-between border-b border-slate-150 pb-1.5 mb-1">
+                    <span className="font-bold text-slate-800">Assign Scoring Weights</span>
+                    <span className="text-[10px] text-blue-600 font-mono font-bold uppercase block tracking-wider">Weighted calculations</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {[
+                      ["Committee", committeeWeight, setCommitteeWeight],
+                      ["Safety", safetyWeight, setSafetyWeight],
+                      ["Forms", formsWeight, setFormsWeight],
+                      ["Staff CPD", cpdWeight, setCpdWeight],
+                      ["SQAA Evidence", sqaaWeight, setSqaaWeight]
+                    ].map(([label, value, setter]) => (
+                      <div key={String(label)} className="flex justify-between items-center font-sans">
+                        <span>{label}:</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={value as number}
+                          onChange={(e) => (setter as React.Dispatch<React.SetStateAction<number>>)(Math.max(0, Number(e.target.value)))}
+                          className="w-12 px-1 py-0.5 text-center font-bold border rounded-lg bg-white font-mono"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="pt-2 border-t border-slate-150 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setShowComplianceConfig(false)}
+                      className="px-2 py-1 bg-blue-600 text-white rounded-lg text-[9px] font-bold hover:bg-blue-700 cursor-pointer"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {renderSectionState("compliance", (
+                <div className="space-y-4">
+                  {complianceItemsWithStatus.length > 0 ? complianceItemsWithStatus.map((item, idx) => {
+                    const markerColorClass =
+                      item.status === "healthy" ? "bg-emerald-500" :
+                      item.status === "watch" ? "bg-amber-500" : "bg-rose-500";
+                    const textBadgeClass =
+                      item.status === "healthy" ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
+                      item.status === "watch" ? "bg-amber-50 text-amber-705 border-amber-100" : "bg-rose-50 text-rose-700 border-rose-100";
+                    return (
+                      <div
+                        key={idx}
+                        onClick={() => setSelectedComplianceItemDrill(item.key)}
+                        className="flex items-center justify-between p-1.5 rounded-lg cursor-pointer hover:bg-slate-50 group border border-transparent hover:border-slate-100 transition-all"
+                      >
+                        <div className="flex items-center gap-2.5 bg-transparent min-w-0">
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${markerColorClass}`}></span>
+                          <span className="text-xs text-slate-805 font-medium block truncate group-hover:text-blue-650 transition-colors font-sans" title={item.label}>
+                            {item.label}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`inline-block px-1.5 py-0.5 rounded-md text-[8.5px] font-bold border capitalize leading-none font-sans ${textBadgeClass}`}>
+                            {item.status}
+                          </span>
+                          <span className="font-sans text-xs font-bold text-slate-700 shrink-0">
+                            {item.percentage}%
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }) : (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-600">
+                    No compliance rows found in the dashboard source.
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="pt-3 border-t border-slate-100 mt-4 select-none flex items-center justify-between gap-2">
+              {complianceItemsWithStatus.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onToggleTab("dashboard-data-source")}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
+                >
+                  View All ({complianceItemsWithStatus.length})
+                  <ChevronRight size={12} />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setSelectedComplianceItemDrill("gaps")}
+                className="py-2 px-3 bg-slate-905 hover:bg-slate-805 text-white font-bold text-xs rounded-xl transition-colors cursor-pointer"
+              >
+                View Gaps
               </button>
             </div>
+          </div>
+        </div>
 
-            {/* Content list */}
-            <div className="p-6 space-y-4 text-xs">
-              <p className="text-slate-505 font-medium leading-relaxed font-sans">
-                The students below have missed active homework, assignments, or revision tasks under your assigned class syllabus:
-              </p>
+        <div className="space-y-6" id="principal-three-widgets">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between h-[360px] overflow-hidden col-span-1 relative" id="academic-monitoring-card">
+              <div>
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4 select-none">
+                  <div className="space-y-0.5">
+                    <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">Academic Monitoring</h3>
+                    <p className="text-[10px] uppercase font-mono font-bold text-slate-400">
+                      {PRINCIPAL_DASHBOARD_SEED.academicMonitoring.summaryLabelText[academicTab]}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAcademicConfig(!showAcademicConfig)}
+                    className={`p-1.5 rounded-lg cursor-pointer transition-colors ${showAcademicConfig ? "bg-blue-50 text-blue-600" : "text-slate-400 hover:bg-slate-50 hover:text-slate-700"}`}
+                    title="Configure Thresholds"
+                  >
+                    <Settings size={15} />
+                  </button>
+                </div>
 
-              <div className="space-y-3">
-                {[
-                  { name: "Aarav Sharma", classSec: "Class 8A", assignment: "UT4 Math Practice Quiz", status: "Overdue", days: "2 days ago" },
-                  { name: "Priya Patel", classSec: "Class 8A", assignment: "Assessment Workbook Ex 4B", status: "Overdue", days: "Yesterday" },
-                  { name: "Rohan Das", classSec: "Class 8B", assignment: "UT4 Math Revision Layout", status: "Assigned", days: "Due Tomorrow" }
-                ].map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-150 rounded-xl">
-                    <div className="space-y-1">
-                      <div className="font-bold text-slate-800 font-sans text-xs">{item.name} ({item.classSec})</div>
-                      <div className="text-[10px] text-slate-450 font-medium font-sans">{item.assignment}</div>
-                      <div className="text-[9px] text-slate-400 font-mono">Status: {item.days}</div>
+                <div className="flex items-center gap-2 mb-4 flex-wrap">
+                  {(["planner", "syllabus", "assessment"] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setAcademicTab(tab)}
+                      className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${academicTab === tab ? "bg-blue-50 border-blue-200 text-blue-700" : "bg-white border-slate-200 text-slate-500"}`}
+                    >
+                      {tab}
+                    </button>
+                  ))}
+                </div>
+
+                {showAcademicConfig && (
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl mb-4 text-xs space-y-2.5 animate-fade-in select-none">
+                    <div className="text-[10px] uppercase font-mono font-black text-slate-400">Thresholds</div>
+                    <div className="flex items-center justify-between">
+                      <span>Healthy</span>
+                      <input value={healthyThreshold} onChange={(e) => setHealthyThreshold(Number(e.target.value))} type="number" className="w-16 px-2 py-1 rounded-lg border border-slate-200" />
                     </div>
-
-                    <div className="flex flex-col items-end gap-2">
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border font-mono ${
-                        item.status === "Overdue" ? "bg-rose-50 text-rose-700 border-rose-150" : "bg-slate-150 text-slate-650 border-slate-220"
-                      }`}>
-                        {item.status}
-                      </span>
-                      
-                      <button
-                        type="button"
-                        onClick={() => {
-                          logAction(currentUser, currentRole, "Student Recall Triggered", `Sent assignment reminder alert to student: ${item.name}`, "task");
-                          alert(`Homework due alert dispatched successfully to ${item.name} and their registered guardian email address.`);
-                        }}
-                        className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-md font-bold text-[10px] text-blue-600 cursor-pointer shadow-3xs transition-all flex items-center gap-1"
-                      >
-                        Ping student <Send size={10} />
-                      </button>
+                    <div className="flex items-center justify-between">
+                      <span>Watch</span>
+                      <input value={watchThreshold} onChange={(e) => setWatchThreshold(Number(e.target.value))} type="number" className="w-16 px-2 py-1 rounded-lg border border-slate-200" />
                     </div>
+                  </div>
+                )}
+
+                {renderSectionState("academic", (
+                  <div className="max-h-[250px] space-y-3 overflow-y-auto pr-2">
+                    {PRINCIPAL_DASHBOARD_SEED.academicMonitoring[academicTab].length > 0 ? PRINCIPAL_DASHBOARD_SEED.academicMonitoring[academicTab].map((item: any, idx: number) => (
+                      <div key={`${academicTab}-${idx}`} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs font-medium text-slate-500">
+                          <span className="font-extrabold text-slate-705 font-sans">{item.level}</span>
+                          <span className="font-sans text-slate-700">{item.percentage}%</span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all duration-500 ease-out bg-blue-500" style={{ width: `${item.percentage}%` }} />
+                        </div>
+                      </div>
+                    )) : (
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-600">
+                        No academic monitoring rows found in the dashboard source.
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
-
             </div>
 
-            {/* Footer */}
-            <div className="px-6 py-4.5 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  logAction(currentUser, currentRole, "Bulk Class Reminder Dispatched", "Dispatched homework recalls for all outstanding items", "task");
-                  alert("Urgent class recalls and Google Classroom automated reminders successfully broadcast to all defaulters.");
-                  setShowTeacherChasePendingModal(false);
-                }}
-                className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1 cursor-pointer transition-colors border-none"
-              >
-                Send Urgent Classroom Warning to All Defaulters
-              </button>
-            </div>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between h-[360px] overflow-hidden col-span-1 relative" id="classroom-monitoring-card">
+              <div>
+                <div className="pb-3 border-b border-slate-100 mb-4 select-none">
+                  <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans">Classroom Monitoring</h3>
+                  <p className="text-[10px] uppercase font-mono font-bold text-slate-400">Coaching & LMS streams</p>
+                </div>
 
+                {renderSectionState("classroom", (
+                  <div className="space-y-3.5 select-none">
+                    {principalClassroomMetricRows.map(([label, value]) => (
+                      <div key={String(label)} className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 cursor-pointer transition-all">
+                        <span className="text-xs text-slate-600 font-medium font-sans">{label}</span>
+                        <span className="px-2 py-0.5 font-bold font-sans text-xs bg-slate-100 border border-slate-200 text-slate-705 rounded-full shrink-0">{value as string | number}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                <div className="pt-3 border-t border-slate-100 mt-4 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => onToggleTab("dashboard-data-source")}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
+                  >
+                    View All ({principalClassroomMetricRows.length})
+                    <ChevronRight size={12} />
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      )}
 
-      {/* GENERIC RECORD INSPECTOR (DRILL THROUGH TO DETAILED RECORD VIEW) */}
-      {inspectedRecord && (
-        <div 
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[200] p-4 font-sans animate-fade-in" 
-          id="generic-record-inspector-modal"
-          onClick={() => setInspectedRecord(null)}
-        >
-          <div 
-            className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full overflow-hidden animate-scale-up"
-            onClick={(e) => e.stopPropagation()}
-          >
-            
-            {/* Header */}
-            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <div className="space-y-1">
-                <span className="px-2 py-0.5 bg-blue-50 text-blue-750 border border-blue-150 font-mono text-[9px] font-bold rounded-md uppercase tracking-wider">
-                  {inspectedRecord.type}
-                </span>
-                <h3 className="text-base font-extrabold text-slate-900 leading-tight">
-                  {inspectedRecord.title}
-                </h3>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" id="principal-feeds-grid">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between h-[360px] overflow-hidden" id="teacher-performance-card">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <h2 className="text-md font-bold text-slate-900 tracking-tight">Teacher Performance Indicators</h2>
               </div>
-              <button
-                onClick={() => setInspectedRecord(null)}
-                className="p-1 px-2.5 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors font-semibold text-xs shrink-0 cursor-pointer bg-white"
-              >
-                Close
-              </button>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs min-w-[340px]">
+                  <thead>
+                    <tr className="border-b border-slate-150 text-slate-450 font-mono tracking-wider font-extrabold uppercase">
+                      <th className="py-2.5">Teacher</th>
+                      <th className="py-2.5">Planner</th>
+                      <th className="py-2.5">Assess</th>
+                      <th className="py-2.5 text-center">Resources</th>
+                      <th className="py-2.5 text-right">Activity</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-105 font-medium text-slate-705">
+                    {teacherPerformanceData.length > 0 ? teacherPerformanceData.slice(0, DASHBOARD_ROW_LIMIT).map((row, rIdx) => (
+                      <tr key={rIdx} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="py-3.5 pr-2 truncate max-w-28 font-semibold text-slate-800">{row.teacher}</td>
+                        <td className="py-3.5"><span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getBadgeStyles(row.plannerStatus)}`}>{row.plannerStatus}</span></td>
+                        <td className="py-3.5"><span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getBadgeStyles(row.assessmentStatus)}`}>{row.assessmentStatus}</span></td>
+                        <td className="py-3.5 text-center font-sans text-[11px] text-slate-500">{row.resourceCount} files</td>
+                        <td className="py-3.5 text-right"><span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getBadgeStyles(row.activityStatus)}`}>{row.activityStatus}</span></td>
+                      </tr>
+                    )) : (
+                      <tr>
+                        <td className="py-4 text-slate-600" colSpan={5}>No teacher performance rows found in the dashboard source.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {teacherPerformanceData.length > 0 && (
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowTeacherReportsModal(true)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
+                  >
+                    View All ({teacherPerformanceData.length})
+                    <ArrowUpRight size={12} />
+                  </button>
+                </div>
+              )}
             </div>
+          </div>
 
-            {/* Main Content Body */}
-            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-              
-              <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-100 text-emerald-800 text-[11px] font-medium rounded-xl">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                <span>Connected via Active Fallback Integrations (Live Schema Agreement Synced)</span>
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between h-[360px] overflow-hidden" id="monitoring-forms-card">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <h2 className="text-md font-bold text-slate-900 tracking-tight">Monitoring Forms  -  Data Feeds</h2>
               </div>
-
-              {/* Data Properties List */}
-              <div className="space-y-2 border border-slate-100 rounded-xl overflow-hidden divide-y divide-slate-100">
-                {Object.entries(inspectedRecord.data).map(([key, val]) => {
-                  const humanLabel = key
-                    .replace(/([A-Z])/g, " $1")
-                    .replace(/^./, (str) => str.toUpperCase());
-                  
-                  let renderedVal = "";
-                  if (val === null || val === undefined) {
-                    renderedVal = "N/A";
-                  } else if (typeof val === "boolean") {
-                    renderedVal = val ? "Yes" : "No";
-                  } else if (Array.isArray(val)) {
-                    renderedVal = val.join(", ");
-                  } else if (typeof val === "object") {
-                    renderedVal = JSON.stringify(val);
-                  } else {
-                    renderedVal = String(val);
-                  }
-
-                  if (["id", "isFavorite", "isInactive", "announcements"].includes(key)) {
-                    return null;
-                  }
-
-                  return (
-                    <div key={key} className="flex flex-col sm:flex-row sm:items-baseline justify-between p-3 text-xs gap-1 select-text">
-                      <span className="text-slate-400 font-bold uppercase text-[9px] font-mono tracking-wider sm:max-w-[180px] shrink-0 truncate font-sans">
-                        {humanLabel}
-                      </span>
-                      <span className="text-slate-800 font-semibold font-sans text-right break-all">
-                        {renderedVal}
-                      </span>
+              <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                {monitoringFormsData.length > 0 ? monitoringFormsData.slice(0, DASHBOARD_ROW_LIMIT).map((form) => (
+                  <div
+                    key={form.id}
+                    onClick={() => setSelectedFormDetail(form)}
+                    className="p-3 border border-slate-100 hover:border-slate-300 hover:bg-slate-50/50 rounded-xl cursor-pointer flex items-center justify-between transition-all group animate-fade-in"
+                    id={`form-feed-row-${form.id}`}
+                  >
+                    <div className="flex items-start gap-3 min-w-0 pr-4">
+                      <div className={`p-2 rounded-xl shrink-0 ${
+                        form.statusType === "good" ? "bg-emerald-50 text-emerald-650" :
+                        form.statusType === "warning" ? "bg-amber-50 text-amber-650" :
+                        form.statusType === "risk" ? "bg-rose-50 text-rose-650" :
+                        "bg-blue-50 text-blue-650"
+                      }`}>
+                        <FileText size={16} />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-800 block truncate group-hover:text-blue-650 transition-colors">{form.name}</span>
+                        <span className="text-[11px] text-slate-500 block truncate leading-normal">{form.summary}</span>
+                      </div>
                     </div>
-                  );
-                })}
+                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
+                      form.statusType === "good" ? "bg-emerald-50 text-emerald-700 border-emerald-150" :
+                      form.statusType === "warning" ? "bg-amber-50 text-amber-705 border-amber-150" :
+                      form.statusType === "risk" ? "bg-rose-50 text-rose-700 border-rose-150" :
+                      "bg-blue-50 text-blue-700 border-blue-150"
+                    }`}>
+                      {form.statusLabel}
+                    </span>
+                  </div>
+                  )) : (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-600">
+                    No monitoring form rows found in the dashboard source.
+                  </div>
+                )}
               </div>
-
-              {/* Raw JSON inspection block */}
-              <div className="space-y-1.5 bg-transparent">
-                <span className="text-[9px] uppercase font-mono font-extrabold text-slate-400 block tracking-wider">
-                  Raw Schematic Payload Block
-                </span>
-                <pre className="p-3.5 bg-slate-50 border border-slate-150 rounded-xl font-mono text-[10px] text-slate-600 block break-all overflow-x-auto max-h-[140px] whitespace-pre-wrap leading-relaxed select-text font-semibold">
-                  {JSON.stringify(inspectedRecord.data, null, 2)}
-                </pre>
-              </div>
-
+              {monitoringFormsData.length > DASHBOARD_ROW_LIMIT && (
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={() => onToggleTab("dashboard-data-source")}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
+                  >
+                    View All ({monitoringFormsData.length})
+                    <ChevronRight size={12} />
+                  </button>
+                </div>
+              )}
             </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between text-[11px] text-slate-500 font-sans">
-              <span>Primary schema source: local connector memory cache</span>
-              <button
-                onClick={() => {
-                  setInspectedRecord(null);
-                  const activeTabField = document.getElementById("mock-data-studio-root");
-                  if (activeTabField) {
-                    activeTabField.scrollIntoView({ behavior: "smooth" });
-                  }
-                }}
-                className="px-3 py-1.5 bg-slate-105 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition-colors cursor-pointer border border-slate-250 hover:border-slate-350"
-              >
-                Inspect Schema Engine
-              </button>
-            </div>
-
           </div>
         </div>
-      )}
 
+        <div className="grid grid-cols-1 gap-6" id="principal-live-latest-grid">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between h-[360px] overflow-hidden" id="principal-remedial-card">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2 min-w-0">
+                  <ShieldAlert size={16} className="text-rose-600 shrink-0" />
+                  <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans truncate">Live Remedial Feed</h3>
+                </div>
+                {liveRemedialRows.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onToggleTab("dashboard-data-source")}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50 shrink-0"
+                  >
+                    View All ({liveRemedialRows.length})
+                    <ChevronRight size={12} />
+                  </button>
+                )}
+              </div>
+              <div className="space-y-3">
+                {visibleRemedialRows.length > 0 ? visibleRemedialRows.map((row, index) => (
+                  <button
+                    key={`remedial-${index}`}
+                    type="button"
+                    onClick={() => {
+                      setSelectedRemedialStudent(row);
+                      setShowFullRemedialModal(true);
+                    }}
+                    className="rounded-xl border border-slate-100 bg-slate-50 p-3 flex items-start justify-between gap-3 text-left hover:bg-slate-100/70 hover:border-slate-200 transition-all cursor-pointer w-full"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-slate-800 truncate">
+                        {String(row.student_name || row.name || row.title || row.label || [row.class, row.section, row.subject, row.risk_area].filter(Boolean).join(" · ") || "Tracked remedial row")}
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-1">
+                        {String(row.reason || row.notes || row.severity || row.risk || row.intervention_status || row.status || "").trim()}
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-sans font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-100 shrink-0">
+                      {String(row.status || row.intervention_status || row.severity || "Open")}
+                    </span>
+                  </button>
+                )) : (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-600">
+                    No remedial rows found in the dashboard source.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const clearDashboardDetailState = () => {
+    setSelectedAcademicLevelDrill(null);
+    setSelectedClassroomMetricDrill(null);
+    setSelectedComplianceItemDrill(null);
+    setSelectedFormDetail(null);
+    setShowTeacherReportsModal(false);
+    setShowFullRemedialModal(false);
+    setSelectedRemedialStudent(null);
+  };
+
+  const renderDetailOverlay = () => {
+    const shell = (title: string, subtitle: string, body: React.ReactNode) => (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 backdrop-blur-sm p-4">
+        <div className="w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl flex flex-col">
+          <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+            <div className="min-w-0">
+              <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Dashboard detail</div>
+              <h3 className="text-base font-extrabold text-slate-900 truncate">{title}</h3>
+              <p className="text-xs text-slate-600 mt-1">{subtitle}</p>
+            </div>
+            <button type="button" onClick={clearDashboardDetailState} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-extrabold text-slate-700 hover:bg-slate-50">Close</button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-5">{body}</div>
+          <div className="border-t border-slate-100 px-5 py-4 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                clearDashboardDetailState();
+                onToggleTab("overview");
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
+            >
+              Back to Dashboard
+            </button>
+            <button type="button" onClick={clearDashboardDetailState} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-extrabold text-slate-700 hover:bg-slate-100">
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+
+    if (selectedFormDetail) {
+      return shell(
+        selectedFormDetail.name || "Monitoring Form Detail",
+        selectedFormDetail.summary || selectedFormDetail.statusLabel || "Form row details",
+        (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              {[
+                ["Status", selectedFormDetail.statusLabel || selectedFormDetail.statusType || "Pending"],
+                ["Owner", selectedFormDetail.responsibleOwner || "Not set"],
+                ["Class", selectedFormDetail.linkedClassSection ? renderClassLabel(selectedFormDetail.linkedClassSection) : "Not set"],
+                ["Last submitted", selectedFormDetail.lastSubmittedDate || "Not set"],
+                ["Evidence", selectedFormDetail.evidenceLinkLabel || "Not linked"],
+                ["Source", selectedFormDetail.source || "Dashboard Data Source"]
+              ].map(([label, value]) => (
+                <div key={String(label)} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="text-[10px] uppercase tracking-wider font-mono text-slate-400 font-bold">{label}</div>
+                  <div className="mt-1 font-semibold text-slate-900">{String(value)}</div>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+              {selectedFormDetail.summary || "No additional monitoring form detail is available."}
+            </div>
+          </div>
+        )
+      );
+    }
+
+    if (showTeacherReportsModal) {
+      return shell(
+        "Teacher Performance Indicators",
+        `${teacherPerformanceData.length} row${teacherPerformanceData.length === 1 ? "" : "s"} in this report`,
+        (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs min-w-[640px]">
+              <thead>
+                <tr className="border-b border-slate-150 text-slate-450 font-mono tracking-wider font-extrabold uppercase">
+                  <th className="py-2.5">Teacher</th>
+                  <th className="py-2.5">Planner</th>
+                  <th className="py-2.5">Assess</th>
+                  <th className="py-2.5 text-center">Resources</th>
+                  <th className="py-2.5 text-right">Activity</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-105 font-medium text-slate-705">
+                {teacherPerformanceData.length > 0 ? teacherPerformanceData.map((row, idx) => (
+                  <tr key={idx}>
+                    <td className="py-3.5 pr-2 truncate max-w-28 font-semibold text-slate-800">{row.teacher}</td>
+                    <td className="py-3.5"><span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getBadgeStyles(row.plannerStatus)}`}>{row.plannerStatus}</span></td>
+                    <td className="py-3.5"><span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getBadgeStyles(row.assessmentStatus)}`}>{row.assessmentStatus}</span></td>
+                    <td className="py-3.5 text-center font-sans text-[11px] text-slate-500">{row.resourceCount} files</td>
+                    <td className="py-3.5 text-right"><span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getBadgeStyles(row.activityStatus)}`}>{row.activityStatus}</span></td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td className="py-4 text-slate-600" colSpan={5}>No teacher performance rows found in the dashboard source.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )
+      );
+    }
+
+    if (showFullRemedialModal) {
+      const remedialRows = (principalDashboard?.remedialRisk || []) as Array<Record<string, any>>;
+      const detail = selectedRemedialStudent || remedialRows[0] || null;
+      return shell(
+        detail ? String(detail.student_name || detail.name || detail.title || detail.label || "Live Remedial Feed") : "Live Remedial Feed",
+        detail ? String(detail.reason || detail.notes || detail.severity || detail.risk || detail.intervention_status || detail.status || "Detailed remedial row") : "No remedial row selected",
+        (
+          <div className="space-y-4">
+            {detail ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                {[
+                  ["Student", detail.student_name || detail.name || "Not named"],
+                  ["Status", detail.status || detail.intervention_status || detail.severity || "Open"],
+                  ["Class", detail.class || "Not set"],
+                  ["Section", detail.section || "Not set"],
+                  ["Subject", detail.subject || "Not set"],
+                  ["Risk area", detail.risk_area || "Not set"]
+                ].map(([label, value]) => (
+                  <div key={String(label)} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="text-[10px] uppercase tracking-wider font-mono text-slate-400 font-bold">{label}</div>
+                    <div className="mt-1 font-semibold text-slate-900">{String(value)}</div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+              {String(detail?.reason || detail?.notes || detail?.severity || detail?.risk || detail?.intervention_status || detail?.status || "No remedial details available.")}
+            </div>
+            <div className="space-y-3">
+              {remedialRows.map((row, idx) => (
+                <div key={`remedial-detail-${idx}`} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="font-semibold text-slate-900 text-sm truncate">{String(row.student_name || row.name || row.title || row.label || `Tracked remedial row ${idx + 1}`)}</div>
+                  <div className="text-[11px] text-slate-600 mt-1">{String(row.reason || row.notes || row.severity || row.risk || row.intervention_status || row.status || "No additional note")}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      );
+    }
+
+    if (selectedComplianceItemDrill) {
+      const selectedItem = complianceItemsWithStatus.find((item) => item.key === selectedComplianceItemDrill);
+      return shell(
+        selectedItem ? `${selectedItem.label} detail` : "Compliance Monitoring",
+        selectedItem ? `${selectedItem.percentage}% current coverage` : `${complianceItemsWithStatus.length} compliance rows`,
+        (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              {complianceItemsWithStatus.map((item) => (
+                <div key={item.key} className={`rounded-xl border p-3 ${selectedItem?.key === item.key ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-slate-50"}`}>
+                  <div className="font-semibold text-slate-900">{item.label}</div>
+                  <div className="mt-1 text-[11px] text-slate-600 capitalize">{item.status}</div>
+                  <div className="mt-1 font-bold text-slate-800">{item.percentage}%</div>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+              {selectedItem ? selectedItem.label : "Compliance rows can be opened from this panel or from the dashboard cards."}
+            </div>
+          </div>
+        )
+      );
+    }
+
+    if (selectedClassroomMetricDrill) {
+      const classroomRows = [
+        ["Total Classrooms", principalDashboard?.classroomMonitoring?.totalClassrooms || 0],
+        ["Posted this week", principalDashboard?.classroomMonitoring?.postedThisWeek || 0],
+        ["Zero Activity", principalDashboard?.classroomMonitoring?.zeroActivityThisWeek || 0],
+        ["Assignments created", principalDashboard?.classroomMonitoring?.assignmentsCreatedThisWeek || 0],
+        ["Submission rate", `${principalDashboard?.classroomMonitoring?.averageSubmissionRate || principalDashboard?.classroomMonitoring?.avgSubmissionRate || 0}%`],
+        ["Meet sessions", principalDashboard?.classroomMonitoring?.meetSessionsHeldThisWeek || 0]
+      ];
+      return shell(
+        "Classroom Monitoring",
+        `${selectedClassroomMetricDrill} drill-down`,
+        (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            {classroomRows.map(([label, value]) => (
+              <div key={String(label)} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="text-[10px] uppercase tracking-wider font-mono text-slate-400 font-bold">{label}</div>
+                <div className="mt-1 font-semibold text-slate-900">{String(value)}</div>
+              </div>
+            ))}
+          </div>
+        )
+      );
+    }
+
+    if (selectedAcademicLevelDrill) {
+      const academicRows = PRINCIPAL_DASHBOARD_SEED.academicMonitoring[academicTab] || [];
+      return shell(
+        "Academic Monitoring",
+        `${selectedAcademicLevelDrill} drill-down`,
+        (
+          <div className="space-y-3">
+            {academicRows.map((item: any, idx: number) => (
+              <div key={`academic-detail-${idx}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <span className="font-semibold text-slate-900">{item.level}</span>
+                  <span className="font-bold text-slate-700">{item.percentage}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      );
+    }
+
+    return null;
+  };
+
+  return (
+    <div className="space-y-6" id="dashboard-cockpit">
+      <style>{`
+        #dashboard-cockpit .rounded-2xl.border.border-slate-200.bg-white.p-4.shadow-sm,
+        #dashboard-cockpit .rounded-2xl.border.border-slate-200.bg-white.p-5.shadow-sm,
+        #dashboard-cockpit .rounded-2xl.border.border-slate-200.bg-white.p-6.shadow-sm {
+          max-height: 360px !important;
+          overflow: hidden !important;
+          padding-bottom: 1rem !important;
+        }
+      `}</style>
+      {renderWelcomeHeader()}
+      {currentDashboardView === "overview" && isTeacherRole() && renderTeacherDashboard()}
+      {currentDashboardView === "overview" && isHodRole() && renderHodDashboard()}
+      {currentDashboardView === "overview" && isManagerRole() && renderManagerDashboard()}
+      {currentDashboardView === "overview" && isStudentRole() && renderStudentDashboard()}
+      {currentDashboardView === "overview" && isExamsRole() && renderExamsDashboard()}
+      {currentDashboardView === "overview" && isParentRole() && renderParentDashboard()}
+      {currentDashboardView === "overview" && isCoordinatorRole() && renderCoordinatorDashboard()}
+      {currentDashboardView === "overview" && !isTeacherRole() && !isCoordinatorRole() && !isHodRole() && !isManagerRole() && !isStudentRole() && !isExamsRole() && !isParentRole() && renderPrincipalDashboardSections()}
+      {currentDashboardView === "overview" && !isPrincipalRole() && !isTeacherRole() && !isCoordinatorRole() && !isHodRole() && !isManagerRole() && !isStudentRole() && !isExamsRole() && !isParentRole() && renderRoleSpecificDashboardCards()}
+      {currentDashboardView === "role-cards" && renderRoleSpecificDashboardCards()}
+      {currentDashboardView === "registers" && renderRegistersHub()}
+      {currentDashboardView === "setup-registries" && renderSetupAndRegistriesPage()}
+      {currentDashboardView === "settings" && renderSettingsHub()}
+      {currentDashboardView === "data-source" && renderDashboardSourcePanel()}
+      {currentDashboardView === "setup" && renderRegistryBootstrapPreview()}
+      {currentDashboardView === "registry-detail" && renderRegistryDetailPanel()}
+      {renderDetailOverlay()}
     </div>
   );
+
 }
+
 

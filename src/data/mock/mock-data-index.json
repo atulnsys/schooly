@@ -47,16 +47,6 @@
       "futureConnector": "Multi-year data warehouse and historical analytical tables"
     },
     {
-      "path": "src/data/mock/dashboard-principal.mock.json",
-      "purpose": "Aggregated executive indicators, alerts feed, active planner compliance graphs, and educational metrics",
-      "futureConnector": "Derived backend analytical pipeline resolving from Forms Sheets & Classroom API statistics"
-    },
-    {
-      "path": "src/data/mock/dashboard-role-views.mock.json",
-      "purpose": "Contextual role perspectives restricting visibility according to Principal, Coordinator, Teacher, Admin, and Student roles",
-      "futureConnector": "Client-role context filter & Firebase Auth Custom Claims system"
-    },
-    {
       "path": "src/data/mock/ai-prompts.mock.json",
       "purpose": "Editable prompt templates for automated lesson plans, student homework sheets, quizzes compiler, and chaser notifications",
       "futureConnector": "Google Gemini API / Vertex AI system config payload"

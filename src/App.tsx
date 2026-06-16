@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from "react";
-import { 
-  WorkspaceFile, 
-  ClassroomCourse, 
-  ClassroomAssignment, 
-  TaskItem, 
-  AuditLog, 
+import React, { useState, useEffect, useMemo } from "react";
+import {
+  WorkspaceFile,
+  ClassroomCourse,
+  ClassroomAssignment,
+  TaskItem,
+  AuditLog,
   AutomationRule,
   StudentDetails,
   TeacherDetails,
@@ -20,13 +20,12 @@ import SystemGovernance from "./components/SystemGovernance";
 import MockDataStudio from "./components/MockDataStudio";
 import LessonPlanner from "./components/LessonPlanner";
 import TextbookIngestor from "./components/TextbookIngestor";
-import { 
-  GraduationCap, 
-  Search, 
-  CheckSquare, 
-  Sparkles, 
-  Command, 
-  ShieldAlert, 
+import {
+  GraduationCap,
+  Search,
+  Sparkles,
+  Command,
+  ShieldAlert,
   Menu,
   X,
   Star,
@@ -43,29 +42,123 @@ import {
   EyeOff,
   Key,
   AlertTriangle,
-  BookOpen
+  BookOpen,
+  LayoutGrid
 } from "lucide-react";
-import { 
-  loadActiveMetadata, 
-  compileDynamicNavigation, 
-  saveActiveMetadata, 
-  ExportableSchoolySchema 
+import {
+  loadActiveMetadata,
+  compileDynamicNavigation,
+  saveActiveMetadata,
+  ExportableSchoolySchema
 } from "./lib/schemaEngine";
 import { loadConnectionConfig, FALLBACK_ALERT_MESSAGES, validateSourceLink } from "./lib/dataSourceEngine";
-import { initAuth, googleSignIn, getAccessToken, logout as firebaseLogout } from "./lib/firebaseAuth";
-import { User as FirebaseUser } from "firebase/auth";
+import { DEFAULT_DASHBOARD_SHEET_URL } from "./lib/dashboardConfig";
+import { loadSchoolRegistry, type SchoolRegistryState, type StaffDirectoryRow, type StudentDirectoryRow, type StudentEnrollmentRow } from "./lib/schoolRegistry";
+import {
+  connectGoogleWorkspaceWriteAccess,
+  disconnectGoogleWorkspaceAccess,
+  getGoogleWorkspaceAccessToken,
+  getGoogleWorkspaceAuthState,
+  GOOGLE_WORKSPACE_AUTH_STATE_CHANGED_EVENT
+} from "./lib/googleWorkspaceAuth";
 
 const IconMap: Record<string, React.ComponentType<{ size: number; className?: string }>> = {
   Command,
   Search,
   GraduationCap,
-  CheckSquare,
   Sparkles,
   RefreshCw,
   ShieldAlert,
   Database,
-  BookOpen
+  BookOpen,
+  LayoutGrid,
+  FolderOpen
 };
+
+function normalizePersonaToken(value: string): string {
+  return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ");
+}
+const ROLE_PERSONA_SYNONYMS: Record<string, string[]> = {
+  principal: ["principal", "head", "headmaster", "head teacher", "director", "vice principal", "deputy principal"],
+  teacher: ["teacher", "instructor", "facilitator", "tutor", "mentor", "class teacher"],
+  coordinator: ["coordinator", "academic coordinator", "school coordinator", "examination chair", "exam chair", "curriculum coordinator"],
+  hod: ["hod", "head of department", "department head"],
+  admin: ["school admin", "administrator", "admin", "office admin", "operations admin"],
+  manager: ["manager", "school manager", "operations manager"],
+  hr: ["hr", "human resources", "hr manager", "people operations"],
+  exams: ["exams", "examination", "exam", "invigilation", "exam cell"],
+  parent: ["parent", "guardian", "parent representative"],
+  student: ["student", "learner", "pupil"]
+};
+
+function roleMatchesStaffDirectory(roleName: string, staffRole: string, staffDepartment: string = "", staffName: string = ""): boolean {
+  const role = normalizePersonaToken(roleName);
+  const staff = normalizePersonaToken(staffRole);
+  const department = normalizePersonaToken(staffDepartment);
+  const name = normalizePersonaToken(staffName);
+  if (!role) return false;
+
+  const roleSynonyms = ROLE_PERSONA_SYNONYMS[role] || [];
+  const candidates = [staff, department, name].filter(Boolean);
+  if (candidates.some((value) => value.includes(role) || role.includes(value))) return true;
+
+  return roleSynonyms.some((term) => candidates.some((value) => value.includes(term) || term.includes(value)));
+}
+
+function buildStaffPersonaOptions(staffDirectory: StaffDirectoryRow[], roleName: string) {
+  return (staffDirectory || [])
+    .filter((row) => {
+      const status = normalizePersonaToken(row.status);
+      return !status || status.includes("active") || status.includes("current") || status.includes("enabled");
+    })
+    .filter((row) => roleMatchesStaffDirectory(roleName, row.role, row.department, row.staff_name))
+    .sort((a, b) => String(a.staff_name || a.email || a.staff_id || "").localeCompare(String(b.staff_name || b.email || b.staff_id || "")))
+    .map((row) => {
+      const label = [row.staff_name, row.department ? `(${row.department})` : ""]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+      return {
+        value: row.email || row.staff_id || row.staff_name,
+        label: label || row.staff_name || row.email || row.staff_id || "Unnamed staff",
+        email: row.email || "",
+        role: row.role || "",
+        staffId: row.staff_id || "",
+      displayLabel: row.staff_name || row.email || row.staff_id || "Unnamed staff"
+      };
+    })
+    .filter((item) => Boolean(item.value));
+}
+
+function buildStudentPersonaOptions(studentDirectory: StudentDirectoryRow[], enrollmentRows: StudentEnrollmentRow[] = []) {
+  const enrollmentByStudentId = new Map(
+    (enrollmentRows || [])
+      .filter((row) => Boolean(row.student_id))
+      .map((row) => [String(row.student_id || "").trim().toLowerCase(), row] as const)
+  );
+
+  return (studentDirectory || [])
+    .filter((row) => {
+      const status = normalizePersonaToken(row.status);
+      return !status || status.includes("active") || status.includes("current") || status.includes("enabled");
+    })
+    .sort((a, b) => String(a.student_name || a.student_id || "").localeCompare(String(b.student_name || b.student_id || "")))
+    .map((row) => {
+      const enrollment = enrollmentByStudentId.get(String(row.student_id || "").trim().toLowerCase());
+      const className = enrollment?.class || row.class || "";
+      const section = enrollment?.section || row.section || "";
+      const classLabel = [className, section].filter(Boolean).join(section ? "-" : "");
+      return {
+        value: row.student_name || row.student_id || "Unnamed student",
+        label: classLabel ? `${row.student_name || row.student_id || "Unnamed student"} (${classLabel})` : (row.student_name || row.student_id || "Unnamed student"),
+        email: "",
+        role: "Student",
+        staffId: row.student_id || "",
+        displayLabel: row.student_name || row.student_id || "Unnamed student"
+      };
+    })
+    .filter((item) => Boolean(item.value));
+}
 
 interface SidebarGroup {
   label: string | null;
@@ -97,22 +190,28 @@ function resolveSidebarGroupsForDisplay(
   }
 
   // Check if admin-heavy (Administration or Governance in capabilities, or "School Admin" in roles)
-  const isAdminHeavy = activeCapabilities.includes("Administration") || 
-                       activeCapabilities.includes("Governance") || 
+  const isAdminHeavy = activeCapabilities.includes("Administration") ||
+                       activeCapabilities.includes("Governance") ||
                        activeRoles.includes("School Admin");
 
   if (isAdminHeavy) {
     // Case D: Admin-heavy menu
-    // Group into Daily Work (My Workspace + Teaching & Learning) & School Management (School Operations + Leadership & Governance)
+    // Group into Daily Work, Registers, School Management, and Settings.
     const dailyItems: typeof items = [];
+    const registerItems: typeof items = [];
     const managementItems: typeof items = [];
+    const settingsItems: typeof items = [];
     const otherGroups: Record<string, typeof items> = {};
 
     items.forEach(item => {
       if (item.parentGroup === "My Workspace" || item.parentGroup === "Teaching & Learning") {
         dailyItems.push(item);
+      } else if (item.parentGroup === "Registers") {
+        registerItems.push(item);
       } else if (item.parentGroup === "School Operations" || item.parentGroup === "Leadership & Governance") {
         managementItems.push(item);
+      } else if (item.parentGroup === "Settings") {
+        settingsItems.push(item);
       } else {
         if (!otherGroups[item.parentGroup]) {
           otherGroups[item.parentGroup] = [];
@@ -124,6 +223,12 @@ function resolveSidebarGroupsForDisplay(
     const groups: SidebarGroup[] = [];
     if (dailyItems.length > 0) {
       groups.push({ label: "Daily Work", items: dailyItems });
+    }
+    if (settingsItems.length > 0) {
+      groups.push({ label: "Settings", items: settingsItems });
+    }
+    if (registerItems.length > 0) {
+      groups.push({ label: "Registers", items: registerItems });
     }
     if (managementItems.length > 0) {
       groups.push({ label: "School Management", items: managementItems });
@@ -185,6 +290,14 @@ function resolveSidebarGroupsForDisplay(
       }
     }
 
+    if ((groupMap["Settings"] || []).length > 0) {
+      groups.push({ label: "Settings", items: groupMap["Settings"] });
+    }
+
+    if ((groupMap["Registers"] || []).length > 0) {
+      groups.push({ label: "Registers", items: groupMap["Registers"] });
+    }
+
     if (shouldMergeManagement) {
       if (managementItems.length > 0) {
         groups.push({ label: "School Management", items: managementItems });
@@ -201,7 +314,7 @@ function resolveSidebarGroupsForDisplay(
     // Post-pass check: If any group has only 1 item, make its label null to render flat
     const processedResult: SidebarGroup[] = [];
     groups.forEach(g => {
-      if (g.items.length === 1) {
+      if (g.items.length === 1 && g.label !== "Settings") {
         processedResult.push({ label: null, items: g.items });
       } else {
         processedResult.push(g);
@@ -237,11 +350,17 @@ function resolveSidebarGroupsForDisplay(
   if ((groupMap["Teaching & Learning"] || []).length > 0) {
     normalResult.push({ label: "Teaching & Learning", items: groupMap["Teaching & Learning"] });
   }
+  if ((groupMap["Settings"] || []).length > 0) {
+    normalResult.push({ label: "Settings", items: groupMap["Settings"] });
+  }
   if ((groupMap["School Operations"] || []).length > 0) {
     normalResult.push({ label: "School Operations", items: groupMap["School Operations"] });
   }
   if ((groupMap["Leadership & Governance"] || []).length > 0) {
     normalResult.push({ label: "Leadership & Governance", items: groupMap["Leadership & Governance"] });
+  }
+  if ((groupMap["Registers"] || []).length > 0) {
+    normalResult.push({ label: "Registers", items: groupMap["Registers"] });
   }
 
   return normalResult;
@@ -277,7 +396,7 @@ function getPlainLanguagePermissions(roles: string[]): string[] {
       "search files shared with you",
       "manage your tasks",
       "review Classroom activity",
-      "use AI Co-Pilot"
+      "use AI Assistant"
     ];
   }
   if (isCoordinator) {
@@ -286,7 +405,7 @@ function getPlainLanguagePermissions(roles: string[]): string[] {
       "manage department curricula",
       "track tasks and assignments",
       "oversee Classroom sync",
-      "use AI Co-Pilot"
+      "use AI Assistant"
     ];
   }
   if (isAdminOrPrincipal) {
@@ -333,8 +452,10 @@ export default function App() {
   });
 
   // Current Auth session simulation (RBAC controlled)
-  const [currentUser, setCurrentUser] = useState("torres.admin@school.org");
+  const [currentUser, setCurrentUser] = useState("Local Schooly operator");
   const [currentRole, setCurrentRole] = useState("Principal");
+  const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistryState | null>(null);
+  const [schoolRegistryLoading, setSchoolRegistryLoading] = useState(false);
 
   // Schema-driven active definitions states
   const [schema, setSchema] = useState<ExportableSchoolySchema>(() => loadActiveMetadata());
@@ -349,11 +470,74 @@ export default function App() {
 
   // Concurrent Multi-Roles selection states to enable combined governance capabilities
   const [activeRoles, setActiveRoles] = useState<string[]>(["Principal"]);
+  const schoolRegistryAcademicYearOptions = useMemo(() => {
+    const rows = (schoolRegistry?.academicYears || []) as Array<Record<string, any>>;
+    return Array.from(new Set(
+      rows
+        .map((row) => String(row.academic_year || row.academic_years || row.term_name || row.session || row.name || "").trim())
+        .filter(Boolean)
+    ));
+  }, [schoolRegistry]);
+  const schoolRegistryAcademicYearLabel = useMemo(() => {
+    const rows = [
+      ...(schoolRegistry?.academicYears || []),
+      ...(schoolRegistry?.schoolProfile || [])
+    ] as Array<Record<string, any>>;
+    for (const row of rows) {
+      const label = String(row.academic_years || row.academic_year || row.term_name || row.session || row.name || "").trim();
+      if (label) return label;
+    }
+    return "";
+  }, [schoolRegistry]);
+  const [selectedDashboardAcademicYearLabel, setSelectedDashboardAcademicYearLabel] = useState("");
+  useEffect(() => {
+    const fallbackLabel = schoolRegistryAcademicYearLabel || rolloverConfig.targetYear || rolloverConfig.currentYear || "";
+    if (schoolRegistryAcademicYearOptions.length === 0) {
+      if (!selectedDashboardAcademicYearLabel && fallbackLabel) {
+        setSelectedDashboardAcademicYearLabel(fallbackLabel);
+      }
+      return;
+    }
+    if (!selectedDashboardAcademicYearLabel || !schoolRegistryAcademicYearOptions.includes(selectedDashboardAcademicYearLabel)) {
+      setSelectedDashboardAcademicYearLabel(schoolRegistryAcademicYearLabel || schoolRegistryAcademicYearOptions[0] || fallbackLabel);
+    }
+  }, [schoolRegistryAcademicYearLabel, schoolRegistryAcademicYearOptions, selectedDashboardAcademicYearLabel, rolloverConfig.targetYear, rolloverConfig.currentYear]);
+  const dashboardAcademicYearLabel = selectedDashboardAcademicYearLabel || schoolRegistryAcademicYearLabel || rolloverConfig.targetYear || rolloverConfig.currentYear || "";
 
   useEffect(() => {
     // Keep active roles in sync with single role switcher persona
     setActiveRoles([currentRole]);
   }, [currentRole]);
+
+  useEffect(() => {
+    let isMounted = true;
+    setSchoolRegistryLoading(true);
+    loadSchoolRegistry()
+      .then((registry) => {
+        if (!isMounted) return;
+        setSchoolRegistry(registry);
+      })
+      .catch((error) => {
+        console.warn("[DEBUG] Live staff directory could not be loaded.", error);
+        if (!isMounted) return;
+        setSchoolRegistry(null);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setSchoolRegistryLoading(false);
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const [googleWorkspaceAuthState, setGoogleWorkspaceAuthState] = useState(() => getGoogleWorkspaceAuthState());
+  useEffect(() => {
+    const syncAuthState = () => setGoogleWorkspaceAuthState(getGoogleWorkspaceAuthState());
+    window.addEventListener(GOOGLE_WORKSPACE_AUTH_STATE_CHANGED_EVENT, syncAuthState);
+    return () => window.removeEventListener(GOOGLE_WORKSPACE_AUTH_STATE_CHANGED_EVENT, syncAuthState);
+  }, []);
 
   // Resolve combined capabilities list for UI preview
   const getCombinedCapabilities = () => {
@@ -368,11 +552,29 @@ export default function App() {
   };
   const activeCapabilities = getCombinedCapabilities();
 
+  const personaOptions = useMemo(
+    () => currentRole === "Student"
+      ? buildStudentPersonaOptions(schoolRegistry?.studentDirectory || [], schoolRegistry?.studentEnrollment || [])
+      : buildStaffPersonaOptions(schoolRegistry?.staffDirectory || [], currentRole),
+    [schoolRegistry, currentRole]
+  );
+
+  useEffect(() => {
+    if (personaOptions.length === 0) return;
+    const selectedExists = personaOptions.some((option) =>
+      [option.value, option.email, option.staffId, option.displayLabel, option.label].includes(currentUser)
+    );
+    if (!selectedExists || currentUser === "Local Schooly operator") {
+      setCurrentUser(personaOptions[0].value);
+    }
+  }, [currentRole, personaOptions, currentUser]);
+
   // Protect route views in real-time when roles or configurations shift
   useEffect(() => {
     // Avoid running before navigation items compile
     const activeNavIds = getNavigationItems().map(item => item.id);
-    if (activeNavIds.length > 0 && !activeNavIds.includes(activeTab)) {
+    const dashboardUtilityTabs = new Set(["dashboard-data-source", "school-setup", "setup-registries", "admin-registry-detail", "mock_studio"]);
+    if (activeNavIds.length > 0 && !activeNavIds.includes(activeTab) && !dashboardUtilityTabs.has(activeTab)) {
       console.log(`[ROUTE SECURITY] Active tab "${activeTab}" is not permitted for current capabilities. Redirecting to "${activeNavIds[0]}"`);
       setActiveTab(activeNavIds[0]);
     }
@@ -383,21 +585,13 @@ export default function App() {
     try {
       const stored = localStorage.getItem("schooly_workspace_url");
       console.log("[DEBUG] Read local storage workspace URL:", stored);
-      return stored || "https://drive.google.com/drive/folders/1D_e735SchoolyDriveRootFolder_AP_Syllabus";
+      return stored || DEFAULT_DASHBOARD_SHEET_URL;
     } catch (e) {
       console.warn("[DEBUG] LocalStorage read blocked by iframe sandbox restriction. Defaulting to demo coordinates.", e);
-      return "https://drive.google.com/drive/folders/1D_e735SchoolyDriveRootFolder_AP_Syllabus";
+      return DEFAULT_DASHBOARD_SHEET_URL;
     }
   });
-  const [showUrlModal, setShowUrlModal] = useState<boolean>(() => {
-    try {
-      const stored = localStorage.getItem("schooly_workspace_url");
-      return !stored;
-    } catch (e) {
-      console.warn("[DEBUG] LocalStorage read for showUrlModal failed. Suppressing auto-modal popup.", e);
-      return false; // Safely default to false so they are not locked by a popup on mount if sandbox is restricted
-    }
-  });
+  const [showUrlModal, setShowUrlModal] = useState<boolean>(false);
   const [tempUrl, setTempUrl] = useState<string>("");
   const [geminiApiKey, setGeminiApiKey] = useState<string>(() => {
     try {
@@ -409,11 +603,6 @@ export default function App() {
   });
   const [tempGeminiKey, setTempGeminiKey] = useState<string>("");
   const [showKeyText, setShowKeyText] = useState<boolean>(false);
-  
-  // Real Google SSO state controllers
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
-  const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
-  const [popupBlocked, setPopupBlocked] = useState<boolean>(false);
 
   // Google Sidebar testing state controllers
   const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
@@ -427,20 +616,17 @@ export default function App() {
       });
       return;
     }
-    
+
     setIsTestingConnection(true);
     setConnectionTestResult(null);
-    
+
     try {
       let authHeader = "";
-      const ssoConnected = localStorage.getItem("schooly_workspace_connected") === "true";
-      if (ssoConnected) {
-        const token = localStorage.getItem("google_access_token") || "";
-        if (token) {
-          authHeader = `Bearer ${token}`;
-        }
+      const token = await getGoogleWorkspaceAccessToken();
+      if (token) {
+        authHeader = `Bearer ${token}`;
       }
-      
+
       const response = await fetch("/api/workspace/test-connection", {
         method: "POST",
         headers: {
@@ -449,12 +635,12 @@ export default function App() {
         },
         body: JSON.stringify({ url: targetUrl })
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Server status: ${response.status} - ${errorText}`);
       }
-      
+
       const result = await response.json();
       setConnectionTestResult({
         success: result.success,
@@ -475,32 +661,16 @@ export default function App() {
   const [selectedFile, setSelectedFile] = useState<WorkspaceFile | null>(null);
 
   // Connection mode simulation evaluation (Phase 24 compliance sync checks)
-  const isWorkspaceMock = !validateSourceLink(workspaceUrl, "google_workspace") || (() => {
+  const isSheetWorkspace = workspaceUrl.trim().toLowerCase().startsWith("https://docs.google.com/spreadsheets/d/");
+  const isWorkspaceMock = (!validateSourceLink(workspaceUrl, "google_workspace") || (() => {
     try {
       return localStorage.getItem("schooly_workspace_connected") !== "true";
     } catch {
       return true;
     }
-  })();
+  })()) && !isSheetWorkspace;
 
   console.log(`[RENDER DIAGNOSTIC] App Component Render. Active Tab: ${activeTab} | Role: ${currentRole} | User: ${currentUser} | showUrlModal: ${showUrlModal} | workspaceUrl: ${workspaceUrl}`);
-
-  // Intialize and handle active Google login profiles
-  useEffect(() => {
-    const unsubscribe = initAuth(
-      async (user, token) => {
-        console.log("[FIREBASE AUTH SUCCESS] Active Google Session detected.");
-        setFirebaseUser(user);
-        fetchAllData();
-      },
-      () => {
-        console.log("[FIREBASE AUTH FALLBACK] No active Google session, using simulated fallback databases.");
-        setFirebaseUser(null);
-        fetchAllData();
-      }
-    );
-    return () => unsubscribe();
-  }, [workspaceUrl]);
 
   // Re-fetch all standard school assets when personas or operators pivot
   useEffect(() => {
@@ -511,7 +681,7 @@ export default function App() {
   const fetchAllData = async () => {
     console.log("[DEBUG] fetchAllData() triggered. Sending batch GET requests to REST backend...");
     try {
-      const token = await getAccessToken();
+      const token = await getGoogleWorkspaceAccessToken();
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
@@ -644,10 +814,10 @@ export default function App() {
   };
 
   // 6. Handle custom role swaps
-  const handleSwitchRole = (roleName: string, emailStr: string) => {
-    console.log(`[DEBUG] handleSwitchRole called. Target Persona: ${roleName} | Email: ${emailStr}`);
+  const handleSwitchRole = (roleName: string, personaValue: string) => {
+    console.log(`[DEBUG] handleSwitchRole called. Target Persona: ${roleName} | Selected user: ${personaValue}`);
     setCurrentRole(roleName);
-    setCurrentUser(emailStr);
+    setCurrentUser(personaValue);
 
     if (roleName !== "School Admin" && activeTab === "governance") {
       console.log("[DEBUG] Target role is not Admin and active tab is governance. Redirecting overview tab.");
@@ -659,7 +829,7 @@ export default function App() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        user: emailStr,
+        user: personaValue,
         role: roleName,
         action: "RBAC Swap",
         detail: `Swapped active workspace permissions to ${roleName} mode`,
@@ -732,7 +902,7 @@ export default function App() {
   const getNavigationItems = () => {
     // Generate compiled routes using the active roles and selected schema representation
     const compiled = compileDynamicNavigation(activeRoles, schema, schemaDrivenRendering);
-    
+
     // Resolve proper Lucide React component structures dynamically to maintain 100% type-safety & backwards compatibility
     const items = compiled.map(item => ({
       id: item.id,
@@ -755,10 +925,53 @@ export default function App() {
   };
 
   const navigationItems = getNavigationItems();
+  const primaryNavItems = [
+    { id: "overview", name: "Dashboard", icon: LayoutGrid, parentGroup: "Primary" },
+    { id: "search", name: "Search", icon: Search, parentGroup: "Primary" }
+  ];
+  const workspaceNavItems = [
+    { id: "ai-assistant", name: "AI Assistant", icon: Sparkles, parentGroup: "My Workspace" },
+    ...navigationItems.filter((item) => !["overview", "search", "ai-assistant"].includes(item.id))
+  ];
+  const getDisplayNavName = (item: { id: string; name: string }) => {
+    if (item.id === "lesson-plans") {
+      return "Lessons Workspace";
+    }
+    return sanitizeStudentTerminology(item.name, currentRole === "Student");
+  };
+  const hideRolePersonaWidget = currentRole === "Principal" || currentRole === "Manager";
+
+  const renderDashboardWorkspace = (dashboardView?: "overview" | "role-cards" | "registers" | "settings" | "data-source" | "setup" | "setup-registries" | "registry-detail") => (
+    <DashboardOverview
+      files={files}
+      courses={courses}
+      tasks={tasks}
+      students={students}
+      currentUser={currentUser}
+      currentRole={currentRole}
+      onSelectFile={(f) => setSelectedFile(f)}
+      onToggleFavorite={handleToggleFavorite}
+      onToggleTab={(t) => setActiveTab(t)}
+      schema={schema}
+      schemaDrivenRendering={schemaDrivenRendering}
+      activeRoles={activeRoles}
+      isWorkspaceMock={isWorkspaceMock}
+      workspaceUrl={workspaceUrl}
+      activeAcademicYearLabel={dashboardAcademicYearLabel}
+      academicYearOptions={schoolRegistryAcademicYearOptions}
+      onAcademicYearChange={setSelectedDashboardAcademicYearLabel}
+      dashboardView={dashboardView}
+      onConfigureWorkspace={() => {
+        setTempUrl(workspaceUrl);
+        setTempGeminiKey(geminiApiKey);
+        setShowUrlModal(true);
+      }}
+    />
+  );
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row font-sans text-slate-900" id="main-app-container">
-      
+
       {/* Mobile Top Header bar */}
       <header className="md:hidden bg-white border-b border-slate-200 px-4 py-3.5 flex items-center justify-between sticky top-0 z-40" id="mobile-top-bar">
         <div className="flex items-center gap-2">
@@ -767,7 +980,7 @@ export default function App() {
           </div>
           <span className="font-bold tracking-tight text-slate-900 text-sm">Schooly AI</span>
         </div>
-        <button 
+        <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="p-1.5 hover:bg-slate-50 rounded-md text-slate-500 hover:text-slate-700 cursor-pointer"
         >
@@ -781,7 +994,7 @@ export default function App() {
         md:static md:translate-x-0 shrink-0
         ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
       `} id="side-navigation-panel">
-        
+
         <div className="space-y-6">
           {/* Branded Title Segment */}
           <div className="hidden md:flex items-center gap-3 px-2">
@@ -795,85 +1008,158 @@ export default function App() {
           </div>
 
           {/* Sidenav Role Simulation Controller widget */}
-          <div className="px-2 bg-slate-50/50 border border-slate-100 p-2 text-left rounded-2xl" id="sandbox-preview-bar">
-            <label className="text-[9px] text-slate-400 font-mono font-bold block mb-1.5 uppercase tracking-wider">
-              Preview Persona View
-            </label>
+          {!hideRolePersonaWidget && (
+          <div className="px-2 bg-slate-50/50 border border-slate-100 p-3 text-left rounded-2xl space-y-3" id="sandbox-preview-bar">
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-[9px] text-slate-400 font-mono font-bold block uppercase tracking-wider">
+                Role context
+              </label>
+              {isWorkspaceMock && (
+                <span className="text-[8.5px] text-blue-600 font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 border border-blue-100">
+                  Preview
+                </span>
+              )}
+            </div>
+
             <select
-              value={`${currentUser}|${currentRole}`}
+              value={currentRole}
               onChange={(e) => {
-                const [email, role] = e.target.value.split("|");
-                handleSwitchRole(role, email);
+                const nextRole = e.target.value;
+                const nextOptions = nextRole === "Student"
+                  ? buildStudentPersonaOptions(schoolRegistry?.studentDirectory || [], schoolRegistry?.studentEnrollment || [])
+                  : buildStaffPersonaOptions(schoolRegistry?.staffDirectory || [], nextRole);
+                const fallbackRole = schema.roles.find((r) => r.roleName === nextRole || r.roleId === nextRole.toLowerCase().replace(/\s+/g, "-"));
+                handleSwitchRole(nextRole, nextOptions[0]?.value || fallbackRole?.defaultEmail || currentUser);
               }}
               className="w-full text-[11.5px] font-semibold bg-white border border-slate-200 text-slate-700 py-2 px-2 rounded-xl cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-sans shadow-2xs"
             >
-              {schema.roles.map(r => (
-                <option key={r.roleId} value={`${r.defaultEmail || `${r.roleId}@school.org`}|${r.roleName}`}>
+              {schema.roles.map((r) => (
+                <option key={r.roleId} value={r.roleName}>
                   {r.roleName}
                 </option>
               ))}
             </select>
 
-            {/* Micro indication when multiple roles are actively merged (Phase 2 capability group support) */}
-            {activeRoles.length > 1 && (
-              <div className="mt-2 text-[9.5px] text-blue-600 font-mono bg-blue-50 px-2 py-1.5 rounded-lg border border-blue-100 uppercase font-bold leading-normal">
+            {personaOptions.length > 0 ? (
+              <select
+                value={currentUser}
+                onChange={(e) => setCurrentUser(e.target.value)}
+                disabled={schoolRegistryLoading}
+                className="w-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-700 py-2 px-2 rounded-xl cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-sans shadow-2xs disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+                title={currentRole === "Student" ? "Select the student for the current role." : "Select the staff member for the current role."}
+              >
+                {personaOptions.map((person) => (
+                  <option key={`${person.value}-${person.email || person.staffId}`} value={person.value}>
+                    {person.displayLabel}
+                  </option>
+                ))}
+              </select>
+            ) : currentRole === "Student" ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-semibold text-amber-800">
+                No student profile found for this role.
+              </div>
+            ) : (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-semibold text-amber-800">
+                No additional profile found for this role.
+              </div>
+            )}
+
+            {isWorkspaceMock && personaOptions.length > 0 && (
+              <div className="text-[9px] text-slate-500 font-mono bg-white px-2 py-1.5 rounded-lg border border-slate-100">
+                {currentRole === "Student"
+                  ? `${personaOptions.length} student rows loaded`
+                  : `${personaOptions.length} staff rows loaded`}
+              </div>
+            )}
+
+            {isWorkspaceMock && activeRoles.length > 1 && (
+              <div className="text-[9.5px] text-blue-600 font-mono bg-blue-50 px-2 py-1.5 rounded-lg border border-blue-100 uppercase font-bold leading-normal">
                 Merged Capabilities: {activeRoles.length} Active Roles
               </div>
             )}
 
-            {/* What you can do - plain language permissions (Phase 19 compliance) */}
-            <div className="mt-2.5 pt-2 border-t border-slate-100 space-y-2" id="plain-permissions-sidebar-panel">
-              <button
-                type="button"
-                onClick={() => setShowCapabilities(!showCapabilities)}
-                className="w-full flex items-center justify-between text-left text-[9px] text-slate-500 font-bold uppercase tracking-wider hover:text-slate-705 transition-colors cursor-pointer"
-              >
-                <span className="font-sans">What you can do</span>
-                <span className="font-sans text-[9px]">{showCapabilities ? '▲' : '▼'}</span>
-              </button>
-              
-              {showCapabilities && (
-                <div className="space-y-2.5 pl-1.5 mt-1 transition-all">
-                  <ul className="list-disc list-inside space-y-1 text-[10px] text-slate-500 font-sans leading-tight">
-                    {getPlainLanguagePermissions(activeRoles).map((perm, idx) => (
-                      <li key={idx} className="capitalize">
-                        {sanitizeStudentTerminology(perm, activeRoles.includes("Student"))}
-                      </li>
-                    ))}
-                  </ul>
+            {isWorkspaceMock && (
+              <div className="pt-2 border-t border-slate-100 space-y-2" id="plain-permissions-sidebar-panel">
+                <button
+                  type="button"
+                  onClick={() => setShowCapabilities(!showCapabilities)}
+                  className="w-full flex items-center justify-between text-left text-[9px] text-slate-500 font-bold uppercase tracking-wider hover:text-slate-705 transition-colors cursor-pointer"
+                >
+                  <span className="font-sans">What you can do</span>
+                  <span className="font-sans text-[9px]">{showCapabilities ? 'Hide' : 'Show'}</span>
+                </button>
 
-                  {/* Show raw capability chips behind "Advanced access details" toggle for authorized roles/capabilities */}
-                  {(activeCapabilities.includes("Administration") || 
-                    activeCapabilities.includes("Governance") || 
-                    activeCapabilities.includes("Academic Leadership") || 
-                    activeRoles.includes("School Admin")) && (
-                    <div className="mt-2.5 pt-2 border-t border-dashed border-slate-100 space-y-1">
-                      <span className="text-[8px] font-mono font-bold text-slate-400 uppercase tracking-wider block">
-                        Advanced access details
-                      </span>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {activeCapabilities.map(cap => (
-                          <span 
-                            key={cap} 
-                            className="text-[8px] font-mono bg-slate-50 text-slate-500 px-1 py-0.5 rounded border border-slate-150"
-                            title={`Capability string: ${cap}`}
-                          >
-                            {cap}
-                          </span>
-                        ))}
+                {showCapabilities && (
+                  <div className="space-y-2.5 pl-1.5 mt-1 transition-all">
+                    <ul className="list-disc list-inside space-y-1 text-[10px] text-slate-500 font-sans leading-tight">
+                      {getPlainLanguagePermissions(activeRoles).map((perm, idx) => (
+                        <li key={idx} className="capitalize">
+                          {sanitizeStudentTerminology(perm, activeRoles.includes("Student"))}
+                        </li>
+                      ))}
+                    </ul>
+
+                    {(activeCapabilities.includes("Administration") ||
+                      activeCapabilities.includes("Governance") ||
+                      activeCapabilities.includes("Academic Leadership") ||
+                      activeRoles.includes("School Admin")) && (
+                      <div className="mt-2.5 pt-2 border-t border-dashed border-slate-100 space-y-1">
+                        <span className="text-[8px] font-mono font-bold text-slate-400 uppercase tracking-wider block">
+                          Advanced access details
+                        </span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {activeCapabilities.map(cap => (
+                            <span
+                              key={cap}
+                              className="text-[8px] font-mono bg-slate-50 text-slate-500 px-1 py-0.5 rounded border border-slate-150"
+                              title={`Capability string: ${cap}`}
+                            >
+                              {cap}
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
+          )}
+
+          {primaryNavItems.length > 0 && (
+            <div className="space-y-1.5" id="primary-nav-strip">
+              {primaryNavItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`w-full py-2 px-4 rounded-xl text-xs font-semibold flex items-center gap-3 transition-all cursor-pointer group ${
+                      activeTab === item.id
+                        ? "bg-blue-50 text-blue-700 font-bold"
+                        : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                    id={`nav-link-${item.id}`}
+                  >
+                    <Icon size={14} className="shrink-0 mt-0.5" />
+                    <div className="flex flex-col text-left">
+                      <span className="font-semibold">{getDisplayNavName(item)}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* Nav buttons list */}
           <nav className="space-y-4" id="nav-options">
             {schemaDrivenRendering ? (
               // Role-Aware Workspace Navigation Groups (Presentation-only dynamically filtered)
-              resolveSidebarGroupsForDisplay(navigationItems, activeCapabilities, activeRoles).map((group, groupIdx) => {
+              resolveSidebarGroupsForDisplay(workspaceNavItems, activeCapabilities, activeRoles).map((group, groupIdx) => {
                 return (
                   <div key={group.label || `flat-group-${groupIdx}`} className="space-y-1 bg-transparent">
                     {group.label && (
@@ -891,15 +1177,15 @@ export default function App() {
                             setMobileMenuOpen(false);
                           }}
                           className={`w-full py-2 px-4 rounded-xl text-xs font-semibold flex items-center gap-3 transition-all cursor-pointer group ${
-                            activeTab === item.id 
-                               ? "bg-blue-50 text-blue-700 font-bold" 
+                            activeTab === item.id
+                               ? "bg-blue-50 text-blue-700 font-bold"
                                : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                           }`}
                           id={`nav-link-${item.id}`}
                         >
                           <Icon size={14} className="shrink-0 mt-0.5" />
                           <div className="flex flex-col text-left">
-                            <span className="font-semibold">{sanitizeStudentTerminology(item.name, currentRole === "Student")}</span>
+                            <span className="font-semibold">{getDisplayNavName(item)}</span>
                             {item.helperText && (
                               <span className="text-[9.5px] font-normal leading-normal text-slate-400 group-hover:text-slate-500 transition-colors mt-0.5 font-sans">
                                 {sanitizeStudentTerminology(item.helperText, currentRole === "Student")}
@@ -925,15 +1211,15 @@ export default function App() {
                         setMobileMenuOpen(false);
                       }}
                       className={`w-full py-2.5 px-4 rounded-xl text-xs font-semibold flex items-center gap-3 transition-all cursor-pointer group ${
-                        activeTab === item.id 
-                           ? "bg-blue-50 text-blue-700 rounded-xl font-bold" 
+                        activeTab === item.id
+                           ? "bg-blue-50 text-blue-700 rounded-xl font-bold"
                            : "text-slate-500 hover:bg-slate-50 hover:text-slate-905"
                       }`}
                       id={`nav-link-${item.id}`}
                     >
                       <Icon size={16} className="shrink-0 mt-0.5" />
                       <div className="flex flex-col text-left">
-                        <span className="font-semibold">{sanitizeStudentTerminology(item.name, currentRole === "Student")}</span>
+                        <span className="font-semibold">{getDisplayNavName(item)}</span>
                         {item.helperText && (
                           <span className="text-[9.5px] font-normal leading-normal text-slate-450 group-hover:text-slate-500 transition-colors mt-0.5 font-sans">
                             {sanitizeStudentTerminology(item.helperText, currentRole === "Student")}
@@ -950,119 +1236,59 @@ export default function App() {
 
         {/* Sidebar Footer segment */}
         <div className="pt-4 border-t border-slate-150 space-y-3 font-mono">
-          {/* Google SSO Status Integrator */}
+          {/* Workspace connection status */}
           <div className="bg-slate-50 border border-slate-150 p-2.5 rounded-2xl font-sans text-[11px] space-y-2">
             <div className="flex items-center justify-between text-[8px] font-mono font-bold text-slate-400 block uppercase tracking-wider">
-              <span>Google Account Connection</span>
-              <span className={`w-2 h-2 rounded-full ${firebaseUser ? "bg-emerald-500" : "bg-amber-400"}`}></span>
+              <span>Google Workspace Connection</span>
+              <span className={`w-2 h-2 rounded-full ${workspaceUrl ? "bg-emerald-500" : "bg-amber-400"}`}></span>
             </div>
-            {firebaseUser ? (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  {firebaseUser.photoURL ? (
-                    <img src={firebaseUser.photoURL} alt="Google Profile" className="w-6.5 h-6.5 rounded-full border border-slate-200" referrerPolicy="no-referrer" />
-                  ) : (
-                    <div className="w-6.5 h-6.5 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-[10px]">
-                      {firebaseUser.displayName?.charAt(0) || "U"}
-                    </div>
-                  )}
-                  <div className="truncate flex-1 font-sans">
-                    <div className="font-bold text-slate-700 leading-tight truncate">{firebaseUser.displayName}</div>
-                    <div className="text-[9.5px] text-slate-450 leading-none truncate">{firebaseUser.email}</div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await firebaseLogout();
-                    setFirebaseUser(null);
-                    localStorage.setItem("schooly_workspace_connected", "false");
-                    fetchAllData();
-                  }}
-                  className="w-full py-1.5 border border-slate-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 text-slate-500 rounded-xl text-[10px] font-bold font-sans transition-all text-center cursor-pointer"
-                >
-                  Sign Out of Google
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-1.5 font-sans">
-                <p className="text-[10px] text-slate-450 leading-relaxed font-semibold">
-                  Connect your Google Account to synchronize live syllabus folders and classroom courses.
-                </p>
-                {popupBlocked && (
-                  <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-xl text-[10px] leading-normal text-amber-900 space-y-1.5 animate-fade-in" id="sidebar-popup-blocked-fallback">
-                    <div className="flex items-center gap-1.5 font-bold text-amber-955">
-                      <svg className="w-3.5 h-3.5 text-amber-600 animate-pulse shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </svg>
-                      <span>Popup Window Blocked</span>
-                    </div>
-                    <p className="font-semibold text-amber-800">
-                      The browser's sandbox blocked sign-in in this integrated frame. Open the app in a standalone window, connect there successfully, and refresh here!
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        window.open(window.location.href, "_blank");
-                      }}
-                      className="w-full py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-lg text-[9px] uppercase tracking-wider font-mono transition-colors cursor-pointer text-center"
-                    >
-                      🚀 Open App in New Tab
-                    </button>
-                  </div>
+            <div className="space-y-1.5 font-sans">
+              <p className="text-[10px] text-slate-450 leading-relaxed font-semibold">
+                Schooly uses the configured Workspace link for live registry checks. Google Sheets write access is managed in the onboarding wizard.
+              </p>
+              <div className="flex items-center gap-1.5 text-[10px]">
+                <Link size={11} className="shrink-0 text-blue-600" />
+                {workspaceUrl ? (
+                  <span className="truncate max-w-[180px] text-slate-700 font-semibold" title={workspaceUrl}>{workspaceUrl}</span>
+                ) : (
+                  <span className="text-amber-700 font-bold">No Workspace Link Configured</span>
                 )}
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setIsLoggingIn(true);
-                    setPopupBlocked(false);
-                    try {
-                      const res = await googleSignIn();
-                      if (res) {
-                        setFirebaseUser(res.user);
-                        localStorage.setItem("schooly_workspace_connected", "true");
-                        fetchAllData();
-                      }
-                    } catch (e: any) {
-                      console.error("[GOOGLE LOGIN FAILURE]", e);
-                      const errMsg = e?.message || "";
-                      if (errMsg.includes("popup-blocked") || errMsg.includes("popup") || e?.code === "auth/popup-blocked") {
-                        setPopupBlocked(true);
-                      }
-                    } finally {
-                      setIsLoggingIn(false);
-                    }
-                  }}
-                  disabled={isLoggingIn}
-                  className="w-full py-2 px-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-2 cursor-pointer text-slate-650 shadow-xs"
-                >
-                  <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="w-3.5 h-3.5 shrink-0">
-                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
-                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
-                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
-                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
-                  </svg>
-                  <span>{isLoggingIn ? "Connecting..." : "Sign in with Google"}</span>
-                </button>
               </div>
-            )}
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 bg-white px-2 py-1">
+                <span className="text-[9px] uppercase font-mono font-black text-slate-400">Google Sheets write access</span>
+                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${googleWorkspaceAuthState.connected ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                  {googleWorkspaceAuthState.connected ? "Connected" : "Not connected"}
+                </span>
+              </div>
+              <div className="text-[9px] text-slate-500 font-mono space-y-0.5">
+                <div>Local Schooly role: {currentRole}</div>
+                <div>Google Sheets write account: {googleWorkspaceAuthState.connected ? "Connected account unavailable" : "Not connected"}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowUrlModal(true)}
+                className="w-full py-1.5 border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-xl text-[10px] font-bold font-sans transition-all text-center cursor-pointer"
+              >
+                Configure Workspace Link
+              </button>
+            </div>
           </div>
 
-          {/* Active Operator info with lower emphasis */}
           <div className="space-y-1 text-[11px] text-slate-450">
             <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5 mb-1.5">
-              <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider block">Operator</span>
+              <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider block">Local Schooly role</span>
               <span className="text-[9px] text-slate-500 font-bold px-1.5 py-0.5 bg-slate-50 border border-slate-150 rounded-md font-mono uppercase shrink-0">
                 {currentRole.split(' ')[0]}
               </span>
             </div>
-            <div className="font-semibold text-slate-650 truncate text-[10.5px]" title={currentUser}>{currentUser}</div>
+            <div className="font-semibold text-slate-650 truncate text-[10.5px]" title={currentUser}>Local Schooly operator</div>
             <div className="text-[9px] text-slate-400 italic flex items-center gap-1">
-              <span>Permission Level 4</span>
+              <span>Google Sheets write access: {googleWorkspaceAuthState.connected ? "Connected" : "Not connected"}</span>
               {schemaDrivenRendering && (
                 <span className="text-[8.5px] text-blue-600 bg-blue-50 px-1 py-0.2 rounded-sm border border-blue-105 font-mono">META</span>
               )}
             </div>
+            <div className="text-[9px] text-slate-500 font-mono">Google Sheets write account: {googleWorkspaceAuthState.connected ? "Connected account unavailable" : "Not connected"}</div>
           </div>
 
           {/* Workspace URL link status info */}
@@ -1087,8 +1313,8 @@ export default function App() {
                   disabled={isTestingConnection}
                   onClick={() => handleTestConnection(workspaceUrl)}
                   className={`w-full py-1 px-2 rounded-lg text-[8.5px] font-bold font-mono uppercase tracking-wider text-center cursor-pointer transition-all flex items-center justify-center gap-1 border ${
-                    isTestingConnection 
-                      ? 'bg-slate-100 border-slate-200 text-slate-450' 
+                    isTestingConnection
+                      ? 'bg-slate-100 border-slate-200 text-slate-450'
                       : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-250'
                   }`}
                   id="sidebar-test-connection-btn"
@@ -1144,43 +1370,51 @@ export default function App() {
 
       {/* Mobile menu Back Drop Overlay */}
       {mobileMenuOpen && (
-        <div 
+        <div
           onClick={() => setMobileMenuOpen(false)}
           className="fixed inset-0 bg-slate-900/35 z-35 md:hidden"
         />
       )}
 
       {/* Main Content Workspace viewport */}
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-6 overflow-x-hidden" id="viewport-workspace">
-        
+      <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 w-full space-y-6 overflow-x-hidden" id="viewport-workspace">
+        <div className="mx-auto w-full max-w-[1440px] space-y-6">
+
         {/* Dynamic Route Switch Panel */}
         {activeTab === "overview" && (
-          <DashboardOverview 
-            files={files}
-            courses={courses}
-            tasks={tasks}
-            students={students}
-            currentUser={currentUser}
-            currentRole={currentRole}
-            onSelectFile={(f) => setSelectedFile(f)}
-            onToggleFavorite={handleToggleFavorite}
-            onToggleTab={(t) => setActiveTab(t)}
-            schema={schema}
-            schemaDrivenRendering={schemaDrivenRendering}
-            activeRoles={activeRoles}
-            isWorkspaceMock={isWorkspaceMock}
-            firebaseUser={firebaseUser}
-            workspaceUrl={workspaceUrl}
-            onConfigureWorkspace={() => {
-              setTempUrl(workspaceUrl);
-              setTempGeminiKey(geminiApiKey);
-              setShowUrlModal(true);
-            }}
-          />
+          renderDashboardWorkspace("overview")
+        )}
+
+        {activeTab === "role-cards" && (
+          renderDashboardWorkspace("role-cards")
+        )}
+
+        {activeTab === "registers" && (
+          renderDashboardWorkspace("registers")
+        )}
+
+        {activeTab === "settings" && (
+          renderDashboardWorkspace("settings")
+        )}
+
+        {activeTab === "dashboard-data-source" && (
+          renderDashboardWorkspace("data-source")
+        )}
+
+        {activeTab === "school-setup" && (
+          renderDashboardWorkspace("setup")
+        )}
+
+        {activeTab === "setup-registries" && (
+          renderDashboardWorkspace("setup-registries")
+        )}
+
+        {activeTab === "admin-registry-detail" && (
+          renderDashboardWorkspace("registry-detail")
         )}
 
         {activeTab === "search" && (
-          <UniversalSearch 
+          <UniversalSearch
             files={files}
             onToggleFavorite={handleToggleFavorite}
             onUpdateTags={handleUpdateTags}
@@ -1191,7 +1425,7 @@ export default function App() {
         )}
 
         {activeTab === "classroom" && (
-          <ClassroomManager 
+          <ClassroomManager
             courses={courses}
             assignments={assignments}
             students={students}
@@ -1200,7 +1434,7 @@ export default function App() {
         )}
 
         {activeTab === "tasks" && (
-          <TaskProductivity 
+          <TaskProductivity
             tasks={tasks}
             files={files}
             onAddTask={handleAddTask}
@@ -1212,7 +1446,7 @@ export default function App() {
         )}
 
         {activeTab === "ai-assistant" && (
-          <AIAssistants 
+          <AIAssistants
             automations={automations}
             onToggleAutomation={handleToggleAutomation}
             onAddAutomation={handleAddAutomation}
@@ -1224,7 +1458,7 @@ export default function App() {
         )}
 
         {activeTab === "rollover" && (
-          <AcademicRollover 
+          <AcademicRollover
             rolloverConfig={rolloverConfig}
             onTriggerRollover={handleTriggerRollover}
             currentUser={currentUser}
@@ -1233,7 +1467,7 @@ export default function App() {
         )}
 
         {activeTab === "governance" && (
-          <SystemGovernance 
+          <SystemGovernance
             auditLogs={auditLogs}
             currentUser={currentUser}
             currentRole={currentRole}
@@ -1268,7 +1502,7 @@ export default function App() {
         )}
 
         {activeTab === "lesson-plans" && (
-          <LessonPlanner 
+          <LessonPlanner
             files={files}
             courses={courses}
             currentUser={currentUser}
@@ -1279,7 +1513,7 @@ export default function App() {
         )}
 
         {activeTab === "textbooks" && (
-          <TextbookIngestor 
+          <TextbookIngestor
             files={files}
             courses={courses}
             currentUser={currentUser}
@@ -1290,14 +1524,15 @@ export default function App() {
           />
         )}
 
+        </div>
       </main>
 
       {/* Globally absolute Document Preview Slideover / Modal Overlay for easy quick actions */}
       {selectedFile && (
         <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/40" id="global-preview-modal">
           <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-xl border border-slate-200 relative space-y-4 max-h-[90vh] overflow-y-auto animate-fade-in">
-            
-            <button 
+
+            <button
               onClick={() => setSelectedFile(null)}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1.5 rounded-md cursor-pointer"
             >
@@ -1347,8 +1582,8 @@ export default function App() {
                   selectedFile.isFavorite = !selectedFile.isFavorite;
                 }}
                 className={`flex-1 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
-                  selectedFile.isFavorite 
-                    ? "bg-amber-50 text-amber-700 border border-amber-100" 
+                  selectedFile.isFavorite
+                    ? "bg-amber-50 text-amber-700 border border-amber-100"
                     : "bg-slate-100 hover:bg-slate-200 text-slate-700"
                 }`}
               >
@@ -1375,7 +1610,7 @@ export default function App() {
       {showUrlModal && (
         <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/40" id="workspace-url-modal">
           <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl border border-slate-200 relative space-y-4 max-h-[90vh] overflow-y-auto animate-fade-in">
-            
+
             <div className="flex items-start gap-3">
               <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl mt-0.5 shrink-0">
                 <Database size={20} className="animate-pulse" />
@@ -1387,89 +1622,19 @@ export default function App() {
                 <p className="text-xs text-slate-500 mt-1 font-sans leading-relaxed">
                   Provide a valid Google Drive Folder, Shared Folder, or Domain Root URL to establish synchronous indexing coordinates. Copilot planners require Workspace mapping indexes to compile curriculums.
                 </p>
-                
-                {/* Embedded SSO Prompter inside modal */}
-                <div className="mt-3 bg-blue-50/50 border border-blue-100 p-3 rounded-xl space-y-2 text-xs font-sans">
-                  <div className="font-bold text-blue-800 flex items-center gap-1.5">
+                <div className="mt-3 bg-slate-50 border border-slate-100 p-3 rounded-xl space-y-2 text-xs font-sans">
+                  <div className="font-bold text-slate-800 flex items-center gap-1.5">
                     <Database size={13} />
-                    <span>Authorize Live API Queries</span>
+                    <span>Workspace link only</span>
                   </div>
                   <p className="text-[11px] text-slate-650 leading-relaxed font-semibold">
-                    You must sign in with Google to grant permission to query Google Drive & Classroom streams in real-time.
+                    Schooly uses the configured Workspace URL for connection checks. Google Sheets write access is managed separately in the onboarding wizard.
                   </p>
-                  
-                  {firebaseUser ? (
-                    <div className="flex items-center justify-between bg-white border border-slate-150 p-2 rounded-lg font-sans">
-                      <div className="flex items-center gap-1.5 truncate">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                        <span className="truncate font-bold text-slate-700">{firebaseUser.displayName}</span>
-                      </div>
-                      <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Authorized</span>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {popupBlocked && (
-                        <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-[10.5px] leading-relaxed text-amber-900 space-y-2 animate-fade-in" id="modal-popup-blocked-fallback">
-                          <div className="flex items-center gap-1.5 font-bold text-amber-955">
-                            <svg className="w-3.5 h-3.5 text-amber-600 animate-pulse shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                            </svg>
-                            <span>Iframe Sandbox Popup Warning</span>
-                          </div>
-                          <p className="font-semibold text-amber-800">
-                            The browser prevents opening oauth popups within an embedded iframe workspace. Please open this applet in a separate window, log in with Google, and your active session will instantly load here.
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              window.open(window.location.href, "_blank");
-                            }}
-                            className="w-full py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-lg text-[9px] uppercase tracking-wider font-mono transition-colors cursor-pointer text-center"
-                          >
-                            🚀 Open standalone workspace
-                          </button>
-                        </div>
-                      )}
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          setIsLoggingIn(true);
-                          setPopupBlocked(false);
-                          try {
-                            const res = await googleSignIn();
-                            if (res) {
-                              setFirebaseUser(res.user);
-                              localStorage.setItem("schooly_workspace_connected", "true");
-                              fetchAllData();
-                            }
-                          } catch (e: any) {
-                            console.error("[OAUTH SETUP ERROR]", e);
-                            const errMsg = e?.message || "";
-                            if (errMsg.includes("popup-blocked") || errMsg.includes("popup") || e?.code === "auth/popup-blocked") {
-                              setPopupBlocked(true);
-                            }
-                          } finally {
-                            setIsLoggingIn(false);
-                          }
-                        }}
-                        disabled={isLoggingIn}
-                        className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10.5px] font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
-                      >
-                        <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="w-3.5 h-3.5 shrink-0">
-                          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
-                          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
-                          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
-                          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
-                        </svg>
-                        <span>{isLoggingIn ? "Connecting..." : "Enable real-time Google SSO"}</span>
-                      </button>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
 
-             <div className="space-y-3.5 pt-2">
+            <div className="space-y-3.5 pt-2">
               <div>
                 <label className="text-[10px] text-slate-400 font-mono block mb-1.5 font-bold uppercase tracking-wider">
                   ENTER DRIVE OR WORKSPACE DIRECTORY URL *
@@ -1492,7 +1657,7 @@ export default function App() {
                 onClick={() => setTempUrl("https://drive.google.com/drive/folders/1D_e735SchoolyDriveRootFolder_AP_Syllabus")}
                 className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-all block text-left"
               >
-                💡 Insert Demo Folder Coordinate Link
+                Insert Demo Folder Coordinate Link
               </button>
 
               <div className="pt-3 border-t border-slate-100">
@@ -1523,6 +1688,12 @@ export default function App() {
                   Provide your own API Key to run requests using your personal developer quota if the global backend key is unconfigured.
                 </p>
               </div>
+
+              <div className="pt-3 border-t border-slate-100">
+                <p className="text-[9.5px] text-slate-450 mt-1.5 font-sans leading-relaxed">
+                  Google Sheets write access is managed in the School Setup Onboarding Wizard and stays separate from the Workspace URL.
+                </p>
+              </div>
             </div>
 
             <div className="pt-4 border-t border-slate-150 flex flex-wrap gap-2">
@@ -1539,7 +1710,7 @@ export default function App() {
               >
                 Skip / Setup Later
               </button>
-              
+
               <button
                 type="button"
                 onClick={() => {
@@ -1559,7 +1730,6 @@ export default function App() {
                     setWorkspaceUrl(tempUrl.trim());
                     setGeminiApiKey(tempGeminiKey.trim());
                     setShowUrlModal(false);
-                    // Log the action on server
                     fetch("/api/audit-logs", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
@@ -1583,7 +1753,6 @@ export default function App() {
                 Associate Workspace Coordinates
               </button>
             </div>
-
           </div>
         </div>
       )}

@@ -36,7 +36,7 @@ The SDOS organizes institutional workflows into **Three Institutional Worlds** t
   - `01_Compliance`: Evidence logs and statutory reports.
   - `02_Academic_Audit`: Audited lesson planning status and feedback sheets.
   - `03_HR`: Teacher performance parameters and training files.
-  - `04_Dashboard_Data`: Data streams and ledgers for structural monitoring.
+  - `05_Dashboard_Data`: Data streams and ledgers for structural monitoring.
 
 ---
 

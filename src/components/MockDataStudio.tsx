@@ -21,12 +21,6 @@ interface MockFileDescriptor {
 
 const CONSTANT_MOCK_FILES: MockFileDescriptor[] = [
   {
-    path: "dashboard-principal",
-    name: "Dashboard Principal Metrics",
-    purpose: "Main executive stats (Active classrooms, planning checklists, safety index and CBSE scores)",
-    futureConnector: "Express resolver pipeline fetching from active classroom and syllabus Sheets spreadsheets"
-  },
-  {
     path: "forms-monitoring",
     name: "Forms Intake Sheets",
     purpose: "Weekly syllabus planners, notebook corrective signs, remedial logs and administrative audits",
@@ -49,24 +43,6 @@ const CONSTANT_MOCK_FILES: MockFileDescriptor[] = [
     name: "Institutional Roster Setup",
     purpose: "Core school setup parameters, academic department mappings, sections, stages classification schemas, and service accounts",
     futureConnector: "Google Admin Directory API"
-  },
-  {
-    path: "dashboard-role-views",
-    name: "Multi-Role Dashboard Cards",
-    purpose: "Contextual role panels restricting view options for Principal, HOD, Coordinator, Teacher, Admin, and Student views",
-    futureConnector: "Firebase Auth Custom RBAC Claims"
-  },
-  {
-    path: "teacher-dashboard",
-    name: "Teacher Performance & Compliance",
-    purpose: "Teacher UT3 class assessment metrics, weekly classroom posting completion tallies, and warning thresholds",
-    futureConnector: "Classroom coursework sync & local grading pipeline databases"
-  },
-  {
-    path: "coordinator-dashboard",
-    name: "Coordinator Dashboard — Middle School",
-    purpose: "Middle School KPIs, classroom postings status matrix, syllabus progress percentages, and assessment scores",
-    futureConnector: "School coordinator REST logs & grading pipeline databases"
   },
   {
     path: "academic-artifacts",
@@ -299,7 +275,7 @@ export default function MockDataStudio() {
               })}
               {filteredFiles.length === 0 && (
                 <div className="text-center py-8 text-slate-400 text-xs">
-                  No mock databases matching search filter found.
+                  No registry files matching search filter found.
                 </div>
               )}
             </div>

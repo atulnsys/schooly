@@ -161,13 +161,13 @@ $GovFolders = @(
     "01_Compliance",
     "02_Academic_Audit",
     "03_HR",
-    "04_Dashboard_Data",
-    "05_SOPs",
-    "06_Strategic_Planning",
-    "07_Meeting_Minutes",
-    "08_School_Improvement_Plans",
-    "09_Committee_Records",
-    "10_Policies"
+    "05_Dashboard_Data",
+    "06_SOPs",
+    "07_Strategic_Planning",
+    "08_Meeting_Minutes",
+    "09_School_Improvement_Plans",
+    "10_Committee_Records",
+    "11_Policies"
 )
 
 $Forms = @(
@@ -405,7 +405,7 @@ foreach ($Folder in $GovFolders) {
 }
 
 # Governance subfolders for Dashboard Data
-$SafeDashboardData = ConvertTo-SafePathName "04_Dashboard_Data"
+$SafeDashboardData = ConvertTo-SafePathName "05_Dashboard_Data"
 $DashboardDataRoot = Join-Path -Path $GovernanceRoot -ChildPath $SafeDashboardData
 
 $DashboardModules = @(
@@ -497,7 +497,7 @@ foreach ($Form in $Forms) {
     New-Dir $FormPath
     New-Doc -Path (Join-Path -Path $FormPath -ChildPath "README.md") `
             -Title "$Form Intake Guidelines" `
-            -Content "Teachers and staff submit responses via standard institutional forms. Automated scraping scripts parse files under this directory to feed executive dashboards in 'School Governance\04_Dashboard_Data'.`n`nOwner: principal + coordinators"
+            -Content "Teachers and staff submit responses via standard institutional forms. Automated scraping scripts parse files under this directory to feed executive dashboards in 'School Governance\05_Dashboard_Data'.`n`nOwner: principal + coordinators"
 }
 
 # 2. General Dashboard Data

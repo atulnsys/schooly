@@ -163,39 +163,6 @@ const NCERT_BAR_DATA: Record<string, Record<string, string[]>> = {
   }
 };
 
-const getFallbackChapters = (subject: string, cls: string) => {
-  const normSubject = (subject || "").toLowerCase();
-  if (normSubject.includes("english")) {
-    return [
-      { num: 1, name: "A Letter to God", pageStart: 1, pageEnd: 15, unit: "Prose" },
-      { num: 2, name: "Nelson Mandela: Long Walk to Freedom", pageStart: 16, pageEnd: 35, unit: "Prose" },
-      { num: 3, name: "Two Stories about Flying", pageStart: 36, pageEnd: 55, unit: "Prose" },
-      { num: 4, name: "From the Diary of Anne Frank", pageStart: 56, pageEnd: 75, unit: "Prose" }
-    ];
-  } else if (normSubject.includes("science") || normSubject.includes("physics") || normSubject.includes("chemistry") || normSubject.includes("biology")) {
-    return [
-      { num: 1, name: "Crop Production and Management", pageStart: 1, pageEnd: 15, unit: "Biological Science" },
-      { num: 2, name: "Microorganisms: Friend and Foe", pageStart: 16, pageEnd: 30, unit: "Biological Science" },
-      { num: 3, name: "Synthetic Fibres and Plastics", pageStart: 31, pageEnd: 45, unit: "Chemical Science" },
-      { num: 4, name: "Materials: Metals and Non-Metals", pageStart: 46, pageEnd: 60, unit: "Chemical Science" }
-    ];
-  } else if (normSubject.includes("math")) {
-    return [
-      { num: 1, name: "Rational Numbers", pageStart: 1, pageEnd: 20, unit: "Arithmetic" },
-      { num: 2, name: "Linear Equations in One Variable", pageStart: 21, pageEnd: 40, unit: "Algebra" },
-      { num: 3, name: "Understanding Quadrilaterals", pageStart: 41, pageEnd: 60, unit: "Geometry" },
-      { num: 4, name: "Practical Geometry", pageStart: 61, pageEnd: 80, unit: "Geometry" }
-    ];
-  } else {
-    return [
-      { num: 1, name: "Introduction & Foundations", pageStart: 1, pageEnd: 20, unit: "Core Concepts" },
-      { num: 2, name: "Core Methodologies", pageStart: 21, pageEnd: 45, unit: "Core Concepts" },
-      { num: 3, name: "Practical Experiments & Field Assignment", pageStart: 46, pageEnd: 70, unit: "Applications" },
-      { num: 4, name: "Summary & Revision Exercises", pageStart: 71, pageEnd: 95, unit: "Review" }
-    ];
-  }
-};
-
 interface TextbookIngestorProps {
   files?: any[];
   courses: any[];
@@ -350,10 +317,11 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
           return;
         }
         
-        // Auto default chapters fallback if discovery empty
-        let chs = discoveredChaptersList;
+        const chs = discoveredChaptersList;
         if (chs.length === 0) {
-          chs = getFallbackChapters(subjectId, classId);
+          setFeedbackMsg({ type: "error", text: "No chapter rows were discovered from the NCERT registry. Please add official chapter metadata first." });
+          setJobStatus("failed");
+          return;
         }
 
         const res = await fetch("/api/textbooks/import-from-url", {
@@ -440,11 +408,7 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
         });
         const data = await res.json();
         if (data.success) {
-          const mockChs = [
-            { num: 1, name: "Introductory Material Foundations", pageStart: 1, pageEnd: 12 },
-            { num: 2, name: "Advanced Chemical Reactions & Acids", pageStart: 13, pageEnd: 28 },
-            { num: 3, name: "Experimental Laboratory Setup Guides", pageStart: 29, pageEnd: 42 }
-          ];
+          const importedChapters = Array.isArray(data.chapters) ? data.chapters : [];
 
           let currentProg = 20;
           const interval = setInterval(() => {
@@ -454,7 +418,9 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
               setJobProgress(100);
               setJobStatus("completed");
               setFeedbackMsg({ type: "success", text: `Extracted syllabus from file '${fName}' and cataloged in Drive.` });
-              autoGenerateLessonPlansFromChapters(mockChs, classId, subjectId);
+              if (importedChapters.length > 0) {
+                autoGenerateLessonPlansFromChapters(importedChapters, classId, subjectId);
+              }
               if (onRefreshData) onRefreshData();
             } else {
               setJobProgress(currentProg);

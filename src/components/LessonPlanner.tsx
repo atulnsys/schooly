@@ -3360,7 +3360,7 @@ export default function LessonPlanner({
                 <Info size={22} />
               </div>
               <div className="text-left">
-                <h3 className="font-sans font-bold text-slate-900 text-sm">Simulated Drive Document Notice</h3>
+                <h3 className="font-sans font-bold text-slate-900 text-sm">Drive Document Notice</h3>
                 <p className="text-[11px] text-slate-400">Classroom Lesson Plan Registry</p>
               </div>
               <button 
@@ -3373,7 +3373,7 @@ export default function LessonPlanner({
 
             <div className="space-y-3.5 text-xs text-left leading-relaxed text-slate-600">
               <p className="font-sans font-semibold text-slate-700 bg-amber-50/50 border border-amber-150 rounded-xl p-3">
-                💡 <strong>Notice:</strong> The default file link <code>{warningPlan.driveUrl}</code> is a <strong>simulated placeholder</strong> representing the corresponding textbook resource inside your target Google Drive.
+                <strong>Notice:</strong> The default file link <code>{warningPlan.driveUrl}</code> is a placeholder representing the corresponding textbook resource inside your target Google Drive.
               </p>
               <p className="font-sans">
                 Since you are in a secure developers' sandbox container, clicking this link directs to Google's standard 404 message ("file does not exist") unless configured with your own live workspace document.
@@ -3419,7 +3419,7 @@ export default function LessonPlanner({
                 onClick={() => setShowSimulatedDocWarning(false)}
                 className="cursor-pointer bg-[#2454d6] hover:bg-blue-750 text-white font-sans font-extrabold text-xs px-4 py-2 rounded-lg transition-all inline-flex items-center gap-1 shadow-sm"
               >
-                <span>Open Simulated anyways</span>
+                <span>Open anyway</span>
                 <ExternalLink size={11} />
               </a>
             </div>

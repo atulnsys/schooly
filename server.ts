@@ -126,6 +126,302 @@ async function robustGenerateContent(
 }
 
 // -------------------------------------------------------------
+// Google Sheets live dashboard source helpers
+// -------------------------------------------------------------
+
+type SheetRow = Record<string, string>;
+
+function isGoogleSheetUrl(url: string): boolean {
+  return !!url && url.trim().toLowerCase().startsWith("https://docs.google.com/spreadsheets/d/");
+}
+
+function parseGoogleSheetUrl(url: string): { sheetId: string; gid: string; exportUrl: string } | null {
+  if (!isGoogleSheetUrl(url)) return null;
+
+  const idMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (!idMatch) return null;
+
+  const gidMatch = url.match(/[?#&]gid=(\d+)/);
+  const sheetId = idMatch[1];
+  const gid = gidMatch?.[1] || "0";
+
+  return {
+    sheetId,
+    gid,
+    exportUrl: `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`
+  };
+}
+
+function parseGoogleDriveFolderId(url: string): string {
+  return String(url || "").trim().match(/\/folders\/([a-zA-Z0-9_-]+)/)?.[1] || "";
+}
+
+function parseZipEntryNames(buffer: Buffer): string[] {
+  const entries: string[] = [];
+  for (let offset = 0; offset < buffer.length - 46; offset += 1) {
+    if (buffer.readUInt32LE(offset) !== 0x02014b50) continue;
+    const fileNameLength = buffer.readUInt16LE(offset + 28);
+    const extraLength = buffer.readUInt16LE(offset + 30);
+    const commentLength = buffer.readUInt16LE(offset + 32);
+    const nameStart = offset + 46;
+    const nameEnd = nameStart + fileNameLength;
+    if (nameEnd > buffer.length) continue;
+    const fileName = buffer.subarray(nameStart, nameEnd).toString("utf8");
+    if (fileName && !fileName.endsWith("/")) entries.push(fileName);
+    offset = nameEnd + extraLength + commentLength - 1;
+  }
+  return Array.from(new Set(entries));
+}
+
+function inferChapterRowsFromZipEntries(entries: string[], setup: any) {
+  const bookId = setup.selectedBook?.ncert_book_id || `${setup.classId}-${setup.subjectId}-${setup.bookName}`.replace(/\s+/g, "_").toUpperCase();
+  const pdfEntries = entries.filter((entry) => /\.pdf$/i.test(entry));
+  const chapterLike = pdfEntries.filter((entry) => {
+    const name = path.basename(entry).toLowerCase();
+    return !/(cover|prelims?|front|index|contents?|title|copyright|acknowledg|rationali[sz]ed)/i.test(name);
+  });
+  const sourceEntries = chapterLike.length > 0 ? chapterLike : pdfEntries;
+  return sourceEntries
+    .map((entry, index) => {
+      const base = path.basename(entry).replace(/\.pdf$/i, "");
+      const match = base.match(/(?:ch|chapter|chap|c)?0*(\d{1,2})(?!\d)/i);
+      const chapterNumber = match ? Number(match[1]) : index + 1;
+      return {
+        ncert_chapter_id: `${bookId}-CH-${String(chapterNumber).padStart(2, "0")}`,
+        ncert_book_id: bookId,
+        class: setup.classId || "",
+        subject: setup.subjectId || "",
+        medium: setup.medium || "English",
+        chapter_number: chapterNumber,
+        chapter_title: `Chapter ${chapterNumber}`,
+        unit_name: "",
+        parsed_status: "Draft From ZIP",
+        source_verification_status: "Draft From ZIP",
+        human_review_status: "Needs Human Review",
+        source_file_name: entry
+      };
+    })
+    .sort((a, b) => a.chapter_number - b.chapter_number);
+}
+
+function escapeDriveQueryValue(value: string): string {
+  return String(value || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+}
+
+async function findOrCreateDriveFolder(token: string, name: string, parentId?: string): Promise<{ id: string; webViewLink: string }> {
+  const safeName = String(name || "Untitled").trim() || "Untitled";
+  const parentClause = parentId ? ` and '${escapeDriveQueryValue(parentId)}' in parents` : "";
+  const query = `name='${escapeDriveQueryValue(safeName)}' and mimeType='application/vnd.google-apps.folder' and trashed=false${parentClause}`;
+  const findUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,webViewLink)&pageSize=1`;
+  const findResponse = await fetch(findUrl, { headers: { Authorization: `Bearer ${token}` } });
+  if (findResponse.ok) {
+    const found = await findResponse.json() as any;
+    if (found.files?.[0]?.id) {
+      return { id: found.files[0].id, webViewLink: found.files[0].webViewLink || `https://drive.google.com/drive/folders/${found.files[0].id}` };
+    }
+  }
+
+  const createResponse = await fetch("https://www.googleapis.com/drive/v3/files?fields=id,webViewLink", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      name: safeName,
+      mimeType: "application/vnd.google-apps.folder",
+      ...(parentId ? { parents: [parentId] } : {})
+    })
+  });
+  if (!createResponse.ok) {
+    throw new Error(`Drive folder '${safeName}' could not be created: ${await createResponse.text()}`);
+  }
+  const created = await createResponse.json() as any;
+  return { id: created.id, webViewLink: created.webViewLink || `https://drive.google.com/drive/folders/${created.id}` };
+}
+
+async function ensureDriveFolderPath(token: string, folderPath: string): Promise<{ id: string; webViewLink: string }> {
+  const parts = String(folderPath || "").split("/").map((part) => part.trim()).filter(Boolean);
+  if (parts.length === 0) throw new Error("Drive folder path is empty.");
+  let parentId = "";
+  let current = { id: "", webViewLink: "" };
+  for (const part of parts) {
+    current = await findOrCreateDriveFolder(token, part, parentId || undefined);
+    parentId = current.id;
+  }
+  return current;
+}
+
+async function appendSheetRows(token: string, sheetUrl: string, tabName: string, values: string[][]): Promise<number> {
+  if (!sheetUrl || values.length === 0) return 0;
+  const parsed = parseGoogleSheetUrl(sheetUrl);
+  if (!parsed) throw new Error(`Configured URL for ${tabName} is not a Google Sheet.`);
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${parsed.sheetId}/values/${encodeURIComponent(tabName)}!A1:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ values })
+  });
+  if (!response.ok) {
+    throw new Error(`Could not append ${tabName} rows: ${await response.text()}`);
+  }
+  return values.length;
+}
+
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentCell = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const next = text[i + 1];
+
+    if (char === "\"") {
+      if (inQuotes && next === "\"") {
+        currentCell += "\"";
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === "," && !inQuotes) {
+      currentRow.push(currentCell);
+      currentCell = "";
+      continue;
+    }
+
+    if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (char === "\r" && next === "\n") {
+        i += 1;
+      }
+      currentRow.push(currentCell);
+      if (currentRow.some((cell) => cell.trim() !== "")) {
+        rows.push(currentRow);
+      }
+      currentRow = [];
+      currentCell = "";
+      continue;
+    }
+
+    currentCell += char;
+  }
+
+  if (currentCell.length > 0 || currentRow.length > 0) {
+    currentRow.push(currentCell);
+    if (currentRow.some((cell) => cell.trim() !== "")) {
+      rows.push(currentRow);
+    }
+  }
+
+  return rows;
+}
+
+function normalizeKey(key: string): string {
+  return key.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_");
+}
+
+function csvToObjects(csvText: string): SheetRow[] {
+  const rows = parseCsv(csvText);
+  if (rows.length === 0) return [];
+
+  const headers = rows[0].map((header, index) => normalizeKey(header || `column_${index + 1}`));
+  return rows.slice(1).map((cells) => {
+    const entry: SheetRow = {};
+    headers.forEach((header, index) => {
+      entry[header] = (cells[index] ?? "").trim();
+    });
+    return entry;
+  }).filter((row) => Object.values(row).some((value) => value.trim() !== ""));
+}
+
+function pickFirst(row: SheetRow, keys: string[], fallback = ""): string {
+  for (const key of keys) {
+    if (row[key] && row[key].trim()) {
+      return row[key].trim();
+    }
+  }
+  return fallback;
+}
+
+function normalizeDashboardRole(rawRole: string): string {
+  const normalized = (rawRole || "unassigned")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  const aliases: Record<string, string> = {
+    administrator: "admin",
+    admin: "admin",
+    school_admin: "admin",
+    principal: "principal",
+    head_of_school: "principal",
+    school_manager: "manager",
+    estate_manager: "manager",
+    manager: "manager",
+    human_resources: "hr",
+    hr_manager: "hr",
+    hr: "hr",
+    examination_chair: "exams",
+    examinations: "exams",
+    exams: "exams",
+    parent_representative: "parent",
+    parent: "parent",
+    student_portal: "student",
+    student: "student"
+  };
+
+  return aliases[normalized] || normalized.replace(/_/g, "-") || "unassigned";
+}
+
+function normalizeDashboardPayload(rows: SheetRow[], sourceUrl: string, sheetId: string, gid: string) {
+  const grouped: Record<string, any> = {};
+
+  rows.forEach((row, index) => {
+    const role = normalizeDashboardRole(pickFirst(row, ["role", "dashboard_role", "view", "persona", "audience"], "unassigned"));
+
+    if (!grouped[role]) {
+      grouped[role] = {
+        role,
+        cards: [],
+        metrics: [],
+        rows: []
+      };
+    }
+
+    const title = pickFirst(row, ["title", "metric", "name", "label", "heading"], `Row ${index + 1}`);
+    const details = pickFirst(row, ["details", "description", "detail", "summary", "value", "text"], "");
+    const percentage = pickFirst(row, ["percentage", "percent", "completion", "score"], "");
+
+    grouped[role].rows.push(row);
+    grouped[role].cards.push({
+      title,
+      details,
+      percentage,
+      ...row
+    });
+  });
+
+  return {
+    source: {
+      url: sourceUrl,
+      sheetId,
+      gid,
+      fetchedAt: new Date().toISOString(),
+      rowCount: rows.length
+    },
+    dashboards: grouped
+  };
+}
+
+// -------------------------------------------------------------
 // LIVE GOOGLE WORKSPACE & CLASSROOM INTEGRATION CODES
 // -------------------------------------------------------------
 
@@ -564,7 +860,7 @@ let files: WorkspaceFile[] = [
     name: "Weekly Planner Monitoring Log.xlsx",
     type: "sheet",
     source: "Drive",
-    path: "/School Governance/04_Dashboard_Data/Weekly Planner Status",
+    path: "/School Governance/05_Dashboard_Data/Weekly Planner Status",
     owner: "principal",
     modifiedAt: "2026-06-01T05:15:00Z",
     sharingRule: "Private",
@@ -969,271 +1265,7 @@ app.get("/api/mock/:filename", (req, res) => {
   if (filename.includes("..") || filename.includes("/")) {
     return res.status(400).json({ error: "Invalid path name query." });
   }
-
-  // Live dynamic demo calculations based on actual Google Classroom and Google Drive databases
-  if (filename === "dashboard-principal" || filename === "dashboard-principal.json") {
-    const totalClassroomsCount = courses.length;
-    const activeClassroomsCount = courses.filter(c => c.announcements.length > 0 || c.materials.length > 0).length;
-    
-    // Count files matching weekly planners: e.g. names containing planner/planning/syllabus
-    const plannerFiles = files.filter(f => f.name.toLowerCase().includes("planner") || f.tags.map(t => t.toLowerCase()).includes("planning") || f.tags.map(t => t.toLowerCase()).includes("weekly planner"));
-    const plannersCount = plannerFiles.length;
-    const plannerCompliancePercent = totalClassroomsCount > 0 ? Math.round((plannersCount / totalClassroomsCount) * 100) : 88;
-    
-    // Assessments: Count files with "assessment", "rubric", "exam" or assignments
-    const assessmentFiles = files.filter(f => f.name.toLowerCase().includes("assessment") || f.name.toLowerCase().includes("rubric") || f.name.toLowerCase().includes("exam") || f.tags.map(t => t.toLowerCase()).includes("exam") || f.tags.map(t => t.toLowerCase()).includes("assessment"));
-    const assessmentCount = Math.min(totalClassroomsCount, assessmentFiles.length + assignments.length);
-    
-    // Compliance Score:
-    const complianceFiles = files.filter(f => f.path.toLowerCase().includes("governance") || f.tags.map(t => t.toLowerCase()).includes("compliance") || f.tags.map(t => t.toLowerCase()).includes("auditing"));
-    const complianceScore = Math.min(100, 60 + complianceFiles.length * 8);
-    
-    // Notebook files: Count notebooks in files
-    const notebookFiles = files.filter(f => f.name.toLowerCase().includes("notebook") || f.name.toLowerCase().includes("correction") || f.tags.map(t => t.toLowerCase()).includes("notebook"));
-    const notebookCount = notebookFiles.length;
-    
-    const dMetrics = [
-      { "id": "m-active-class", "label": "Classrooms Active", "value": `${activeClassroomsCount} / ${totalClassroomsCount}`, "sub": "active in LMS" },
-      { "id": "m-plan-sub", "label": "Weekly Planners Submitted", "value": `${plannersCount} / ${totalClassroomsCount}`, "sub": `${plannerCompliancePercent}% compliance` },
-      { "id": "m-sched-assess", "label": "Assessments on Track", "value": `${assessmentCount} / ${totalClassroomsCount}`, "sub": "classes on schedule" },
-      { "id": "m-comp-score", "label": "Compliance Score", "value": `${complianceScore}%`, "sub": "safety & safety audits" },
-      { "id": "m-notebook-sub", "label": "Notebook Monitoring", "value": `${notebookCount} / ${totalClassroomsCount}`, "sub": "correction checks uploaded" }
-    ];
-
-    // Alerts requiring attention:
-    const dAlerts = [];
-    const inactiveCourses = courses.filter(c => c.announcements.length === 0 && c.materials.length === 0);
-    if (inactiveCourses.length > 0) {
-      dAlerts.push({
-        "id": "al-dynamic-inactive",
-        "severity": "High",
-        "text": `${inactiveCourses.length} teachers (${inactiveCourses.map(c => c.teacherName).join(", ")}) with zero Classroom activity`,
-        "source": "Google Classroom"
-      });
-    }
-    
-    if (plannersCount < totalClassroomsCount) {
-      dAlerts.push({
-        "id": "al-dynamic-missing-planners",
-        "severity": "High",
-        "text": `${totalClassroomsCount - plannersCount} weekly planners not submitted across active classes`,
-        "source": "Forms Ingest"
-      });
-    }
-
-    const openTasks = tasks.filter(t => t.status !== "done" && t.priority === "critical");
-    if (openTasks.length > 0) {
-      dAlerts.push({
-        "id": "al-dynamic-tasks",
-        "severity": "Medium",
-        "text": `${openTasks.length} critical administrative tasks are pending in scheduler`,
-        "source": "Tasks Tracker"
-      });
-    }
-    
-    dAlerts.push(
-      { "id": "al-3", "severity": "Medium", "text": "Parent-Teacher Advisory Assembly - Grades 8, 9 & 10 (Saturday 11 June)", "source": "Events Schedule" },
-      { "id": "al-5", "severity": "High", "text": "Bi-annual fire safety cert renewal submission delayed", "source": "Compliance/Safety" },
-      { "id": "al-6", "severity": "None", "text": "UT3 results verified and archived across all sections", "source": "Examination Board" }
-    );
-
-    const dAcademic = {
-      "stages": [
-        { "stage": "Pre-Primary", "plannerRate": 100 },
-        { "stage": "Primary", "plannerRate": 94 },
-        { "stage": "Middle", "plannerRate": plannersCount > 0 ? Math.min(100, 70 + plannersCount * 10) : 85 },
-        { "stage": "Secondary", "plannerRate": plannersCount > 1 ? Math.min(100, 75 + plannersCount * 8) : 82 },
-        { "stage": "Sr Secondary", "plannerRate": 88 }
-      ],
-      "syllabus": [
-        { "level": "Pre-Primary", "percentage": 96 },
-        { "level": "Primary", "percentage": 90 },
-        { "level": "Middle", "percentage": activeClassroomsCount > 0 ? Math.min(100, 65 + activeClassroomsCount * 10) : 84 },
-        { "level": "Secondary", "percentage": activeClassroomsCount > 1 ? Math.min(100, 70 + activeClassroomsCount * 8) : 78 },
-        { "level": "Sr Secondary", "percentage": 91 }
-      ],
-      "assessment": [
-        { "level": "Pre-Primary", "percentage": 100 },
-        { "level": "Primary", "percentage": 88 },
-        { "level": "Middle", "percentage": assessmentCount > 0 ? Math.min(100, 60 + assessmentCount * 12) : 76 },
-        { "level": "Secondary", "percentage": assessmentCount > 1 ? Math.min(100, 65 + assessmentCount * 10) : 70 },
-        { "level": "Sr Secondary", "percentage": 82 }
-      ]
-    };
-
-    const dClassroom = {
-      "totalClassrooms": totalClassroomsCount,
-      "postedThisWeek": activeClassroomsCount,
-      "zeroActivityThisWeek": totalClassroomsCount - activeClassroomsCount,
-      "assignmentsCreatedThisWeek": assignments.length + assessmentFiles.length,
-      "avgSubmissionRate": 88,
-      "meetSessionsHeld": 12
-    };
-
-    const dCompliance = {
-      "categories": [
-        { "name": "Committee records", "score": files.some(f => f.name.toLowerCase().includes("committee")) ? 92 : 45 },
-        { "name": "Safety records", "score": files.some(f => f.name.toLowerCase().includes("safety")) ? 85 : 55 },
-        { "name": "Mandatory forms", "score": files.some(f => f.name.toLowerCase().includes("form")) ? 88 : 40 },
-        { "name": "Staff CPD records", "score": files.some(f => f.name.toLowerCase().includes("cpd") || f.name.toLowerCase().includes("staff")) ? 75 : 60 },
-        { "name": "SQAA evidence", "score": files.some(f => f.name.toLowerCase().includes("sqaa")) ? 82 : 50 }
-      ],
-      "overall": complianceScore
-    };
-
-    const dPerformance = teachers.map(teacher => {
-      const teacherCourse = courses.find(c => c.teacherName.toLowerCase() === teacher.name.toLowerCase() || c.teacherName.toLowerCase().includes(teacher.name.toLowerCase().split(" ").pop() || ""));
-      const hasPlanner = files.some(f => (f.name.toLowerCase().includes("planner") || f.name.toLowerCase().includes("plan")) && (f.owner.toLowerCase().includes(teacher.name.toLowerCase().split(" ").pop() || "") || f.contentSum.toLowerCase().includes(teacher.department.toLowerCase())));
-      const hasAssess = assignments.some(a => a.courseId === (teacherCourse?.id || ""));
-      
-      let postsCount = teacherCourse ? (teacherCourse as any).postsThisWeek || 0 : 0;
-      if (teacherCourse && teacherCourse.announcements && postsCount === 0) {
-        postsCount = teacherCourse.announcements.length;
-      }
-      
-      return {
-        "name": teacher.name,
-        "syllabusPlanner": hasPlanner ? "On Schedule (Done)" : "Missing",
-        "assessmentsOnTrack": hasAssess ? "Complete" : "Partial",
-        "classroomActivity": postsCount > 3 ? "High" : (postsCount > 0 ? "Moderate" : "None"),
-        "remedialActionPlan": `Active (${files.filter(f => f.tags.includes("Remedial") || f.name.toLowerCase().includes("remedial")).length + 2} Files)`
-      };
-    });
-
-    const dFeeds = [
-      { "form": "Weekly Academic Syllabus Planner Checklist", "responsible": "All Academic Tutors", "submitted": plannersCount, "total": totalClassroomsCount, "percent": plannerCompliancePercent, "overdue": Math.max(0, totalClassroomsCount - plannersCount), "lastFormSubmit": "Today" },
-      { "form": "Monthly Notebook Assessment Corrected Seal", "responsible": "Class Coordinators", "submitted": notebookCount, "total": totalClassroomsCount, "percent": totalClassroomsCount > 0 ? Math.round((notebookCount / totalClassroomsCount) * 100) : 80, "overdue": Math.max(0, totalClassroomsCount - notebookCount), "lastFormSubmit": "Yesterday" },
-      { "form": "UT Syllabus Assessment Checklist (UT1-4)", "responsible": "Subject Heads", "submitted": assessmentCount, "total": totalClassroomsCount, "percent": totalClassroomsCount > 0 ? Math.round((assessmentCount / totalClassroomsCount) * 100) : 96, "overdue": Math.max(0, totalClassroomsCount - assessmentCount), "lastFormSubmit": "3 days ago" },
-      { "form": "Remedial Special Focus Tracker Intake", "responsible": "Remedial Instructors", "submitted": files.filter(f => f.name.toLowerCase().includes("remedial") || f.tags.includes("Remedial")).length + 5, "total": 10, "percent": 88, "overdue": 2, "lastFormSubmit": "Yesterday" },
-      { "form": "Regulatory Compliance Verification Form", "responsible": "School Administrator", "submitted": complianceFiles.length, "total": 8, "percent": Math.round((complianceFiles.length / 8) * 100), "overdue": Math.max(0, 8 - complianceFiles.length), "lastFormSubmit": "Last week" }
-    ];
-
-    return res.json({
-      "roleView": "principal",
-      "metrics": dMetrics,
-      "alertsRequiringAttention": dAlerts,
-      "academicMonitoring": dAcademic,
-      "classroomMonitoring": dClassroom,
-      "compliance": dCompliance,
-      "teacherPerformanceIndicators": dPerformance,
-      "monitoringFormsDataFeeds": dFeeds
-    });
-  }
-
-  if (filename === "teacher-dashboard" || filename === "teacher-dashboard.json") {
-    const pClasses = courses.map(c => {
-      let studentAvg = 72;
-      if (c.id === "course-x-a-eng") studentAvg = 81;
-      if (c.id === "course-viii-a-sci") studentAvg = 74;
-      
-      const hasPosts = c.announcements.length + c.materials.length;
-      const completed = hasPosts > 3 ? 5 : (hasPosts > 0 ? Math.min(5, 2 + hasPosts) : 0);
-      
-      return {
-        "class": c.name + " " + c.section,
-        "classPerformancePercent": studentAvg,
-        "classroomPostingDaysCompleted": completed
-      };
-    });
-
-    return res.json({
-      "teacherId": "t-pn01",
-      "teacherName": "Ms. Priya Nair",
-      "subject": "Mathematics",
-      "assessmentName": "UT3",
-      "schoolSubjectAverage": 68,
-      "teacherAverage": 76,
-      "classroomPostingDaysExpected": 5,
-      "attentionThresholds": {
-        "performanceWarning": 70,
-        "postingPerfect": 5,
-        "postingWarning": 3,
-        "postingCritical": 2
-      },
-      "assignedClasses": pClasses
-    });
-  }
-
-  if (filename === "coordinator-dashboard" || filename === "coordinator-dashboard.json") {
-    const totalClassroomsCount = courses.length;
-    const activeClassroomsCount = courses.filter(c => c.announcements.length > 0 || c.materials.length > 0).length;
-    const plannersCount = files.filter(f => f.name.toLowerCase().includes("planner") || f.tags.map(t => t.toLowerCase()).includes("planning") || f.tags.map(t => t.toLowerCase()).includes("weekly planner")).length;
-
-    const kpis = [
-      {
-        "id": "planners_submitted",
-        "title": "Planners submitted",
-        "value": `${plannersCount}/${totalClassroomsCount}`,
-        "subtext": `${totalClassroomsCount - plannersCount} missing this week`,
-        "status": plannersCount >= totalClassroomsCount ? "success" : "warning"
-      },
-      {
-        "id": "classroom_posts",
-        "title": "Classroom posts",
-        "value": `${activeClassroomsCount}/${totalClassroomsCount}`,
-        "subtext": `${totalClassroomsCount - activeClassroomsCount} inactive`,
-        "status": activeClassroomsCount >= totalClassroomsCount ? "success" : "warning"
-      },
-      {
-        "id": "assessments_due",
-        "title": "Assessments due",
-        "value": `${assignments.length}`,
-        "subtext": "All on track",
-        "status": "success"
-      },
-      {
-        "id": "remedial_students",
-        "title": "Remedial students",
-        "value": `${students.filter(s => (s.riskScore || 0) > 50).length}`,
-        "subtext": "Remedial list active",
-        "status": "attention"
-      }
-    ];
-
-    const matrixRows = courses.map((c, index) => {
-      const hasPlanner = files.some(f => (f.name.toLowerCase().includes("planner") || f.name.toLowerCase().includes("plan")) && f.name.toLowerCase().includes(c.section.toLowerCase()));
-      const hasNotebook = files.some(f => f.name.toLowerCase().includes("notebook") && f.name.toLowerCase().includes(c.section.toLowerCase()));
-      const hasAssess = assignments.some(a => a.courseId === c.id);
-
-      return {
-        "class": c.name + " " + c.section,
-        "six": hasPlanner ? "Done" : "Missing",
-        "seven": hasPlanner ? "Done" : "Missing",
-        "eight": hasPlanner ? "Done" : "Missing",
-        "assess": hasAssess ? "Done" : "Partial",
-        "nb": hasNotebook ? "Done" : "Missing"
-      };
-    });
-
-    return res.json({
-      "coordinatorProfile": {
-        "initials": "MC",
-        "name": "Middle School Coordinator",
-        "title": "Coordinator Dashboard — Middle School (Class 6–8)",
-        "subtitle": `${totalClassroomsCount} classrooms · ${totalClassroomsCount * 2} sections · 2026–27`,
-        "dateValue": "Mon 1 Jun 2026"
-      },
-      "kpis": kpis,
-      "plannerStatusMatrix": {
-        "headers": ["Class", "6", "7", "8", "Assess", "NB"],
-        "rows": matrixRows
-      },
-      "syllabusCoverage": [
-        { "class": "Class 6", "coverage": 89 },
-        { "class": "Class 7", "coverage": 84 },
-        { "class": "Class 8", "coverage": 76 }
-      ],
-      "assessmentCompletion": [
-        { "subject": "English", "completion": 92 },
-        { "subject": "Maths", "completion": 81 },
-        { "subject": "Science", "completion": 86 },
-        { "subject": "SST", "completion": 74 },
-        { "subject": "Computer", "completion": 95 }
-      ]
-    });
-  }
-
-  if (!filename.endsWith(".json")) {
+if (!filename.endsWith(".json")) {
     filename = `${filename}.json`;
   }
   const data = readMockJSON(filename);
@@ -1395,6 +1427,58 @@ app.post("/api/workspace/test-connection", async (req, res) => {
     return res.json({
       success: false,
       message: `Handshake Timed Out or Failed: Cannot connect to the workspace URL. Check internet connection and URL spelling. (${err?.message || "Timeout Exception"})`
+    });
+  }
+});
+
+app.get("/api/workspace/live-dashboard-blueprints", async (req, res) => {
+  const url = String(req.query.url || "").trim();
+
+  if (!url) {
+    return res.status(400).json({
+      success: false,
+      message: "Missing Google Sheets URL."
+    });
+  }
+
+  const parsed = parseGoogleSheetUrl(url);
+  if (!parsed) {
+    return res.status(400).json({
+      success: false,
+      message: "Only Google Sheets URLs are supported for live dashboard blueprints."
+    });
+  }
+
+  try {
+    const response = await fetch(parsed.exportUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 SchoolyLiveSheet/1.0"
+      }
+    });
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      return res.status(502).json({
+        success: false,
+        message: `Unable to fetch public sheet export (${response.status}). Make sure the sheet is published or shared for anyone with the link.`,
+        exportUrl: parsed.exportUrl,
+        detail: detail.slice(0, 300)
+      });
+    }
+
+    const csvText = await response.text();
+    const rows = csvToObjects(csvText);
+    const payload = normalizeDashboardPayload(rows, url, parsed.sheetId, parsed.gid);
+
+    return res.json({
+      success: true,
+      ...payload
+    });
+  } catch (error: any) {
+    console.error("[LIVE SHEET] Failed to load dashboard blueprints:", error);
+    return res.status(500).json({
+      success: false,
+      message: error?.message || "Failed to read live dashboard sheet."
     });
   }
 });
@@ -2098,7 +2182,7 @@ app.post("/api/curriculum/parse-toc", async (req, res) => {
 
     const textPart = {
       text: `Analyze this textbook table of contents image.
-Extract a list of chapters and main topics. For each chapter/topic unit, produce a clean title combining Chapter number and Topic name (e.g. "Chapter 1: Crop Production and Management").
+Extract every chapter row visible in the image, not just the first few rows. Return chapters in ascending chapter number order and keep the full sequence intact so later chapters are not dropped. If the image shows the same chapter number more than once, still return every visible row in reading order so the duplicate can be reviewed.
 Provide the output as a valid and clean JSON array of objects with this exact structure:
 [
   { 
@@ -2150,9 +2234,13 @@ CRITICAL: You MUST respond ONLY with the raw JSON array. DO NOT wrap it in markd
       }
     }
 
+    const normalized = normalizeExtractedTocRows(Array.isArray(topics) ? topics : []);
+
     res.json({
       success: true,
-      topics: topics
+      topics: normalized.chapters,
+      warnings: normalized.warnings,
+      duplicateChapterNumbers: normalized.duplicateChapterNumbers
     });
 
   } catch (error: any) {
@@ -2264,6 +2352,130 @@ IMPORTANT: You MUST respond ONLY with the raw JSON object. Do not wrap in markdo
 // -------------------------------------------------------------
 // NCERT TEXTBOOK INGESTION & ARTIFACT MANAGEMENT CONTROLLER
 // -------------------------------------------------------------
+
+function normalizeExtractedTocRows(rows: any[] = []) {
+  const duplicateNumbers = new Set<number>();
+  const duplicateCounts = rows.reduce((acc, row: any, index: number) => {
+    const rawNumber = Number(row?.num ?? row?.chapterNumber ?? index + 1);
+    const chapterNumber = Number.isFinite(rawNumber) && rawNumber > 0 ? rawNumber : index + 1;
+    acc[chapterNumber] = (acc[chapterNumber] || 0) + 1;
+    return acc;
+  }, {} as Record<number, number>);
+
+  const normalized = rows.map((row: any, index: number) => {
+    const rawNumber = Number(row?.num ?? row?.chapterNumber ?? index + 1);
+    const chapterNumber = Number.isFinite(rawNumber) && rawNumber > 0 ? rawNumber : index + 1;
+    const rawName = String(row?.name ?? row?.chapterName ?? `Chapter ${chapterNumber}`).trim();
+    const cleanedName = /^chapter\s+\d+\s*:/i.test(rawName)
+      ? rawName
+      : `Chapter ${chapterNumber}: ${rawName.replace(/^chapter\s+\d+\s*:\s*/i, "")}`;
+    return {
+      ...row,
+      num: chapterNumber,
+      name: cleanedName,
+      pageStart: Number(row?.pageStart ?? index * 15 + 1) || index * 15 + 1,
+      pageEnd: Number(row?.pageEnd ?? index * 15 + 15) || index * 15 + 15,
+      rawNum: chapterNumber,
+      duplicateCount: duplicateCounts[chapterNumber] || 1,
+      isDuplicateNumber: (duplicateCounts[chapterNumber] || 0) > 1
+    };
+  }).sort((a: any, b: any) => a.num - b.num);
+
+  Object.keys(duplicateCounts).forEach((key) => {
+    const num = Number(key);
+    if ((duplicateCounts[num] || 0) > 1) {
+      duplicateNumbers.add(num);
+    }
+  });
+
+  return {
+    chapters: normalized,
+    duplicateChapterNumbers: Array.from(duplicateNumbers).sort((a, b) => a - b),
+    warnings: duplicateNumbers.size > 0
+      ? [`Duplicate chapter numbers were detected and preserved for review: ${Array.from(duplicateNumbers).sort((a, b) => a - b).join(", ")}`]
+      : []
+  };
+}
+
+function normalizeChapterCollection(rows: any[] = []) {
+  return normalizeExtractedTocRows(rows).chapters;
+}
+
+function mergeChapterCollections(primary: any[] = [], fallback: any[] = []) {
+  const merged: any[] = [];
+  const seenFallbackNumbers = new Set<number>();
+
+  normalizeChapterCollection(primary).forEach((chapter) => {
+    merged.push(chapter);
+  });
+
+  normalizeChapterCollection(fallback).forEach((chapter) => {
+    if (seenFallbackNumbers.has(chapter.num)) {
+      return;
+    }
+    const alreadyInPrimary = merged.some((existing) => existing.num === chapter.num);
+    if (!alreadyInPrimary) {
+      merged.push(chapter);
+    }
+    seenFallbackNumbers.add(chapter.num);
+  });
+
+  return merged.sort((a, b) => a.num - b.num);
+}
+
+function getSubjectFallbackChapters(classId: string, subjectId: string) {
+  const normalizedClass = String(classId || "").trim();
+  const normalizedSubject = String(subjectId || "").toLowerCase();
+
+  if (normalizedClass === "Class X" && (normalizedSubject.includes("english") || normalizedSubject.includes("literature"))) {
+    return [
+      { num: 1, name: "A Letter to God", pageStart: 1, pageEnd: 12, unit: "First Flight" },
+      { num: 2, name: "Nelson Mandela: Long Walk to Freedom", pageStart: 13, pageEnd: 25, unit: "First Flight" },
+      { num: 3, name: "Two Stories about Flying", pageStart: 26, pageEnd: 42, unit: "First Flight" },
+      { num: 4, name: "From the Diary of Anne Frank", pageStart: 43, pageEnd: 55, unit: "First Flight" },
+      { num: 5, name: "The Hundred Dresses - I", pageStart: 56, pageEnd: 66, unit: "First Flight" },
+      { num: 6, name: "The Hundred Dresses - II", pageStart: 67, pageEnd: 78, unit: "First Flight" },
+      { num: 7, name: "Glimpses of India", pageStart: 79, pageEnd: 94, unit: "First Flight" },
+      { num: 8, name: "Mijbil the Otter", pageStart: 95, pageEnd: 110, unit: "First Flight" },
+      { num: 9, name: "Madam Rides the Bus", pageStart: 111, pageEnd: 126, unit: "First Flight" }
+    ];
+  }
+
+  if (normalizedClass === "Class X" && normalizedSubject.includes("math")) {
+    return [
+      { num: 1, name: "Real Numbers", pageStart: 1, pageEnd: 15, unit: "Number Systems" },
+      { num: 2, name: "Polynomials", pageStart: 16, pageEnd: 32, unit: "Algebra" },
+      { num: 3, name: "Pair of Linear Equations in Two Variables", pageStart: 33, pageEnd: 52, unit: "Algebra" },
+      { num: 4, name: "Quadratic Equations", pageStart: 53, pageEnd: 70, unit: "Algebra" },
+      { num: 5, name: "Arithmetic Progressions", pageStart: 71, pageEnd: 88, unit: "Sequences" },
+      { num: 6, name: "Triangles", pageStart: 89, pageEnd: 115, unit: "Geometry" },
+      { num: 7, name: "Coordinate Geometry", pageStart: 116, pageEnd: 130, unit: "Coordinate Geometry" },
+      { num: 8, name: "Introduction to Trigonometry", pageStart: 131, pageEnd: 148, unit: "Trigonometry" }
+    ];
+  }
+
+  return [];
+}
+
+function parseJsonArraySafely(text: string) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) return [];
+  try {
+    const parsed = JSON.parse(trimmed);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    const match = trimmed.match(/\[[\s\S]*\]/);
+    if (match) {
+      try {
+        const parsed = JSON.parse(match[0]);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }
+}
 
 // Global In-Memory Stores
 let textbookSources: any[] = [
@@ -2584,6 +2796,21 @@ const NCERT_CATALOG: Record<string, Record<string, { code: string; name: string;
     }
   },
   "Class X": {
+    "English": {
+      code: "jeff1dd",
+      name: "First Flight",
+      chapters: [
+        { num: 1, name: "A Letter to God", pageStart: 1, pageEnd: 12, unit: "First Flight" },
+        { num: 2, name: "Nelson Mandela: Long Walk to Freedom", pageStart: 13, pageEnd: 25, unit: "First Flight" },
+        { num: 3, name: "Two Stories about Flying", pageStart: 26, pageEnd: 42, unit: "First Flight" },
+        { num: 4, name: "From the Diary of Anne Frank", pageStart: 43, pageEnd: 55, unit: "First Flight" },
+        { num: 5, name: "The Hundred Dresses - I", pageStart: 56, pageEnd: 66, unit: "First Flight" },
+        { num: 6, name: "The Hundred Dresses - II", pageStart: 67, pageEnd: 78, unit: "First Flight" },
+        { num: 7, name: "Glimpses of India", pageStart: 79, pageEnd: 94, unit: "First Flight" },
+        { num: 8, name: "Mijbil the Otter", pageStart: 95, pageEnd: 110, unit: "First Flight" },
+        { num: 9, name: "Madam Rides the Bus", pageStart: 111, pageEnd: 126, unit: "First Flight" }
+      ]
+    },
     "Science": {
       code: "jesc1",
       name: "Science (Class X)",
@@ -2734,10 +2961,11 @@ Return a single JSON object in the following format:
         { num: 2, name: "Nelson Mandela: Long Walk to Freedom", pageStart: 13, pageEnd: 25, unit: "First Flight" },
         { num: 3, name: "Two Stories about Flying", pageStart: 26, pageEnd: 42, unit: "First Flight" },
         { num: 4, name: "From the Diary of Anne Frank", pageStart: 43, pageEnd: 55, unit: "First Flight" },
-        { num: 5, name: "Glimpses of India", pageStart: 56, pageEnd: 72, unit: "First Flight" },
-        { num: 6, name: "Madam Rides the Bus", pageStart: 73, pageEnd: 88, unit: "First Flight" },
-        { num: 7, name: "The Sermon at Benares", pageStart: 89, pageEnd: 99, unit: "First Flight" },
-        { num: 8, name: "The Proposal", pageStart: 100, pageEnd: 115, unit: "First Flight" }
+        { num: 5, name: "The Hundred Dresses - I", pageStart: 56, pageEnd: 66, unit: "First Flight" },
+        { num: 6, name: "The Hundred Dresses - II", pageStart: 67, pageEnd: 78, unit: "First Flight" },
+        { num: 7, name: "Glimpses of India", pageStart: 79, pageEnd: 94, unit: "First Flight" },
+        { num: 8, name: "Mijbil the Otter", pageStart: 95, pageEnd: 110, unit: "First Flight" },
+        { num: 9, name: "Madam Rides the Bus", pageStart: 111, pageEnd: 126, unit: "First Flight" }
       ];
       customBookName = "First Flight (Class X English)";
     } else if (classId === "Class X" && subjectId.toLowerCase().includes("math")) {
@@ -2857,7 +3085,7 @@ app.get("/api/textbooks/sources/status", (req, res) => {
 // 2. Discover eBooks on official NCERT index
 app.post("/api/textbooks/discover-ncert", async (req, res) => {
   try {
-    const { classId, subjectId, medium } = req.body;
+    const { classId, subjectId, medium, url } = req.body;
     if (!classId || !subjectId) {
       return res.status(400).json({ error: "Missing Class or Subject parameters." });
     }
@@ -2867,6 +3095,15 @@ app.post("/api/textbooks/discover-ncert", async (req, res) => {
     let discoveredChapters: any[] = [];
     let customBookName = "";
     let isWebBased = false;
+    const booksMap = NCERT_CATALOG[classId] || {};
+    const bookMatch = booksMap[subjectId];
+    const urlHint = String(url || "").toLowerCase();
+
+    if (bookMatch && (!urlHint || urlHint.includes(bookMatch.code.toLowerCase()) || urlHint.includes("ncert.nic.in"))) {
+      discoveredChapters = mergeChapterCollections(bookMatch.chapters, []);
+      customBookName = bookMatch.name;
+      isWebBased = true;
+    }
 
     try {
       const ai = getGenAI();
@@ -2874,8 +3111,11 @@ app.post("/api/textbooks/discover-ncert", async (req, res) => {
 Class: "${classId}"
 Subject: "${subjectId}"
 Medium: "${medium || "en"}" (NCERT / CBSE standard).
+Source URL: "${url || ""}"
 
 Verify the actual units, chapter numbers, chapter names, and estimated page ranges.
+Important: return the complete book outline, not a sample. Do not stop after the first few chapters. If the textbook has 9 chapters, return all 9 chapter rows. Preserve ascending chapter number order. Do not omit later chapters even if page ranges are uncertain.
+If the live search only reveals part of the book, continue searching using alternate query variants until you have the full outline. Do not return a truncated subset.
 Return a single JSON object in the following format:
 {
   "bookName": "Official NCERT Textbook Name",
@@ -2903,8 +3143,8 @@ Return a single JSON object in the following format:
       if (text) {
         const parsed = JSON.parse(text);
         if (parsed && parsed.chapters && Array.isArray(parsed.chapters)) {
-          discoveredChapters = parsed.chapters;
-          customBookName = parsed.bookName || "";
+          discoveredChapters = mergeChapterCollections(parsed.chapters, discoveredChapters);
+          customBookName = parsed.bookName || customBookName || "";
           isWebBased = true;
           console.log(`[SERVER INFO] Live Google Search discovered ${discoveredChapters.length} real Chapters!`);
         }
@@ -2913,18 +3153,24 @@ Return a single JSON object in the following format:
       console.log(`[SERVER INFO] Live web discovery was bypassed or handled via offline backup list for ${classId} ${subjectId}.`);
     }
 
-    // Check if we have standard bookMatch
-    const booksMap = NCERT_CATALOG[classId] || {};
-    const bookMatch = booksMap[subjectId];
+    const subjectFallback = getSubjectFallbackChapters(classId, subjectId);
 
     let finalBookName = customBookName || (bookMatch ? bookMatch.name : `${subjectId} Textbook (${classId})`);
     let finalCode = bookMatch ? bookMatch.code : `${classId.toLowerCase().replace(/[\s\.]/g, "")}_${subjectId.toLowerCase()}`;
-    let finalChapters = discoveredChapters.length > 0 ? discoveredChapters : (bookMatch ? bookMatch.chapters : [
+    let finalChapters = discoveredChapters.length > 0 ? discoveredChapters : (bookMatch ? bookMatch.chapters : subjectFallback.length > 0 ? subjectFallback : [
       { num: 1, name: "Introduction & Scope of Study", pageStart: 1, pageEnd: 15, unit: "Foundation" },
       { num: 2, name: "Core Structural Taxonomy", pageStart: 16, pageEnd: 32, unit: "Structural Systems" },
       { num: 3, name: "Analytical Methods & Solutions", pageStart: 33, pageEnd: 48, unit: "Analysis" },
       { num: 4, name: "Case Study & Exercises Review", pageStart: 49, pageEnd: 65, unit: "Application" }
     ]);
+
+    if (bookMatch && Array.isArray(bookMatch.chapters) && bookMatch.chapters.length > 0) {
+      finalChapters = mergeChapterCollections(discoveredChapters.length > 0 ? discoveredChapters : finalChapters, bookMatch.chapters);
+    } else if (subjectFallback.length > 0) {
+      finalChapters = mergeChapterCollections(discoveredChapters.length > 0 ? discoveredChapters : finalChapters, subjectFallback);
+    } else {
+      finalChapters = normalizeChapterCollection(finalChapters);
+    }
 
     // Let's store or cache this dynamic book discovery structure, so when they click "Ingest & Extract" or paste this URL,
     // the system pulls the actually discovered chapters!
@@ -3020,10 +3266,11 @@ app.post("/api/textbooks/import-from-url", async (req, res) => {
 
         // Look for matching catalogue chapters
         const booksMap = NCERT_CATALOG[classId] || {};
+        const subjectFallback = getSubjectFallbackChapters(classId, subjectId);
         const matchedCat = (chapters && Array.isArray(chapters) && chapters.length > 0) ? {
           code: booksMap[subjectId]?.code || "gen01",
           name: bookName || `${subjectId} Textbook (${classId})`,
-          chapters: chapters.map((c: any, index: number) => ({
+          chapters: mergeChapterCollections(chapters, booksMap[subjectId]?.chapters || subjectFallback).map((c: any, index: number) => ({
             num: c.num || c.chapterNumber || (index + 1),
             name: c.name || c.chapterName || `Chapter ${index + 1}`,
             pageStart: c.pageStart || (index * 15 + 1),
@@ -3104,6 +3351,8 @@ app.post("/api/textbooks/import-from-url", async (req, res) => {
         mappedChapters.forEach(ch => {
           const fileId = `file-${Date.now()}-${ch.chapterNumber}`;
           const cleanChName = ch.chapterName.replace(/[^a-zA-Z0-9]/g, "_");
+          const clsParam = classId || "Class VIII";
+          const subParam = subjectId || "Science";
           const sectName = `${classId}-A`;
           const fPath = `/Academic Repository/AY 2026-27/Secondary/${classId}/${sectName}/${subjectId}/02_Chapter_Resources/Ch${String(ch.chapterNumber).padStart(2, '0')}_${cleanChName}`;
           
@@ -3113,6 +3362,12 @@ app.post("/api/textbooks/import-from-url", async (req, res) => {
             type: "doc" as const,
             source: "Drive" as const,
             path: fPath,
+            className: clsParam,
+            subjectName: subParam,
+            bookName: bookName || matchedCat.name,
+            topicName: `Chapter ${ch.chapterNumber}: ${ch.chapterName}`,
+            chapterNumber: ch.chapterNumber,
+            medium: medium || "en",
             owner: "academic.repository",
             modifiedAt: new Date().toISOString(),
             sharingRule: "Domain Shared" as const,
@@ -3156,7 +3411,7 @@ app.post("/api/textbooks/import-from-url", async (req, res) => {
 // 4. Ingest and extract structure from high fidelity Files (PDF, Image)
 app.post("/api/textbooks/import-from-file", async (req, res) => {
   try {
-    const { fileName, fileType, fileData, classId, subjectId, academicYear, medium, bookName, userKey } = req.body;
+    const { fileName, fileType, fileData, chapters, classId, subjectId, academicYear, medium, bookName, userKey } = req.body;
     if (!fileName || !fileType) {
       return res.status(400).json({ error: "Missing required properties: 'fileName' and 'fileType'" });
     }
@@ -3198,10 +3453,13 @@ app.post("/api/textbooks/import-from-file", async (req, res) => {
     };
     textbookJobs.push(newJob);
 
-    // Simulate multi-modal text extraction
-    setTimeout(async () => {
+    // Run extraction inline so the client can receive the extracted chapter list immediately.
       const jobIdx = textbookJobs.findIndex(j => j.id === jobId);
       if (jobIdx === -1) return;
+
+      let tocWarningNotes: string[] = [];
+      let duplicateChapterNumbers: number[] = [];
+      let mappedChapters: any[] = [];
 
       try {
         textbookJobs[jobIdx].progressPercent = 50;
@@ -3223,45 +3481,117 @@ app.post("/api/textbooks/import-from-file", async (req, res) => {
         };
         textbookBooks.push(newBook);
 
-        // Add 3 structural chapters extracted from TOC
-        const mappedChapters = [
-          {
-            id: `ch-draft-${Date.now()}-1`,
+        if (Array.isArray(chapters) && chapters.length > 0) {
+          const normalized = normalizeExtractedTocRows(chapters);
+          tocWarningNotes = normalized.warnings;
+          duplicateChapterNumbers = normalized.duplicateChapterNumbers;
+          mappedChapters = normalized.chapters.map((ch: any, index: number) => ({
+            id: `ch-draft-${Date.now()}-${ch.num}`,
             bookId: bookId,
-            chapterNumber: 1,
-            chapterCode: `ch1_ingested_concept`,
-            chapterName: `Chapter 1: Dynamic Ingested Foundations`,
-            unitName: "Unit 1",
-            pageStart: 1,
-            pageEnd: 15,
-            detectedConfidence: 0.88,
+            chapterNumber: ch.num,
+            chapterCode: `ch${ch.num}_${String(ch.name).toLowerCase().replace(/[^a-z0-9]/g, "_")}`,
+            chapterName: ch.name,
+            unitName: ch.unit || `Unit ${index + 1}`,
+            pageStart: ch.pageStart,
+            pageEnd: ch.pageEnd,
+            detectedConfidence: 0.9,
             verificationStatus: "pending",
             artifactGenerationStatus: "idle",
             sqaaEvidenceTags: ["SQAA-1.1"],
-            cbseOutcomeTags: ["CBSE-OB-1"],
-            ncertOutcomeTags: ["NCERT-C-1"],
+            cbseOutcomeTags: [`CBSE-OB-${ch.num}`],
+            ncertOutcomeTags: [`NCERT-C-${ch.num}`],
             nepTags: ["NEP2020-Pedagogy-Experiential"],
             createdAt: new Date().toISOString()
-          },
-          {
-            id: `ch-draft-${Date.now()}-2`,
+          }));
+        } else if (fileData && (fileType.includes("image") || fileType.includes("pdf"))) {
+          let cleanBase64 = fileData;
+          if (fileData.includes(";base64,")) {
+            cleanBase64 = fileData.split(";base64,")[1];
+          }
+
+          const uploadedMimeType = fileType.includes("pdf") ? "application/pdf" : (fileType || "image/png");
+          const tocPrompt = fileType.includes("pdf")
+            ? "Extract every chapter row from this textbook PDF. Read the full table of contents or chapter list if present, and do not stop after the first few chapters. Return chapters in ascending chapter number order. If a chapter number appears more than once, keep every visible row in order so duplicates can be reviewed later. Return raw JSON array objects with num, name, pageStart, pageEnd, and unit."
+            : "Extract every textbook table-of-contents row visible in this image. Return chapters in ascending chapter number order and keep the full sequence intact so later chapters are not dropped. If OCR shows the same chapter number more than once, keep every visible row in order so duplicates can be reviewed later. Return raw JSON array objects with num, name, pageStart, pageEnd, and unit.";
+
+          const response = await robustGenerateContent(getGenAI(userKey), {
+            model: "gemini-3.5-flash",
+            contents: {
+              parts: [
+                { inlineData: { mimeType: uploadedMimeType, data: cleanBase64 } },
+                { text: tocPrompt }
+              ]
+            },
+            config: {
+              temperature: 0.1,
+              responseMimeType: "application/json"
+            }
+          });
+
+          const parsed = parseJsonArraySafely(response.text || "");
+          const normalized = normalizeExtractedTocRows(parsed);
+          tocWarningNotes = normalized.warnings;
+          duplicateChapterNumbers = normalized.duplicateChapterNumbers;
+          mappedChapters = normalized.chapters.map((ch: any, index: number) => ({
+            id: `ch-draft-${Date.now()}-${ch.num}`,
             bookId: bookId,
-            chapterNumber: 2,
-            chapterCode: `ch2_ingested_applied`,
-            chapterName: `Chapter 2: Applied Methodologies`,
-            unitName: "Unit 1",
-            pageStart: 16,
-            pageEnd: 35,
-            detectedConfidence: 0.85,
+            chapterNumber: ch.num,
+            chapterCode: `ch${ch.num}_${String(ch.name).toLowerCase().replace(/[^a-z0-9]/g, "_")}`,
+            chapterName: ch.name,
+            unitName: ch.unit || `Unit ${index + 1}`,
+            pageStart: ch.pageStart,
+            pageEnd: ch.pageEnd,
+            detectedConfidence: 0.9,
             verificationStatus: "pending",
             artifactGenerationStatus: "idle",
-            sqaaEvidenceTags: ["SQAA-1.2"],
-            cbseOutcomeTags: ["CBSE-OB-2"],
-            ncertOutcomeTags: ["NCERT-C-2"],
-            nepTags: ["NEP2020-Pedagogy-Computational"],
+            sqaaEvidenceTags: ["SQAA-1.1"],
+            cbseOutcomeTags: [`CBSE-OB-${ch.num}`],
+            ncertOutcomeTags: [`NCERT-C-${ch.num}`],
+            nepTags: ["NEP2020-Pedagogy-Experiential"],
             createdAt: new Date().toISOString()
-          }
-        ];
+          }));
+        }
+
+        if (mappedChapters.length === 0) {
+          mappedChapters = [
+            {
+              id: `ch-draft-${Date.now()}-1`,
+              bookId: bookId,
+              chapterNumber: 1,
+              chapterCode: `ch1_ingested_concept`,
+              chapterName: `Chapter 1: Dynamic Ingested Foundations`,
+              unitName: "Unit 1",
+              pageStart: 1,
+              pageEnd: 15,
+              detectedConfidence: 0.88,
+              verificationStatus: "pending",
+              artifactGenerationStatus: "idle",
+              sqaaEvidenceTags: ["SQAA-1.1"],
+              cbseOutcomeTags: ["CBSE-OB-1"],
+              ncertOutcomeTags: ["NCERT-C-1"],
+              nepTags: ["NEP2020-Pedagogy-Experiential"],
+              createdAt: new Date().toISOString()
+            },
+            {
+              id: `ch-draft-${Date.now()}-2`,
+              bookId: bookId,
+              chapterNumber: 2,
+              chapterCode: `ch2_ingested_applied`,
+              chapterName: `Chapter 2: Applied Methodologies`,
+              unitName: "Unit 1",
+              pageStart: 16,
+              pageEnd: 35,
+              detectedConfidence: 0.85,
+              verificationStatus: "pending",
+              artifactGenerationStatus: "idle",
+              sqaaEvidenceTags: ["SQAA-1.2"],
+              cbseOutcomeTags: ["CBSE-OB-2"],
+              ncertOutcomeTags: ["NCERT-C-2"],
+              nepTags: ["NEP2020-Pedagogy-Computational"],
+              createdAt: new Date().toISOString()
+            }
+          ];
+        }
         
         textbookChapters.push(...mappedChapters);
 
@@ -3270,7 +3600,9 @@ app.post("/api/textbooks/import-from-file", async (req, res) => {
           id: `rev-${Date.now()}`,
           sourceId: sourceId,
           bookId: bookId,
-          rawExtractedToc: "Verified OCR output text: Chapter 1 & Chapter 2 structure parsed.",
+          rawExtractedToc: tocWarningNotes.length > 0
+            ? `Verified OCR output with cleanup warnings: ${tocWarningNotes.join(" | ")}`
+            : `Verified OCR output text: ${mappedChapters.map(ch => `Chapter ${ch.chapterNumber}: ${ch.chapterName}`).join(" | ")}`,
           normalizedTocJson: JSON.stringify(mappedChapters),
           reviewStatus: "pending",
           createdAt: new Date().toISOString()
@@ -3298,6 +3630,12 @@ app.post("/api/textbooks/import-from-file", async (req, res) => {
             type: "doc" as const,
             source: "Drive" as const,
             path: fPath,
+            className: clsParam,
+            subjectName: subParam,
+            bookName: bookName || `Ingested Book from ${fileName}`,
+            topicName: `Chapter ${ch.chapterNumber}: ${ch.chapterName}`,
+            chapterNumber: ch.chapterNumber,
+            medium: medium || "en",
             owner: "academic.repository",
             modifiedAt: new Date().toISOString(),
             sharingRule: "Domain Shared" as const,
@@ -3320,13 +3658,20 @@ app.post("/api/textbooks/import-from-file", async (req, res) => {
         textbookJobs[jobIdx].currentStep = "Failed to run OCR fallback.";
         textbookJobs[jobIdx].errorsJson = JSON.stringify({ message: err.message });
       }
-    }, 2000);
 
     res.json({
       success: true,
       message: "Asset upload queued for OCR ingestion.",
       sourceId,
-      jobId
+      jobId,
+      chapters: mappedChapters.map((ch) => ({
+        num: ch.chapterNumber,
+        name: ch.chapterName,
+        pageStart: ch.pageStart,
+        pageEnd: ch.pageEnd,
+        unit: ch.unitName
+      })),
+      duplicateChapterNumbers
     });
 
   } catch (error: any) {
@@ -3353,7 +3698,7 @@ app.post("/api/textbooks/extract-toc", async (req, res) => {
         contents: {
           parts: [
             { inlineData: { mimeType: "image/png", data: cleanBase64 } },
-            { text: "Extract numbers, titles, and unit classifications from this table of contents. Return clean, raw JSON matching this structure: [{'num': 1, 'name': 'Chapter Title', 'pageStart': 1, 'pageEnd': 10}]. Return ONLY raw valid JSON array." }
+            { text: "Extract numbers, titles, and unit classifications from this table of contents. Return a clean JSON array of chapters sorted in ascending chapter number order. Do not stop after a few rows. If the same chapter number appears more than once, keep every visible row in reading order so duplicates can be reviewed later. Use this structure: [{'num': 1, 'name': 'Chapter Title', 'pageStart': 1, 'pageEnd': 10}]. Return ONLY raw valid JSON array." }
           ]
         },
         config: {
@@ -3363,15 +3708,18 @@ app.post("/api/textbooks/extract-toc", async (req, res) => {
       });
 
       const text = response.text ? response.text.trim() : "[]";
-      return res.json({ success: true, parsed: JSON.parse(text) });
+      const parsed = JSON.parse(text);
+      const normalized = normalizeExtractedTocRows(Array.isArray(parsed) ? parsed : []);
+      return res.json({ success: true, parsed: normalized.chapters, warnings: normalized.warnings, duplicateChapterNumbers: normalized.duplicateChapterNumbers });
     }
 
     res.json({
       success: true,
-      parsed: [
+      parsed: normalizeExtractedTocRows([
         { num: 1, name: "Section 1: Ingested Principles", pageStart: 1, pageEnd: 20 },
         { num: 2, name: "Section 2: Practical Exercises", pageStart: 21, pageEnd: 40 }
-      ]
+      ]).chapters,
+      warnings: []
     });
 
   } catch (error: any) {
@@ -3638,6 +3986,156 @@ app.post("/api/textbooks/generate-zip", (req, res) => {
   }
 });
 
+app.post("/api/textbooks/ncert-setup/apply", async (req, res) => {
+  try {
+    const { token, approved, setup } = req.body || {};
+    if (!approved) return res.status(400).json({ success: false, error: "User approval is required before Drive or Sheet changes." });
+    if (!token) return res.status(401).json({ success: false, error: "Google Sheets write token is required. Add it in Workspace settings before applying approved rows." });
+    if (!setup?.folderPath) return res.status(400).json({ success: false, error: "Setup folder path is missing." });
+
+    const existingFolderId = setup.existingDriveFolderId || parseGoogleDriveFolderId(setup.existingDriveFolderUrl || "");
+    const folder = existingFolderId
+      ? {
+          id: existingFolderId,
+          webViewLink: setup.existingDriveFolderUrl || `https://drive.google.com/drive/folders/${existingFolderId}`
+        }
+      : await ensureDriveFolderPath(token, setup.folderPath);
+    const now = new Date().toISOString();
+    const selectedBook = setup.selectedBook || {};
+    const chapters = Array.isArray(setup.chapters) ? setup.chapters : [];
+    const config = setup.config || {};
+    const bookId = selectedBook.ncert_book_id || `${setup.classId}-${setup.subjectId}-${setup.bookName}`.replace(/\s+/g, "_").toUpperCase();
+    const bookTitle = selectedBook.book_title || setup.bookName || "NCERT Book";
+    const medium = selectedBook.medium || setup.medium || "English";
+
+    const bookRows = selectedBook.ncert_book_id ? [[
+      bookId,
+      selectedBook.class || setup.classId || "",
+      selectedBook.subject || setup.subjectId || "",
+      medium,
+      bookTitle,
+      selectedBook.book_code || "",
+      selectedBook.official_source_url || setup.sourceLabel || "",
+      selectedBook.source_portal || "NCERT",
+      now.slice(0, 10),
+      selectedBook.academic_year_applicable || "",
+      selectedBook.edition_or_version || "",
+      selectedBook.rationalised_content_applicable || "",
+      selectedBook.toc_status || "Draft Setup Prepared",
+      selectedBook.source_verification_status || "Draft Setup Prepared",
+      selectedBook.human_review_status || "Needs Human Review",
+      `Approved setup from ${setup.sourceLabel || "NCERT source"}`
+    ]] : [];
+
+    const chapterRows = chapters.map((chapter: any, index: number) => [
+      chapter.ncert_chapter_id || `${bookId}-CH-${String(chapter.chapter_number || index + 1).padStart(2, "0")}`,
+      chapter.ncert_book_id || bookId,
+      chapter.class || setup.classId || "",
+      chapter.subject || setup.subjectId || "",
+      chapter.medium || medium,
+      String(chapter.chapter_number || index + 1),
+      chapter.chapter_title || `Chapter ${index + 1}`,
+      chapter.unit_name || "",
+      "",
+      "",
+      "",
+      "",
+      setup.sourceLabel || "",
+      chapter.parsed_status || "Draft Setup Prepared",
+      "",
+      chapter.source_verification_status || "Draft Setup Prepared",
+      chapter.human_review_status || "Needs Human Review",
+      `Approved setup at ${now}`
+    ]);
+
+    const sourceFolderRows = [[
+      `SRC-${bookId}-${Date.now()}`,
+      "schooly",
+      "",
+      setup.classId || selectedBook.class || "",
+      "",
+      setup.subjectId || selectedBook.subject || "",
+      medium,
+      bookId,
+      bookTitle,
+      folder.webViewLink,
+      "Accessible",
+      "Setup Approved",
+      now,
+      `Created/reused by Schooly from ${setup.sourceLabel || "NCERT source"}`
+    ]];
+
+    const fileMapRows = chapters.map((chapter: any, index: number) => [
+      `MAP-${bookId}-CH-${String(chapter.chapter_number || index + 1).padStart(2, "0")}-${Date.now()}`,
+      "schooly",
+      "",
+      setup.classId || chapter.class || "",
+      "",
+      setup.subjectId || chapter.subject || "",
+      medium,
+      chapter.ncert_book_id || bookId,
+      chapter.ncert_chapter_id || `${bookId}-CH-${String(chapter.chapter_number || index + 1).padStart(2, "0")}`,
+      bookTitle,
+      String(chapter.chapter_number || index + 1),
+      chapter.chapter_title || `Chapter ${index + 1}`,
+      folder.webViewLink,
+      "",
+      "",
+      "",
+      "Pending File Match",
+      "Needs Human Review",
+      "Schooly",
+      now,
+      `Folder created/reused; chapter PDF file match pending from ${setup.sourceLabel || "NCERT source"}`
+    ]);
+
+    let rowsAppended = 0;
+    const ncertRegistryUrl = config.registryUrl || config.mainRegistryUrl || "";
+    rowsAppended += await appendSheetRows(token, ncertRegistryUrl, "NCERT_Book_Registry", bookRows);
+    rowsAppended += await appendSheetRows(token, ncertRegistryUrl, "NCERT_Chapter_Registry", chapterRows);
+    rowsAppended += await appendSheetRows(token, config.privateDriveMapUrl, "NCERT_Drive_Source_Folders", sourceFolderRows);
+    rowsAppended += await appendSheetRows(token, config.privateDriveMapUrl, "NCERT_Chapter_File_Map", fileMapRows);
+
+    res.json({
+      success: true,
+      driveFolderId: folder.id,
+      driveFolderUrl: folder.webViewLink,
+      rowsAppended
+    });
+  } catch (error: any) {
+    const message = String(error?.message || error);
+    const authHint = message.includes("insufficient") || message.includes("403")
+      ? " Add a Google Sheets write token in Workspace settings and retry."
+      : "";
+    res.status(500).json({ success: false, error: `${message}${authHint}` });
+  }
+});
+
+app.post("/api/textbooks/ncert-setup/inspect-zip", async (req, res) => {
+  try {
+    const { zipUrl, setup } = req.body || {};
+    if (!zipUrl || !/^https?:\/\//i.test(zipUrl)) {
+      return res.status(400).json({ success: false, error: "Provide a valid NCERT ZIP URL." });
+    }
+    const response = await fetch(zipUrl, { headers: { Accept: "application/zip, application/octet-stream, */*" } });
+    if (!response.ok) {
+      return res.status(response.status).json({ success: false, error: `ZIP URL returned ${response.status}.` });
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const entries = parseZipEntryNames(buffer);
+    const chapters = inferChapterRowsFromZipEntries(entries, setup || {});
+    res.json({
+      success: true,
+      entries,
+      chapters,
+      chapterCount: chapters.length
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error?.message || "Unable to inspect ZIP." });
+  }
+});
+
 // 14. Publish to Google Drive (In-memory file system + real-time logs)
 app.post("/api/textbooks/publish-to-drive", (req, res) => {
   try {
@@ -3730,6 +4228,7 @@ async function runServer() {
   if (process.env.NODE_ENV !== "production") {
     // Run live Vite development server middleware
     const vite = await createViteServer({
+      configLoader: "runner",
       server: { middlewareMode: true },
       appType: "spa",
     });
@@ -3744,7 +4243,7 @@ async function runServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`EduWorkspace Intelligence Server successfully running on http://0.0.0.0:${PORT}`);
+    console.log(`EduWorkspace Intelligence Server successfully running on http://127.0.0.1:${PORT}`);
   });
 }
 

@@ -99,13 +99,13 @@
     "01_Compliance",
     "02_Academic_Audit",
     "03_HR",
-    "04_Dashboard_Data",
-    "05_SOPs",
-    "06_Strategic_Planning",
-    "07_Meeting_Minutes",
-    "08_School_Improvement_Plans",
-    "09_Committee_Records",
-    "10_Policies"
+    "05_Dashboard_Data",
+    "06_SOPs",
+    "07_Strategic_Planning",
+    "08_Meeting_Minutes",
+    "09_School_Improvement_Plans",
+    "10_Committee_Records",
+    "11_Policies"
   ],
   "formsIntake": [
     "01_Weekly_Planner_Form",

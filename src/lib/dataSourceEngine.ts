@@ -1,10 +1,25 @@
 /**
  * Schooly AI — Connector-Ready Data-Source Abstraction Layer
  * This script serves as the engine to govern data connection states, Mode classifications,
- * link validations, and transparent fallback notifications when mock datasets are in use.
+ * link validations, and clear setup notifications when a live data source is not yet connected.
  */
 
 export type DataSourceMode = "mock" | "live";
+
+export function parseGoogleSheetUrl(url: string): { sheetId: string; gid: string; exportUrl: string } | null {
+  if (!url) return null;
+  const trimmed = url.trim();
+  const sheetMatch = trimmed.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (!sheetMatch) return null;
+  const gidMatch = trimmed.match(/(?:[?#&]gid=)(\d+)/);
+  const sheetId = sheetMatch[1];
+  const gid = gidMatch?.[1] || "0";
+  return {
+    sheetId,
+    gid,
+    exportUrl: `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`
+  };
+}
 
 export interface SchoolyDataSource {
   id: string;               // e.g. "google_workspace", "google_classroom", "academic_repository", "forms_monitoring", "governance_compliance"
@@ -104,9 +119,9 @@ export function loadConnectionConfig(type: "google_workspace" | "google_classroo
  * Standard plain copy alerts dictionary for faculty users
  */
 export const FALLBACK_ALERT_MESSAGES = {
-  BANNER_HEADING: "Fallback Data Active (Simulated Workspace)",
-  BANNER_COPY: "Real-time Google Workspace sync is not connected. The information shown is a mock simulation. Please link a valid Google Drive folder or Google Classroom link under 'School Drive Structure' or our Universal Search configuration panel to enable live data integration.",
-  DISCONNECTED_COORDINATOR: "Coordinator sync fallback loaded. Connect classroom.google.com to retrieve live lesson plannings checklists.",
-  DASHBOARD_NOTICE_SHORT: "Previewing Simulated Dataset",
+  BANNER_HEADING: "Live Data Source Not Connected",
+  BANNER_COPY: "Real-time Google Workspace sync is not connected yet. Please link a valid Google Drive folder or Google Classroom link under Settings to enable live data integration.",
+  DISCONNECTED_COORDINATOR: "Coordinator sync is not connected. Connect Google Classroom to retrieve live lesson planning checklists.",
+  DASHBOARD_NOTICE_SHORT: "Waiting for live data",
   NOT_CONNECTED_WARN: "No active Google connection"
 };

@@ -51,10 +51,10 @@ export default function ClassroomManager({
           </div>
           <div className="space-y-1">
             <h4 className="text-xs font-extrabold text-amber-900 uppercase font-sans tracking-tight">
-              {FALLBACK_ALERT_MESSAGES.BANNER_HEADING} (Simulated Classroom Integration)
+              {FALLBACK_ALERT_MESSAGES.BANNER_HEADING}
             </h4>
             <p className="text-[11px] leading-relaxed text-amber-800 select-text font-sans">
-              Google Classroom Streams are operating on local fallback mode. Connect a google.com/classroom setup link inside your controls menu to sync current course modules and direct announcements.
+              Google Classroom Streams are not connected yet. Add a Classroom setup link in Settings to sync current course modules and announcements.
             </p>
           </div>
         </div>

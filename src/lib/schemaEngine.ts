@@ -1,5 +1,5 @@
 /**
- * Schooly AI — Schema-Driven Architecture & Metadata Engine
+ * Schooly AI - Schema-Driven Architecture & Metadata Engine
  * This script serves as the sole declarative interface to govern roles, capabilities,
  * navigation routes, dynamic dashboard dashboard widgets, and user layout priorities.
  */
@@ -29,7 +29,7 @@ export interface NavigationItemSchema {
     featureFlag?: string;
   };
   capabilityRequirements: string[];
-  parentGroup: "My Workspace" | "Teaching & Learning" | "School Operations" | "Leadership & Governance";
+  parentGroup: "My Workspace" | "Teaching & Learning" | "Registers" | "School Operations" | "Leadership & Governance" | "Settings";
   helperText?: string;
 }
 
@@ -94,13 +94,19 @@ export const DRAFT_FUTURE_STRUCTURES = {
   ],
   "Teaching & Learning": [
     { id: "classroom", label: "Classroom Sync", route: "classroom" },
-    { id: "ai-assistant", label: "AI Co-Pilot", route: "ai-assistant" }
+    { id: "ai-assistant", label: "AI Assistant", route: "ai-assistant" }
+  ],
+  "Registers": [
+    { id: "registers", label: "Registers", route: "registers" }
   ],
   "School Operations": [
     { id: "rollover", label: "Academic Year", route: "rollover" }
   ],
   "Leadership & Governance": [
     { id: "governance", label: "Governance", route: "governance" }
+  ],
+  "Settings": [
+    { id: "settings", label: "Settings", route: "settings" }
   ]
 };
 
@@ -129,6 +135,17 @@ export const DEFAULT_NAVIGATION_ITEMS: NavigationItemSchema[] = [
     helperText: "Find files, classes, tasks, and records you can access."
   },
   {
+    id: "role-cards",
+    label: "Role Cards",
+    icon: "LayoutGrid",
+    route: "role-cards",
+    displayOrder: 2.5,
+    visibilityRules: { capabilities: ["Analytics", "Teaching", "Student Services", "Operations", "Reporting", "Administration", "Governance", "Academic Leadership"] },
+    capabilityRequirements: ["Analytics", "Teaching", "Student Services", "Operations", "Reporting", "Administration", "Governance", "Academic Leadership"],
+    parentGroup: "My Workspace",
+    helperText: "Open compact role-specific cards."
+  },
+  {
     id: "tasks",
     label: "Tasks",
     icon: "CheckSquare",
@@ -152,7 +169,7 @@ export const DEFAULT_NAVIGATION_ITEMS: NavigationItemSchema[] = [
   },
   {
     id: "ai-assistant",
-    label: "AI Co-Pilot",
+    label: "AI Assistant",
     icon: "Sparkles",
     route: "ai-assistant",
     displayOrder: 4,
@@ -171,6 +188,17 @@ export const DEFAULT_NAVIGATION_ITEMS: NavigationItemSchema[] = [
     capabilityRequirements: ["Teaching"],
     parentGroup: "Teaching & Learning",
     helperText: "Create, search, reuse and manage structured lesson plans."
+  },
+  {
+    id: "registers",
+    label: "Registers",
+    icon: "FolderOpen",
+    route: "registers",
+    displayOrder: 4.2,
+    visibilityRules: { capabilities: ["Analytics", "Operations", "Teaching", "Student Services", "Reporting"] },
+    capabilityRequirements: ["Analytics", "Operations", "Teaching", "Student Services", "Reporting"],
+    parentGroup: "Registers",
+    helperText: "Open live student, teacher, class, and staff registers."
   },
   {
     id: "rollover",
@@ -195,15 +223,15 @@ export const DEFAULT_NAVIGATION_ITEMS: NavigationItemSchema[] = [
     helperText: "Review roles, audit logs, school structure, and policies."
   },
   {
-    id: "mock_studio",
-    label: "Database & Connectors",
-    icon: "Database",
-    route: "mock_studio",
+    id: "settings",
+    label: "Settings",
+    icon: "Settings",
+    route: "settings",
     displayOrder: 8,
-    visibilityRules: { capabilities: ["Administration"] },
-    capabilityRequirements: ["Administration"],
-    parentGroup: "Leadership & Governance",
-    helperText: "View & configure active database registers and integration schemas."
+    visibilityRules: { capabilities: ["Administration", "Governance", "Operations", "Academic Leadership"] },
+    capabilityRequirements: ["Administration", "Governance", "Operations", "Academic Leadership"],
+    parentGroup: "Settings",
+    helperText: "Configure data sources, setup, and registry details."
   }
 ];
 
@@ -211,7 +239,7 @@ export const DEFAULT_ROLES: RoleSchema[] = [
   {
     roleId: "principal",
     roleName: "Principal",
-    defaultEmail: "torres.admin@school.org",
+    defaultEmail: "principal@school.org",
     description: "Oversee operational operational risks & curriculum planners alignment",
     capabilities: [
       "Academic Leadership",
@@ -227,7 +255,7 @@ export const DEFAULT_ROLES: RoleSchema[] = [
   {
     roleId: "coordinator",
     roleName: "School Coordinator",
-    defaultEmail: "coord.planner@school.org",
+    defaultEmail: "coordinator@school.org",
     description: "Manage Department curricula alignments, class sync indices, and teacher assignments",
     capabilities: [
       "Academic Leadership",
@@ -243,7 +271,7 @@ export const DEFAULT_ROLES: RoleSchema[] = [
   {
     roleId: "hod",
     roleName: "HOD",
-    defaultEmail: "mathematics.department@school.org",
+    defaultEmail: "hod@school.org",
     description: "Manage Mathematics Department-level monitoring, resources completion gaps, and teacher activities",
     capabilities: [
       "Academic Leadership",
@@ -258,7 +286,7 @@ export const DEFAULT_ROLES: RoleSchema[] = [
   {
     roleId: "teacher",
     roleName: "Teacher",
-    defaultEmail: "s.henderson@school.org",
+    defaultEmail: "teacher@school.org",
     description: "Track Grade 8 classroom course syllabi, assignments and student risks indicators",
     capabilities: [
       "Teaching",
@@ -447,7 +475,7 @@ export const DEFAULT_PAGES_SCHEMAS: PageLayoutSchema[] = [
   },
   {
     pageId: "ai-assistant",
-    pageTitle: "AI Co-Pilot",
+    pageTitle: "AI Assistant",
     layoutType: "split",
     sections: ["educational_designer", "workflow_automations", "active_triggers"],
     widgets: ["ai_prompt_playground", "structured_automation_blueprint", "automation_rules_list"],
