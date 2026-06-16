@@ -214,7 +214,7 @@ export function createWorkspaceFileEntityDefinition({
       {
         id: "content",
         title: "Content Summary",
-        fields: ["contentSum", "tags"],
+        fields: ["contentSum"],
       },
     ],
 

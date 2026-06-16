@@ -28,7 +28,6 @@ import {
   Compass,
   AlertTriangle,
   LogOut,
-  Sliders,
   Sparkle
 } from "lucide-react";
 
@@ -968,19 +967,6 @@ export default function UniversalSearch({
 
           {selectedFile ? (
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4 max-w-full overflow-hidden" id="metadata-details-panel">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-950 flex items-center gap-1.5 truncate pr-2">
-                  <Sliders size={14} className="text-slate-500" />
-                  Document Details
-                </h3>
-                <button 
-                  onClick={() => setSelectedFile(null)}
-                  className="text-slate-400 hover:text-slate-600 p-1 rounded-md cursor-pointer transition-colors"
-                >
-                  <X size={15} />
-                </button>
-              </div>
-
               <GenericEntityDetailView
                 definition={workspaceFileDefinition}
                 row={selectedFile}
