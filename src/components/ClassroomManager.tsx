@@ -17,13 +17,15 @@ interface ClassroomManagerProps {
   assignments: ClassroomAssignment[];
   students: StudentDetails[];
   teachers: TeacherDetails[];
+  onOpenStudents?: () => void;
 }
 
 export default function ClassroomManager({
   courses,
   assignments,
   students,
-  teachers
+  teachers,
+  onOpenStudents
 }: ClassroomManagerProps) {
   const [activeCourseId, setActiveCourseId] = useState<string>("course-sci-8");
   const selectedCourse = courses.find(c => c.id === activeCourseId) || courses[0];
@@ -167,10 +169,21 @@ export default function ClassroomManager({
         <div className="space-y-6">
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm" id="student-risks-panel">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold text-slate-900">Synced SIS Pupil Roster</h3>
-              <span className="p-1 text-slate-400 hover:text-slate-600 rounded-md cursor-pointer">
-                <Info size={14} title="Roster syncing via active cloud registers" />
-              </span>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-900">Synced SIS Pupil Roster</h3>
+                <span className="p-1 text-slate-400 hover:text-slate-600 rounded-md cursor-pointer">
+                  <Info size={14} title="Roster syncing via active cloud registers" />
+                </span>
+              </div>
+              {onOpenStudents && (
+                <button
+                  type="button"
+                  onClick={onOpenStudents}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 text-[10px] font-extrabold text-blue-700 hover:bg-blue-50 cursor-pointer transition-colors"
+                >
+                  View all students
+                </button>
+              )}
             </div>
 
             <GenericEntityListView

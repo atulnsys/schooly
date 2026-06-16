@@ -5484,7 +5484,7 @@ export default function DashboardOverview({
       : 0;
 
     const glanceCards = [
-      { label: "Active Students", value: students.length, note: "Live enrollment rows" },
+      { label: "Active Students", value: students.length, note: "Live enrollment rows", actionTab: "students" },
       { label: "Active Staff", value: teacherPerformanceData.length, note: "Live allocation rows" },
       { label: "Active Class Sections", value: activeClassSections, note: "From Classes_Sections" },
       { label: "Teacher Allocation Coverage", value: `${teacherAllocationCoverage}%`, note: "Planner rows completed" },
@@ -5512,20 +5512,33 @@ export default function DashboardOverview({
             style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}
             id="school-glance-grid"
           >
-            {glanceCards.map((item) => (
-              <div
-                key={item.label}
-                className="w-full h-full flex flex-col justify-between p-4 bg-slate-50 hover:bg-slate-100/60 border border-slate-100 rounded-xl space-y-1 transition-all cursor-default hover:border-blue-200 hover:shadow-xs group"
-              >
-                <div>
-                  <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block tracking-wider">{item.label}</span>
-                  <div className="text-xl font-black tabular-nums text-slate-800 group-hover:text-blue-600 transition-colors">
-                    {item.value}
+            {glanceCards.map((item) => {
+              const CardTag = item.actionTab ? "button" : "div";
+              const cardProps = item.actionTab
+                ? {
+                    type: "button" as const,
+                    onClick: () => onToggleTab(item.actionTab!),
+                    className: "w-full h-full flex flex-col justify-between p-4 bg-slate-50 hover:bg-slate-100/60 border border-slate-100 rounded-xl space-y-1 transition-all cursor-pointer hover:border-blue-200 hover:shadow-xs group text-left",
+                  }
+                : {
+                    className: "w-full h-full flex flex-col justify-between p-4 bg-slate-50 hover:bg-slate-100/60 border border-slate-100 rounded-xl space-y-1 transition-all cursor-default hover:border-blue-200 hover:shadow-xs group",
+                  };
+
+              return (
+                <CardTag
+                  key={item.label}
+                  {...cardProps}
+                >
+                  <div>
+                    <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block tracking-wider">{item.label}</span>
+                    <div className="text-xl font-black tabular-nums text-slate-800 group-hover:text-blue-600 transition-colors">
+                      {item.value}
+                    </div>
                   </div>
-                </div>
-                <div className="text-[10px] text-slate-500 font-medium font-sans">{item.note}</div>
-              </div>
-            ))}
+                  <div className="text-[10px] text-slate-500 font-medium font-sans">{item.note}</div>
+                </CardTag>
+              );
+            })}
           </div>
         </div>
 

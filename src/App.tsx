@@ -428,13 +428,43 @@ function getPlainLanguagePermissions(roles: string[]): string[] {
   ];
 }
 
+const ROUTE_TABS = new Set([
+  "overview",
+  "role-cards",
+  "registers",
+  "settings",
+  "dashboard-data-source",
+  "school-setup",
+  "setup-registries",
+  "admin-registry-detail",
+  "search",
+  "classroom",
+  "students",
+  "tasks",
+  "ai-assistant",
+  "rollover",
+  "governance",
+  "mock_studio",
+  "lesson-plans",
+  "textbooks",
+]);
+
+function getTabFromPathname(pathname: string): string {
+  const path = String(pathname || "").replace(/^\/+/, "");
+  if (!path) return "overview";
+  return ROUTE_TABS.has(path) ? path : "overview";
+}
+
 export default function App() {
   // Mobile UI States
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showCapabilities, setShowCapabilities] = useState(false);
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window === "undefined") return "overview";
+    return getTabFromPathname(window.location.pathname);
+  });
 
   // Databases States
   const [files, setFiles] = useState<WorkspaceFile[]>([]);
@@ -571,6 +601,23 @@ export default function App() {
       setCurrentUser(personaOptions[0].value);
     }
   }, [currentRole, personaOptions, currentUser]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handlePopState = () => {
+      setActiveTab(getTabFromPathname(window.location.pathname));
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const desiredPath = activeTab === "overview" ? "/" : `/${activeTab}`;
+    if (window.location.pathname !== desiredPath) {
+      window.history.pushState({}, "", desiredPath);
+    }
+  }, [activeTab]);
 
   // Protect route views in real-time when roles or configurations shift
   useEffect(() => {
@@ -1433,6 +1480,7 @@ export default function App() {
             assignments={assignments}
             students={students}
             teachers={teachers}
+            onOpenStudents={() => setActiveTab("students")}
           />
         )}
 

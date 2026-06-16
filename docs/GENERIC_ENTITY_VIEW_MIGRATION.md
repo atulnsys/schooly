@@ -715,6 +715,14 @@ Reason:
 
 The next bounded target has already been completed for this run, and the tracker should stay focused on one migration cycle at a time.
 
+## Follow-up Fix â€” Students Discoverability
+
+* Before this fix, the Students page was present in code but not reliably visible in the sidebar because the active schema could come from older local storage state and the Students item was placed in a less visible nav section.
+* `/students` now opens the Students registry page directly after the route-to-tab bridge was added in `App.tsx`.
+* Sidebar visibility for Principal was fixed by normalizing the loaded schema and placing Students under `Teaching & Learning`.
+* The Active Students KPI now drills through to Students.
+* The Synced SIS Pupil Roster panel now includes a `View all students` button.
+
 ---
 
 # Future Migration Cycles

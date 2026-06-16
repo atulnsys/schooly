@@ -94,11 +94,11 @@ export const DRAFT_FUTURE_STRUCTURES = {
   ],
   "Teaching & Learning": [
     { id: "classroom", label: "Classroom Sync", route: "classroom" },
+    { id: "students", label: "Students", route: "students" },
     { id: "ai-assistant", label: "AI Assistant", route: "ai-assistant" }
   ],
   "Registers": [
-    { id: "registers", label: "Registers", route: "registers" },
-    { id: "students", label: "Students", route: "students" }
+    { id: "registers", label: "Registers", route: "registers" }
   ],
   "School Operations": [
     { id: "rollover", label: "Academic Year", route: "rollover" }
@@ -176,8 +176,8 @@ export const DEFAULT_NAVIGATION_ITEMS: NavigationItemSchema[] = [
     displayOrder: 5.5,
     visibilityRules: { capabilities: ["Teaching", "Student Services", "Analytics", "Reporting"] },
     capabilityRequirements: ["Teaching", "Student Services", "Analytics", "Reporting"],
-    parentGroup: "Registers",
-    helperText: "Browse the live student registry."
+    parentGroup: "Teaching & Learning",
+    helperText: "View student registry, risk, and enrollment details."
   },
   {
     id: "ai-assistant",
@@ -537,6 +537,57 @@ export const INITIAL_EXPORTABLE_SCHEMA: ExportableSchoolySchema = {
   widgets: DEFAULT_DASHBOARD_WIDGETS
 };
 
+function ensureStudentsSchemaCoverage(schema: ExportableSchoolySchema): ExportableSchoolySchema {
+  const studentsNav: NavigationItemSchema = {
+    id: "students",
+    label: "Students",
+    icon: "Users",
+    route: "students",
+    displayOrder: 5.5,
+    visibilityRules: { capabilities: ["Teaching", "Student Services", "Analytics", "Reporting"] },
+    capabilityRequirements: ["Teaching", "Student Services", "Analytics", "Reporting"],
+    parentGroup: "Teaching & Learning",
+    helperText: "View student registry, risk, and enrollment details."
+  };
+
+  const studentsPage: PageLayoutSchema = {
+    pageId: "students",
+    pageTitle: "Students",
+    layoutType: "split",
+    sections: ["student_registry", "student_detail"],
+    widgets: ["student_registry_list", "student_detail_card"],
+    actions: ["search_query", "toggle_display_mode", "filter_by_grade", "filter_by_status"],
+    filters: ["grade_level", "enrollment_status", "risk_band"]
+  };
+
+  const ensureArrayItem = <T,>(items: T[], matcher: (item: T) => boolean, item: T): T[] => {
+    return items.some(matcher) ? items : [...items, item];
+  };
+
+  const normalizedNavigation = ensureArrayItem(
+    schema.navigation || [],
+    (item) => item.id === "students" || item.route === "students",
+    studentsNav,
+  );
+  const normalizedPages = ensureArrayItem(
+    schema.pages || [],
+    (page) => page.pageId === "students",
+    studentsPage,
+  );
+  const normalizeRoleAccess = (role: RoleSchema): RoleSchema => ({
+    ...role,
+    navigationAccess: ensureArrayItem(role.navigationAccess || [], (item) => item === "students", "students"),
+    pageAccess: ensureArrayItem(role.pageAccess || [], (item) => item === "students", "students"),
+  });
+
+  return {
+    ...schema,
+    navigation: normalizedNavigation,
+    pages: normalizedPages,
+    roles: (schema.roles || []).map(normalizeRoleAccess),
+  };
+}
+
 /**
  * Loads the active config from localStorage if available, otherwise sets and returns initial defaults
  */
@@ -545,24 +596,34 @@ export function loadActiveMetadata(): ExportableSchoolySchema {
     const serialized = localStorage.getItem("schooly_active_metadata_schemas");
     if (serialized) {
       const parsed = JSON.parse(serialized);
+      const normalizedParsed = ensureStudentsSchemaCoverage(parsed);
       // Auto-upgrade stale or older configurations (e.g., pre-1.0.1 without dynamic fields/capabilities/roles)
-      if (!parsed.schemaVersion || parsed.schemaVersion !== "1.1.0") {
+      if (!normalizedParsed.schemaVersion || normalizedParsed.schemaVersion !== "1.1.0") {
         console.log("[SCHEMA SYSTEM] Stale or legacy schema version detected. Upgrading database configuration to v1.1.0...");
-        localStorage.setItem("schooly_active_metadata_schemas", JSON.stringify(INITIAL_EXPORTABLE_SCHEMA));
-        return INITIAL_EXPORTABLE_SCHEMA;
+        const upgraded = ensureStudentsSchemaCoverage(INITIAL_EXPORTABLE_SCHEMA);
+        localStorage.setItem("schooly_active_metadata_schemas", JSON.stringify(upgraded));
+        return upgraded;
       }
-      return parsed;
+      if (normalizedParsed.navigation.length !== parsed.navigation?.length ||
+          normalizedParsed.pages.length !== parsed.pages?.length ||
+          normalizedParsed.roles.some((role, index) =>
+            role.navigationAccess.length !== parsed.roles?.[index]?.navigationAccess?.length ||
+            role.pageAccess.length !== parsed.roles?.[index]?.pageAccess?.length)) {
+        localStorage.setItem("schooly_active_metadata_schemas", JSON.stringify(normalizedParsed));
+      }
+      return normalizedParsed;
     }
   } catch (e) {
     console.warn("[SCHEMA SERVER] Failed reading active metadata from localStorage, falling back to static config.", e);
   }
   // Initialize defaults
   try {
-    localStorage.setItem("schooly_active_metadata_schemas", JSON.stringify(INITIAL_EXPORTABLE_SCHEMA));
+    const initialized = ensureStudentsSchemaCoverage(INITIAL_EXPORTABLE_SCHEMA);
+    localStorage.setItem("schooly_active_metadata_schemas", JSON.stringify(initialized));
   } catch (e) {
     console.warn("[SCHEMA SYSTEM] LocalStorage writing restricted.");
   }
-  return INITIAL_EXPORTABLE_SCHEMA;
+  return ensureStudentsSchemaCoverage(INITIAL_EXPORTABLE_SCHEMA);
 }
 
 export function saveActiveMetadata(schema: ExportableSchoolySchema): void {
