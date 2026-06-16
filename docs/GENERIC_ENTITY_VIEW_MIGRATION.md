@@ -15,6 +15,8 @@ Branch: `import/enhanced-codebase`
 | `893cf9d` | Tested generic list view on Workspace files       |
 | `eb8ce7f` | Tested generic detail metadata on Workspace files |
 | `4c5e03c` | Cleaned duplicated Workspace file detail UI       |
+| `3bcf530` | Migrated ClassroomAssignment list to generic view |
+| `31f0533` | Migrated ClassroomCourse selector to generic view |
 
 ## Existing Generic Framework Files
 
@@ -410,13 +412,13 @@ refactor: migrate classroom courses to generic entity views
 
 Commit SHA:
 
-Pending.
+`31f0533`
 
 Files committed:
 
-Pending.
-
-Blocked by repository permissions when creating `.git/index.lock`.
+`src/components/ClassroomManager.tsx`
+`src/lib/classroomCourseEntityDefinition.tsx`
+`docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
 
 ## Step 10 â€” Recommended Next Group
 
@@ -427,6 +429,149 @@ Recommended next group:
 Reason:
 
 The course selector was the cleanest remaining boundary. Anything broader should wait until another surface is equally isolated.
+
+---
+
+# Migration Cycle 3
+
+## Step 1 â€” Inventory Findings
+
+| Component/Page | Finding | Risk | Recommendation |
+| -------------- | ------- | ---- | -------------- |
+| `ClassroomManager.tsx` | Synced SIS pupil roster is a small, typed risk-card list scoped to the selected course. | Low | Migrate the roster cards only. |
+| `LessonPlanner.tsx` | Selection-driven lesson registry/editor with AI and checklist flows. | Medium | Defer. |
+| `TextbookIngestor.tsx` | Large NCERT import/audit workspace. | High | Defer. |
+| `DashboardOverview.tsx` | Broad dashboard and registry drill-through surface. | High | Defer. |
+| `RoleDashboards.tsx` | Status chip rather than list/detail page. | High | Defer. |
+| `TaskCenter.tsx`, `AcademicYearRollover.tsx`, `DataSourceSettings.tsx`, `DynamicDashboardWidget.tsx` | Not present in repo. | None | Ignore for this cycle. |
+
+## Step 2 â€” Selected Object Group
+
+Selected group: `StudentDetails` roster cards in `src/components/ClassroomManager.tsx`
+
+Reason selected: It is a small, typed, course-scoped list with no separate detail panel. The current card list already behaves like a natural generic entity view boundary.
+
+Risk level: Low
+
+Files expected to change: `src/components/ClassroomManager.tsx`, `src/lib/classroomStudentEntityDefinition.tsx`, `docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
+
+## Step 3 â€” Migration Plan
+
+Checklist:
+
+* [ ] Reuse existing types where available.
+* [ ] Do not create mock records.
+* [ ] Do not change data fetching.
+* [ ] Add a dedicated entity definition file if needed.
+* [ ] Use `GenericEntityListView` where safe.
+* [ ] Use `GenericEntityDetailView` where safe.
+* [ ] Use `GenericEntityPage` only if the page is naturally list + detail.
+* [ ] Preserve existing filters.
+* [ ] Preserve existing actions.
+* [ ] Preserve existing drill-through behavior.
+* [ ] Preserve role visibility.
+* [ ] Preserve Google Drive/Classroom links.
+* [ ] Preserve AI controls if present.
+* [ ] Preserve validation/status messages if present.
+* [ ] Defer detail migration if specialized UI would break.
+
+## Step 4 â€” Drill-through / Action Coverage
+
+| Action/Drill-through | Existing Behavior | Generic Mapping Used | Preserved? | Notes |
+| -------------------- | ----------------- | -------------------- | ---------- | ----- |
+| Roster card display | Manual risk cards show name, email, GPA, grade level, and risk index in the selected course roster. | `GenericEntityListView` cards mode with `createClassroomStudentEntityDefinition` | Yes | List-only boundary; no drill-through or detail panel was introduced. |
+
+## Step 5 â€” Behavior Preserved
+
+* The selected course still drives the roster list contents.
+* The classroom stream, materials index, and assignments panel remain unchanged.
+* The roster still reflects grade-level filtered students for the active course.
+* Risk indicators remain visible through card styling and row issues.
+
+## Step 6 â€” Deferred Items
+
+* No roster detail panel was added.
+* No row selection or drill-through was introduced.
+* No other classroom sections were migrated in this cycle.
+
+## Step 7 â€” Code Verification
+
+Commands to run:
+
+* `npx tsc --noEmit --pretty false`
+* `npm run build`
+
+Verification results:
+
+* `npx tsc --noEmit --pretty false` succeeded.
+* `npm run build` succeeded with the existing Vite chunk-size warning only.
+
+## Step 8 â€” UI Smoke Verification
+
+UI verification should prove that the migrated object works in the browser, not just in TypeScript.
+
+Use existing project tooling only. Do not add Playwright, Cypress, or other UI test dependencies unless explicitly approved.
+
+If existing browser automation is available, use it. Otherwise, run the app locally and perform a manual smoke check.
+
+Minimum UI smoke checklist:
+
+* [ ] Page opens without runtime error.
+* [ ] Generic list is visible.
+* [ ] Existing filters/search still work.
+* [ ] Sort/display controls work if enabled.
+* [ ] Selecting a row opens or updates detail view.
+* [ ] Detail view shows correct selected object.
+* [ ] Existing actions still work.
+* [ ] Drill-through still works where applicable.
+* [ ] Existing empty/loading/error state still works.
+* [ ] Browser console has no new migration-related errors.
+* [ ] Layout does not visibly break on normal desktop width.
+
+UI smoke method used:
+
+Local browser smoke through the bundled browser runtime against the built server.
+
+UI smoke result:
+
+Completed locally. I verified:
+
+* Classroom page opened without runtime error.
+* The generic roster card list rendered in the right-side classroom panel.
+* Switching to `Class VII-B | Mathematics` updated the selected course and roster content.
+* The roster cards showed the expected student name, email, enrollment, GPA, and risk index information.
+* The generic cards did not break the surrounding stream, materials, assignments, or layout.
+* No browser console errors were introduced by this migration.
+
+Screenshots or notes:
+
+Manual notes: the roster is now a compact generic card list. The surrounding classroom panels stayed intact.
+
+## Step 9 â€” Commit
+
+Commit message:
+
+refactor: migrate classroom student roster to generic entity views
+
+Commit SHA:
+
+Pending.
+
+Files committed:
+
+Pending.
+
+Blocked by repository permissions when writing objects to `.git/objects`.
+
+## Step 10 â€” Recommended Next Group
+
+Recommended next group:
+
+The remaining simple classroom list-like boundary, if any, should be another isolated list inside `ClassroomManager` and only if it stays equally small and typed.
+
+Reason:
+
+The roster was the last obvious low-risk classroom card boundary. Anything broader should wait for a comparably isolated surface.
 
 ---
 

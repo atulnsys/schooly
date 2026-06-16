@@ -4,6 +4,7 @@ import { loadConnectionConfig, FALLBACK_ALERT_MESSAGES } from "../lib/dataSource
 import GenericEntityListView from "./generic/GenericEntityListView";
 import { createClassroomCourseEntityDefinition } from "../lib/classroomCourseEntityDefinition";
 import { createClassroomAssignmentEntityDefinition } from "../lib/classroomAssignmentEntityDefinition";
+import { createClassroomStudentEntityDefinition } from "../lib/classroomStudentEntityDefinition";
 import { 
   BookOpen, 
   AlertTriangle, 
@@ -27,6 +28,7 @@ export default function ClassroomManager({
   const [activeCourseId, setActiveCourseId] = useState<string>("course-sci-8");
   const selectedCourse = courses.find(c => c.id === activeCourseId) || courses[0];
   const courseDefinition = createClassroomCourseEntityDefinition();
+  const studentDefinition = createClassroomStudentEntityDefinition();
 
   // Filters assignments for the active course
   const courseAssignments = assignments.filter(a => a.courseId === activeCourseId);
@@ -171,44 +173,18 @@ export default function ClassroomManager({
               </span>
             </div>
 
-            <div className="space-y-3">
-              {activeStudents.map(std => (
-                <div 
-                  key={std.id}
-                  className={`p-3.5 border rounded-xl transition-all space-y-2 ${
-                    std.riskFactor === 'high' ? 'bg-rose-50/40 border-rose-100' :
-                    std.riskFactor === 'medium' ? 'bg-amber-50/40 border-amber-100' :
-                    'bg-slate-50/50 border-slate-100'
-                  }`}
-                  id={`std-item-${std.id}`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-slate-800 block">{std.name}</span>
-                      <span className="text-[10px] text-slate-400 font-mono">{std.email}</span>
-                    </div>
-
-                    <div className="text-right">
-                      <span className="text-xs font-bold text-slate-705 block font-mono">GPA {std.gpa.toFixed(2)}</span>
-                      <span className="text-[10px] text-slate-400 font-mono uppercase font-bold">{std.gradeLevel}</span>
-                    </div>
-                  </div>
-
-                  {/* Operational Risk alert */}
-                  {std.riskScore && std.riskScore > 30 && (
-                    <div className="flex items-center justify-between bg-white border border-slate-100 rounded-lg p-2 text-[10px] font-mono">
-                      <div className="flex items-center gap-1.5 text-amber-700 font-semibold">
-                        <AlertTriangle size={12} className={std.riskFactor === 'high' ? "text-rose-500" : "text-amber-500"} />
-                        <span>Risk Index: {std.riskScore}%</span>
-                      </div>
-                      <span className={`font-bold ${std.riskFactor === 'high' ? "text-rose-600" : "text-amber-600"} uppercase`}>
-                        {std.riskFactor} Flag
-                      </span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+            <GenericEntityListView
+              definition={studentDefinition}
+              rows={activeStudents}
+              displayMode="cards"
+              showSearch={false}
+              showFilters={false}
+              showSort={false}
+              showDisplayModeToggle={false}
+              showPagination={false}
+              className="bg-transparent border-0 shadow-none"
+              maxVisibleFields={4}
+            />
           </div>
         </div>
       </div>
