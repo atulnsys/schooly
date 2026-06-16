@@ -4,11 +4,13 @@ import { GenericEntityDefinition } from "./genericEntityView";
 interface ClassroomAssignmentEntityDefinitionOptions {
   courseName?: string;
   studentCount?: number;
+  showCourseName?: boolean;
 }
 
 export function createClassroomAssignmentEntityDefinition({
   courseName,
   studentCount,
+  showCourseName = false,
 }: ClassroomAssignmentEntityDefinitionOptions = {}): GenericEntityDefinition<ClassroomAssignment> {
   return {
     entityName: "Assignment",
@@ -20,7 +22,22 @@ export function createClassroomAssignmentEntityDefinition({
     getTitle: (assignment) => assignment.title,
     getSummary: (assignment) => assignment.description,
     defaultDisplayMode: "table",
+    searchPlaceholder: "Search assignments by title, status, course, or due date",
+    emptyTitle: "No assignments synchronized for this folder.",
+    emptyDescription: "This course does not have any assignments yet.",
     fields: [
+      ...(showCourseName
+        ? [
+            {
+              key: "courseName",
+              label: "Course",
+              type: "text" as const,
+              searchable: true,
+              filterable: true,
+              sortable: true,
+            },
+          ]
+        : []),
       {
         key: "status",
         label: "Status",
@@ -62,7 +79,17 @@ export function createClassroomAssignmentEntityDefinition({
         },
       },
     ],
-    emptyTitle: "No assignments synchronized for this folder.",
-    emptyDescription: "This course does not have any assignments yet.",
+    sections: [
+      {
+        id: "identity",
+        title: "Identity",
+        fields: showCourseName ? ["courseName", "status"] : ["status"],
+      },
+      {
+        id: "grading",
+        title: "Grading",
+        fields: ["dueDate", "submissionCount", "totalPoints"],
+      },
+    ],
   };
 }

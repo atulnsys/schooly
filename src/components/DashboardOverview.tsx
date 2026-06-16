@@ -3086,13 +3086,13 @@ export default function DashboardOverview({
   const renderRegistersHub = () => {
     const teacherCount = [...new Set((courses || []).map((course) => course.teacherName).filter(Boolean))].length;
     const registerCards = [
-      { title: "Students", count: students.length, detail: "Live student records", source: "Master Registry / Student_Directory", drillTab: "admin-registry-detail" },
-      { title: "Teachers", count: teacherCount, detail: "Active teaching staff", source: "Master Registry / Teacher_Allocations", drillTab: "admin-registry-detail" },
-      { title: "Classes & Sections", count: courses.length, detail: "Live classroom sections", source: "Master Registry / Classes_Sections", drillTab: "admin-registry-detail" },
+      { title: "Students", count: students.length, detail: "Live student records", source: "Master Registry / Student_Directory", drillTab: "students" },
+      { title: "Teachers", count: teacherCount, detail: "Active teaching staff", source: "Master Registry / Teacher_Allocations", drillTab: "teachers" },
+      { title: "Classes & Sections", count: courses.length, detail: "Live classroom sections", source: "Master Registry / Classes_Sections", drillTab: "courses" },
       { title: "Staff", count: teacherCount, detail: "Administrative and support staff", source: "Master Registry / Staff_Directory", drillTab: "admin-registry-detail" },
       { title: "Subjects", count: [...new Set((courses || []).map((course) => course.name).filter(Boolean))].length, detail: "Unique subject or course names", source: "Master Registry / Subjects", drillTab: "admin-registry-detail" },
       { title: "Attendance", count: dashboardSourceState.registries?.find((registry) => /attendance/i.test(registry.label || registry.url || registry.key || ""))?.rowCount || 0, detail: "Attendance records when connected", source: "Attendance Registry / Attendance_Summary", drillTab: "admin-registry-detail" },
-      { title: "Assessments", count: dashboardSourceState.registries?.find((registry) => /assessment/i.test(registry.label || registry.url || registry.key || ""))?.rowCount || 0, detail: "Assessment and result rows", source: "Assessment/Result Registry", drillTab: "admin-registry-detail" },
+      { title: "Assessments", count: dashboardSourceState.registries?.find((registry) => /assessment/i.test(registry.label || registry.url || registry.key || ""))?.rowCount || 0, detail: "Assessment and result rows", source: "Assessment/Result Registry", drillTab: "assignments" },
       { title: "Tasks & Follow-ups", count: tasks.length, detail: "Open work items and follow-ups", source: "Dashboard Data Source / Alert_Log", drillTab: "role-cards" }
     ];
 
@@ -5488,7 +5488,7 @@ export default function DashboardOverview({
       { label: "Active Staff", value: teacherPerformanceData.length, note: "Live allocation rows" },
       { label: "Active Class Sections", value: activeClassSections, note: "From Classes_Sections" },
       { label: "Teacher Allocation Coverage", value: `${teacherAllocationCoverage}%`, note: "Planner rows completed" },
-      { label: "Google Classroom Courses", value: googleClassroomCourses, note: "Live Classroom course map" },
+      { label: "Google Classroom Courses", value: googleClassroomCourses, note: "Live Classroom course map", actionTab: "courses" },
       { label: "Attendance / Engagement", value: `${principalDashboard?.classroomMonitoring?.averageSubmissionRate || principalDashboard?.classroomMonitoring?.avgSubmissionRate || 0}%`, note: `${monitoredClassrooms} monitored classrooms` }
     ];
     const principalClassroomMetricRows = [

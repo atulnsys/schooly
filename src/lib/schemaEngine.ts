@@ -98,7 +98,10 @@ export const DRAFT_FUTURE_STRUCTURES = {
     { id: "ai-assistant", label: "AI Assistant", route: "ai-assistant" }
   ],
   "Registers": [
-    { id: "registers", label: "Registers", route: "registers" }
+    { id: "registers", label: "Registers", route: "registers" },
+    { id: "teachers", label: "Teachers", route: "teachers" },
+    { id: "courses", label: "Classroom Courses", route: "courses" },
+    { id: "assignments", label: "Assignments", route: "assignments" }
   ],
   "School Operations": [
     { id: "rollover", label: "Academic Year", route: "rollover" }
@@ -178,6 +181,39 @@ export const DEFAULT_NAVIGATION_ITEMS: NavigationItemSchema[] = [
     capabilityRequirements: ["Teaching", "Student Services", "Analytics", "Reporting"],
     parentGroup: "Teaching & Learning",
     helperText: "View student registry, risk, and enrollment details."
+  },
+  {
+    id: "teachers",
+    label: "Teachers",
+    icon: "User",
+    route: "teachers",
+    displayOrder: 5.6,
+    visibilityRules: { capabilities: ["Administration", "Academic Leadership", "Analytics", "Reporting"] },
+    capabilityRequirements: ["Administration", "Academic Leadership", "Analytics", "Reporting"],
+    parentGroup: "Registers",
+    helperText: "View teacher roster and staff load."
+  },
+  {
+    id: "courses",
+    label: "Classroom Courses",
+    icon: "BookOpen",
+    route: "courses",
+    displayOrder: 5.7,
+    visibilityRules: { capabilities: ["Teaching", "Academic Leadership", "Analytics", "Reporting"] },
+    capabilityRequirements: ["Teaching", "Academic Leadership", "Analytics", "Reporting"],
+    parentGroup: "Registers",
+    helperText: "Browse live classroom course records."
+  },
+  {
+    id: "assignments",
+    label: "Assignments",
+    icon: "FileText",
+    route: "assignments",
+    displayOrder: 5.8,
+    visibilityRules: { capabilities: ["Teaching", "Academic Leadership", "Analytics", "Reporting"] },
+    capabilityRequirements: ["Teaching", "Academic Leadership", "Analytics", "Reporting"],
+    parentGroup: "Registers",
+    helperText: "Browse class assignments and status."
   },
   {
     id: "ai-assistant",
@@ -261,8 +297,8 @@ export const DEFAULT_ROLES: RoleSchema[] = [
       "Operations",
       "Teaching"
     ],
-    navigationAccess: ["overview", "search", "students", "tasks", "ai-assistant", "lesson-plans"],
-    pageAccess: ["overview", "search", "students", "tasks", "ai-assistant", "lesson-plans"]
+    navigationAccess: ["overview", "search", "students", "teachers", "courses", "assignments", "tasks", "ai-assistant", "lesson-plans"],
+    pageAccess: ["overview", "search", "students", "teachers", "courses", "assignments", "tasks", "ai-assistant", "lesson-plans"]
   },
   {
     roleId: "coordinator",
@@ -277,8 +313,8 @@ export const DEFAULT_ROLES: RoleSchema[] = [
       "AI Usage",
       "Academic Year Management"
     ],
-    navigationAccess: ["overview", "search", "classroom", "students", "tasks", "ai-assistant", "rollover", "lesson-plans"],
-    pageAccess: ["overview", "search", "classroom", "students", "tasks", "ai-assistant", "rollover", "lesson-plans"]
+    navigationAccess: ["overview", "search", "classroom", "students", "teachers", "courses", "assignments", "tasks", "ai-assistant", "rollover", "lesson-plans"],
+    pageAccess: ["overview", "search", "classroom", "students", "teachers", "courses", "assignments", "tasks", "ai-assistant", "rollover", "lesson-plans"]
   },
   {
     roleId: "hod",
@@ -292,8 +328,8 @@ export const DEFAULT_ROLES: RoleSchema[] = [
       "Analytics",
       "AI Usage"
     ],
-    navigationAccess: ["overview", "classroom", "students", "tasks", "ai-assistant", "lesson-plans"],
-    pageAccess: ["overview", "classroom", "students", "tasks", "ai-assistant", "lesson-plans"]
+    navigationAccess: ["overview", "classroom", "students", "teachers", "courses", "assignments", "tasks", "ai-assistant", "lesson-plans"],
+    pageAccess: ["overview", "classroom", "students", "teachers", "courses", "assignments", "tasks", "ai-assistant", "lesson-plans"]
   },
   {
     roleId: "teacher",
@@ -305,8 +341,8 @@ export const DEFAULT_ROLES: RoleSchema[] = [
       "Operations",
       "AI Usage"
     ],
-    navigationAccess: ["overview", "classroom", "students", "tasks", "ai-assistant", "lesson-plans"],
-    pageAccess: ["overview", "classroom", "students", "tasks", "ai-assistant", "lesson-plans"]
+    navigationAccess: ["overview", "classroom", "students", "courses", "assignments", "tasks", "ai-assistant", "lesson-plans"],
+    pageAccess: ["overview", "classroom", "students", "courses", "assignments", "tasks", "ai-assistant", "lesson-plans"]
   },
   {
     roleId: "admin",
@@ -326,8 +362,8 @@ export const DEFAULT_ROLES: RoleSchema[] = [
       "Academic Year Management",
       "Workflow Management"
     ],
-    navigationAccess: ["overview", "search", "classroom", "students", "tasks", "ai-assistant", "rollover", "governance"],
-    pageAccess: ["overview", "search", "classroom", "students", "tasks", "ai-assistant", "rollover", "governance"]
+    navigationAccess: ["overview", "search", "classroom", "students", "teachers", "courses", "assignments", "tasks", "ai-assistant", "rollover", "governance"],
+    pageAccess: ["overview", "search", "classroom", "students", "teachers", "courses", "assignments", "tasks", "ai-assistant", "rollover", "governance"]
   },
   {
     roleId: "manager",
@@ -380,8 +416,8 @@ export const DEFAULT_ROLES: RoleSchema[] = [
       "AI Usage",
       "Teaching"
     ],
-    navigationAccess: ["overview", "search", "classroom", "students", "tasks", "ai-assistant"],
-    pageAccess: ["overview", "search", "classroom", "students", "tasks", "ai-assistant"]
+    navigationAccess: ["overview", "search", "classroom", "students", "teachers", "courses", "assignments", "tasks", "ai-assistant"],
+    pageAccess: ["overview", "search", "classroom", "students", "teachers", "courses", "assignments", "tasks", "ai-assistant"]
   },
   {
     roleId: "parent",
@@ -486,6 +522,33 @@ export const DEFAULT_PAGES_SCHEMAS: PageLayoutSchema[] = [
     filters: ["grade_level", "enrollment_status", "risk_band"]
   },
   {
+    pageId: "teachers",
+    pageTitle: "Teachers",
+    layoutType: "split",
+    sections: ["teacher_registry", "teacher_detail"],
+    widgets: ["teacher_registry_list", "teacher_detail_card"],
+    actions: ["search_query", "filter_by_department", "toggle_display_mode"],
+    filters: ["department", "current_courses"]
+  },
+  {
+    pageId: "courses",
+    pageTitle: "Classroom Courses",
+    layoutType: "split",
+    sections: ["course_registry", "course_detail"],
+    widgets: ["course_registry_list", "course_detail_card"],
+    actions: ["search_query", "toggle_display_mode"],
+    filters: ["teacher_name", "student_count"]
+  },
+  {
+    pageId: "assignments",
+    pageTitle: "Assignments",
+    layoutType: "split",
+    sections: ["assignment_registry", "assignment_detail"],
+    widgets: ["assignment_registry_list", "assignment_detail_card"],
+    actions: ["search_query", "filter_by_status", "toggle_display_mode"],
+    filters: ["status", "course_name", "due_date"]
+  },
+  {
     pageId: "tasks",
     pageTitle: "Tasks",
     layoutType: "grid",
@@ -550,6 +613,42 @@ function ensureStudentsSchemaCoverage(schema: ExportableSchoolySchema): Exportab
     helperText: "View student registry, risk, and enrollment details."
   };
 
+  const teachersNav: NavigationItemSchema = {
+    id: "teachers",
+    label: "Teachers",
+    icon: "User",
+    route: "teachers",
+    displayOrder: 5.6,
+    visibilityRules: { capabilities: ["Administration", "Academic Leadership", "Analytics", "Reporting"] },
+    capabilityRequirements: ["Administration", "Academic Leadership", "Analytics", "Reporting"],
+    parentGroup: "Registers",
+    helperText: "View teacher roster and staff load."
+  };
+
+  const coursesNav: NavigationItemSchema = {
+    id: "courses",
+    label: "Classroom Courses",
+    icon: "BookOpen",
+    route: "courses",
+    displayOrder: 5.7,
+    visibilityRules: { capabilities: ["Teaching", "Academic Leadership", "Analytics", "Reporting"] },
+    capabilityRequirements: ["Teaching", "Academic Leadership", "Analytics", "Reporting"],
+    parentGroup: "Registers",
+    helperText: "Browse live classroom course records."
+  };
+
+  const assignmentsNav: NavigationItemSchema = {
+    id: "assignments",
+    label: "Assignments",
+    icon: "FileText",
+    route: "assignments",
+    displayOrder: 5.8,
+    visibilityRules: { capabilities: ["Teaching", "Academic Leadership", "Analytics", "Reporting"] },
+    capabilityRequirements: ["Teaching", "Academic Leadership", "Analytics", "Reporting"],
+    parentGroup: "Registers",
+    helperText: "Browse class assignments and status."
+  };
+
   const studentsPage: PageLayoutSchema = {
     pageId: "students",
     pageTitle: "Students",
@@ -558,6 +657,36 @@ function ensureStudentsSchemaCoverage(schema: ExportableSchoolySchema): Exportab
     widgets: ["student_registry_list", "student_detail_card"],
     actions: ["search_query", "toggle_display_mode", "filter_by_grade", "filter_by_status"],
     filters: ["grade_level", "enrollment_status", "risk_band"]
+  };
+
+  const teachersPage: PageLayoutSchema = {
+    pageId: "teachers",
+    pageTitle: "Teachers",
+    layoutType: "split",
+    sections: ["teacher_registry", "teacher_detail"],
+    widgets: ["teacher_registry_list", "teacher_detail_card"],
+    actions: ["search_query", "filter_by_department", "toggle_display_mode"],
+    filters: ["department", "current_courses"]
+  };
+
+  const coursesPage: PageLayoutSchema = {
+    pageId: "courses",
+    pageTitle: "Classroom Courses",
+    layoutType: "split",
+    sections: ["course_registry", "course_detail"],
+    widgets: ["course_registry_list", "course_detail_card"],
+    actions: ["search_query", "toggle_display_mode"],
+    filters: ["teacher_name", "student_count"]
+  };
+
+  const assignmentsPage: PageLayoutSchema = {
+    pageId: "assignments",
+    pageTitle: "Assignments",
+    layoutType: "split",
+    sections: ["assignment_registry", "assignment_detail"],
+    widgets: ["assignment_registry_list", "assignment_detail_card"],
+    actions: ["search_query", "filter_by_status", "toggle_display_mode"],
+    filters: ["status", "course_name", "due_date"]
   };
 
   const ensureArrayItem = <T,>(items: T[], matcher: (item: T) => boolean, item: T): T[] => {
@@ -574,16 +703,52 @@ function ensureStudentsSchemaCoverage(schema: ExportableSchoolySchema): Exportab
     (page) => page.pageId === "students",
     studentsPage,
   );
-  const normalizeRoleAccess = (role: RoleSchema): RoleSchema => ({
-    ...role,
-    navigationAccess: ensureArrayItem(role.navigationAccess || [], (item) => item === "students", "students"),
-    pageAccess: ensureArrayItem(role.pageAccess || [], (item) => item === "students", "students"),
-  });
+  const normalizedTeachersPages = ensureArrayItem(
+    normalizedPages,
+    (page) => page.pageId === "teachers",
+    teachersPage,
+  );
+  const normalizedCoursesPages = ensureArrayItem(
+    normalizedTeachersPages,
+    (page) => page.pageId === "courses",
+    coursesPage,
+  );
+  const normalizedAssignmentsPages = ensureArrayItem(
+    normalizedCoursesPages,
+    (page) => page.pageId === "assignments",
+    assignmentsPage,
+  );
+  const ensureRoleAccess = (role: RoleSchema, ids: string[]): RoleSchema => {
+    const navigationAccess = [...(role.navigationAccess || [])];
+    const pageAccess = [...(role.pageAccess || [])];
+
+    ids.forEach((id) => {
+      if (!navigationAccess.includes(id)) navigationAccess.push(id);
+      if (!pageAccess.includes(id)) pageAccess.push(id);
+    });
+
+    return {
+      ...role,
+      navigationAccess,
+      pageAccess,
+    };
+  };
+  const normalizeRoleAccess = (role: RoleSchema): RoleSchema => {
+    const roleKey = String(role.roleId || role.roleName || "").toLowerCase();
+
+    if (["principal", "coordinator", "hod", "admin", "exams"].includes(roleKey)) {
+      return ensureRoleAccess(role, ["students", "teachers", "courses", "assignments"]);
+    }
+    if (roleKey === "teacher") {
+      return ensureRoleAccess(role, ["students", "courses", "assignments"]);
+    }
+    return role;
+  };
 
   return {
     ...schema,
     navigation: normalizedNavigation,
-    pages: normalizedPages,
+    pages: normalizedAssignmentsPages,
     roles: (schema.roles || []).map(normalizeRoleAccess),
   };
 }

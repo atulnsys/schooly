@@ -17,6 +17,7 @@ Branch: `import/enhanced-codebase`
 | `4c5e03c` | Cleaned duplicated Workspace file detail UI       |
 | `3bcf530` | Migrated ClassroomAssignment list to generic view |
 | `31f0533` | Migrated ClassroomCourse selector to generic view |
+| `c2e12f0` | Fixed Students registry discoverability in nav    |
 
 ## Existing Generic Framework Files
 
@@ -722,6 +723,123 @@ The next bounded target has already been completed for this run, and the tracker
 * Sidebar visibility for Principal was fixed by normalizing the loaded schema and placing Students under `Teaching & Learning`.
 * The Active Students KPI now drills through to Students.
 * The Synced SIS Pupil Roster panel now includes a `View all students` button.
+
+---
+
+# Migration Cycle 5
+
+## Step 1 â€” Inventory Findings
+
+| Component/Page | Finding | Risk | Recommendation |
+| -------------- | ------- | ---- | -------------- |
+| `src/components/StudentsRegistryPage.tsx` | Live student registry page is already isolated and typed. | Low | Keep as the first-class Students page. |
+| `src/components/TeachersRegistryPage.tsx` | Live teacher registry can be built directly from the existing `/api/teachers` feed. | Low | Migrate as a first-class registry page. |
+| `src/components/ClassroomCoursesRegistryPage.tsx` | Synced classroom course feed is already typed and isolated. | Low | Migrate as a first-class registry page. |
+| `src/components/ClassroomAssignmentsRegistryPage.tsx` | Synced classroom assignment feed is typed and can reuse the same generic list/detail framework. | Low | Migrate as a first-class registry page. |
+| `LessonPlanner.tsx` | Selection-driven lesson registry/editor with AI and checklist flows. | Medium | Defer. |
+| `TextbookIngestor.tsx` | Large NCERT import/audit workspace. | High | Defer. |
+| `DashboardOverview.tsx` | Broad dashboard and registry drill-through surface. | High | Defer. |
+| `RoleDashboards.tsx` | Status chip rather than list/detail page. | High | Defer. |
+
+## Step 2 â€” Selected Object Group
+
+Selected group: `People & Classroom` registry pages
+
+Reason selected: These are the next low-risk, typed, list-shaped registry surfaces already powered by live feeds and the generic entity framework. They can be added without changing backend access, mock data, or classroom data flow.
+
+Risk level: Low
+
+Files expected to change: `src/App.tsx`, `src/components/DashboardOverview.tsx`, `src/components/TeachersRegistryPage.tsx`, `src/components/ClassroomCoursesRegistryPage.tsx`, `src/components/ClassroomAssignmentsRegistryPage.tsx`, `src/lib/teacherEntityDefinition.tsx`, `src/lib/classroomCourseEntityDefinition.tsx`, `src/lib/classroomAssignmentEntityDefinition.tsx`, `src/lib/schemaEngine.ts`, `docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
+
+## Step 3 â€” Migration Plan
+
+Checklist:
+
+* [x] Reuse existing types where available.
+* [x] Do not create mock records.
+* [x] Do not change data fetching.
+* [x] Add dedicated entity definition files where needed.
+* [x] Use `GenericEntityListView` where safe.
+* [x] Use `GenericEntityPage` for the new registry pages.
+* [x] Preserve existing filters.
+* [x] Preserve existing actions.
+* [x] Preserve role visibility.
+* [x] Preserve Google Drive/Classroom links.
+* [x] Preserve AI controls if present.
+* [x] Preserve validation/status messages if present.
+* [x] Defer detail migration if specialized UI would break.
+
+## Step 4 â€” Behavior Preserved
+
+* Students remains the first-class dedicated registry page.
+* Classroom Sync still owns the embedded roster and course-scoped classroom panels.
+* Existing classroom data fetching stayed unchanged.
+* Surrounding dashboard and classroom sections remain intact.
+* Generic pages now reuse the same live `/api/students`, `/api/teachers`, `/api/classroom/courses`, and `/api/classroom/assignments` feeds.
+
+## Step 5 â€” Deferred Items
+
+* No broad dashboard rewrite.
+* No new backend or mock data.
+* No LessonPlanner or TextbookIngestor migration.
+* No extra registry groups beyond People & Classroom.
+
+## Step 6 â€” Code Verification
+
+Commands to run:
+
+* `npx tsc --noEmit --pretty false`
+* `npm run build`
+
+Verification results:
+
+* `npx tsc --noEmit --pretty false` succeeded.
+* `npm run build` succeeded with the existing Vite chunk-size warning only.
+
+## Step 7 â€” UI Smoke Verification
+
+UI verification should prove that the migrated pages work in the browser, not just in TypeScript.
+
+Use existing project tooling only. Do not add Playwright, Cypress, or other UI test dependencies unless explicitly approved.
+
+UI smoke method used:
+
+Local browser smoke through the bundled browser runtime against the built server, using the system Edge executable.
+
+UI smoke result:
+
+Completed locally. I verified:
+
+* The app opened at `http://127.0.0.1:3000` without runtime errors.
+* The sidebar showed Students, Teachers, Classroom Courses, and Assignments for Principal.
+* Direct routes `/students`, `/teachers`, `/courses`, and `/assignments` opened the correct registry pages.
+* The generic lists rendered live rows from the existing feeds.
+* The course assignment page no longer duplicated the course name in the row subtitle.
+* No page-level browser errors were introduced by this migration.
+
+## Step 8 â€” Commit
+
+Commit message:
+
+Pending.
+
+Commit SHA:
+
+Pending.
+
+Files committed:
+
+Pending.
+
+## Step 9 â€” Recommended Next Group
+
+Recommended next group:
+
+No additional group should be migrated in this run.
+
+Reason:
+
+This cycle already covered the bounded People & Classroom registry set. The next run should pick a fresh low-risk boundary if needed.
 
 ---
 

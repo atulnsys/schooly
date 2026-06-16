@@ -14,6 +14,9 @@ import DashboardOverview from "./components/DashboardOverview";
 import UniversalSearch from "./components/UniversalSearch";
 import ClassroomManager from "./components/ClassroomManager";
 import StudentsRegistryPage from "./components/StudentsRegistryPage";
+import TeachersRegistryPage from "./components/TeachersRegistryPage";
+import ClassroomCoursesRegistryPage from "./components/ClassroomCoursesRegistryPage";
+import ClassroomAssignmentsRegistryPage from "./components/ClassroomAssignmentsRegistryPage";
 import TaskProductivity from "./components/TaskProductivity";
 import AIAssistants from "./components/AIAssistants";
 import AcademicRollover from "./components/AcademicRollover";
@@ -75,7 +78,9 @@ const IconMap: Record<string, React.ComponentType<{ size: number; className?: st
   BookOpen,
   LayoutGrid,
   FolderOpen,
-  Users
+  Users,
+  User,
+  FileText
 };
 
 function normalizePersonaToken(value: string): string {
@@ -440,6 +445,9 @@ const ROUTE_TABS = new Set([
   "search",
   "classroom",
   "students",
+  "teachers",
+  "courses",
+  "assignments",
   "tasks",
   "ai-assistant",
   "rollover",
@@ -1487,6 +1495,27 @@ export default function App() {
         {activeTab === "students" && (
           <StudentsRegistryPage
             students={students}
+            currentRole={currentRole}
+          />
+        )}
+
+        {activeTab === "teachers" && (
+          <TeachersRegistryPage
+            teachers={teachers}
+            currentRole={currentRole}
+          />
+        )}
+
+        {activeTab === "courses" && (
+          <ClassroomCoursesRegistryPage
+            courses={courses}
+            currentRole={currentRole}
+          />
+        )}
+
+        {activeTab === "assignments" && (
+          <ClassroomAssignmentsRegistryPage
+            assignments={assignments}
             currentRole={currentRole}
           />
         )}
