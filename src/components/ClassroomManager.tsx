@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { ClassroomCourse, ClassroomAssignment, StudentDetails, TeacherDetails } from "../types";
 import { loadConnectionConfig, FALLBACK_ALERT_MESSAGES } from "../lib/dataSourceEngine";
+import GenericEntityListView from "./generic/GenericEntityListView";
+import { createClassroomAssignmentEntityDefinition } from "../lib/classroomAssignmentEntityDefinition";
 import { 
   GraduationCap, 
   BookOpen, 
@@ -32,6 +34,10 @@ export default function ClassroomManager({
 
   // Filters assignments for the active course
   const courseAssignments = assignments.filter(a => a.courseId === activeCourseId);
+  const assignmentDefinition = createClassroomAssignmentEntityDefinition({
+    courseName: selectedCourse?.name,
+    studentCount: selectedCourse?.studentCount,
+  });
 
   // Filters students associated with the specific course grade level
   // Let's assume all Grade 8 students belong to Grade 8 Science course-sci-8
@@ -131,47 +137,17 @@ export default function ClassroomManager({
             {courseAssignments.length === 0 ? (
               <p className="text-sm text-slate-400 text-center py-6">No assignments synchronized for this folder.</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-slate-400 font-mono tracking-wider uppercase">
-                      <th className="py-3 font-semibold text-slate-450">Title</th>
-                      <th className="py-3 font-semibold text-slate-450">Status</th>
-                      <th className="py-3 font-semibold text-slate-450">Due Date</th>
-                      <th className="py-3 font-semibold text-center text-slate-450 font-sans">Submissions</th>
-                      <th className="py-3 font-semibold text-right text-slate-450">Max Grade</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {courseAssignments.map(assign => (
-                      <tr key={assign.id} className="hover:bg-slate-50/50" id={`assign-row-${assign.id}`}>
-                        <td className="py-3.5">
-                          <div className="font-semibold text-slate-800">{assign.title}</div>
-                          <div className="text-[10px] text-slate-400 line-clamp-1">{assign.description}</div>
-                        </td>
-                        <td className="py-3.5">
-                          <span className={`px-2 py-0.5 rounded-full font-semibold text-[10px] inline-block ${
-                            assign.status === 'graded' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                            assign.status === 'submitted' ? 'bg-blue-50 text-blue-700 border border-blue-100' :
-                            'bg-amber-50 text-amber-700 border border-amber-100'
-                          }`}>
-                            {assign.status.toUpperCase()}
-                          </span>
-                        </td>
-                        <td className="py-3.5 font-mono text-slate-500">
-                          {new Date(assign.dueDate).toLocaleDateString()}
-                        </td>
-                        <td className="py-3.5 text-center font-mono font-medium text-slate-700">
-                          {assign.submissionCount} {selectedCourse ? `/ ${selectedCourse.studentCount}` : ""}
-                        </td>
-                        <td className="py-3.5 text-right font-mono font-bold text-slate-800">
-                          {assign.grade !== undefined ? `${assign.grade} / ` : ""}{assign.totalPoints} pts
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <GenericEntityListView
+                definition={assignmentDefinition}
+                rows={courseAssignments}
+                displayMode="table"
+                showSearch={false}
+                showFilters={false}
+                showSort={false}
+                showDisplayModeToggle={false}
+                showPagination={false}
+                className="bg-transparent border-0 shadow-none"
+              />
             )}
           </div>
 
