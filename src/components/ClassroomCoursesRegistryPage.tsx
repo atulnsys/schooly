@@ -1,8 +1,6 @@
-import React, { useMemo, useState } from "react";
-import { BookOpen, Info } from "lucide-react";
+import React, { useEffect, useState } from "react";
 import { ClassroomCourse } from "../types";
-import GenericEntityPage from "./generic/GenericEntityPage";
-import { createClassroomCourseEntityDefinition } from "../lib/classroomCourseEntityDefinition";
+import RegistryPageShell from "./RegistryPageShell";
 
 interface ClassroomCoursesRegistryPageProps {
   courses: ClassroomCourse[];
@@ -10,56 +8,21 @@ interface ClassroomCoursesRegistryPageProps {
 }
 
 export default function ClassroomCoursesRegistryPage({ courses, currentRole }: ClassroomCoursesRegistryPageProps) {
-  const definition = useMemo(() => createClassroomCourseEntityDefinition(), []);
   const [selectedCourse, setSelectedCourse] = useState<ClassroomCourse | null>(null);
+  useEffect(() => {
+    if (selectedCourse && !courses.some((course) => course.id === selectedCourse.id)) {
+      setSelectedCourse(null);
+    }
+  }, [courses, selectedCourse]);
 
   return (
-    <div className="space-y-6 animate-fade-in" id="classroom-courses-registry-page">
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-1.5">
-            <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">
-              Classroom Courses
-            </div>
-            <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
-              <BookOpen size={18} className="text-blue-600" />
-              Live course registry
-            </h2>
-            <p className="text-xs text-slate-600 max-w-3xl">
-              Browse the synced classroom course list as a first-class registry page. It reuses the same live course feed that powers Classroom Sync.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-sans font-black px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-100">
-              {courses.length} {courses.length === 1 ? "record" : "records"}
-            </span>
-            <span className="text-[10px] font-sans font-black px-2.5 py-1 rounded-lg bg-slate-50 text-slate-600 border border-slate-200">
-              Role: {currentRole}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-start gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
-          <Info size={14} className="text-blue-600 shrink-0 mt-0.5" />
-          <p>
-            Data source: <span className="font-mono font-bold text-slate-700">/api/classroom/courses</span>. If this feed is empty, the registry will show the generic empty state instead of synthetic rows.
-          </p>
-        </div>
-      </div>
-
-      <GenericEntityPage
-        definition={definition}
-        rows={courses}
-        selectedRow={selectedCourse}
-        onSelectRow={setSelectedCourse}
-        permissionContext={{ currentRole }}
-        showSearch={true}
-        showFilters={false}
-        showSort={true}
-        showDisplayModeToggle={false}
-        showPagination={true}
-      />
-    </div>
+    <RegistryPageShell
+      registryId="courses"
+      rows={courses}
+      currentRole={currentRole}
+      selectedRow={selectedCourse}
+      onSelectRow={setSelectedCourse}
+      permissionContext={{ currentRole }}
+    />
   );
 }

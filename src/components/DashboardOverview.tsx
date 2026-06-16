@@ -5485,19 +5485,19 @@ export default function DashboardOverview({
 
     const glanceCards = [
       { label: "Active Students", value: students.length, note: "Live enrollment rows", actionTab: "students" },
-      { label: "Active Staff", value: teacherPerformanceData.length, note: "Live allocation rows" },
-      { label: "Active Class Sections", value: activeClassSections, note: "From Classes_Sections" },
+      { label: "Active Staff", value: teacherPerformanceData.length, note: "Live allocation rows", actionTab: "teachers" },
+      { label: "Active Class Sections", value: activeClassSections, note: "From Classes_Sections", actionTab: "courses" },
       { label: "Teacher Allocation Coverage", value: `${teacherAllocationCoverage}%`, note: "Planner rows completed" },
       { label: "Google Classroom Courses", value: googleClassroomCourses, note: "Live Classroom course map", actionTab: "courses" },
       { label: "Attendance / Engagement", value: `${principalDashboard?.classroomMonitoring?.averageSubmissionRate || principalDashboard?.classroomMonitoring?.avgSubmissionRate || 0}%`, note: `${monitoredClassrooms} monitored classrooms` }
     ];
     const principalClassroomMetricRows = [
-      ["Total Classrooms", principalDashboard?.classroomMonitoring?.totalClassrooms || 0],
-      ["Posted this week", `${principalDashboard?.classroomMonitoring?.postedThisWeek || 0} / ${principalDashboard?.classroomMonitoring?.totalClassrooms || 0}`],
-      ["Zero Activity", `${principalDashboard?.classroomMonitoring?.zeroActivityThisWeek || 0} classrooms`],
-      ["Assignments", `${principalDashboard?.classroomMonitoring?.assignmentsCreatedThisWeek || 0} this week`],
-      ["Submission rate", `${principalDashboard?.classroomMonitoring?.averageSubmissionRate || principalDashboard?.classroomMonitoring?.avgSubmissionRate || 0}%`],
-      ["Meet sessions", `${principalDashboard?.classroomMonitoring?.meetSessionsHeldThisWeek || 0} held`]
+      { label: "Total Classrooms", value: principalDashboard?.classroomMonitoring?.totalClassrooms || 0, actionTab: "courses" },
+      { label: "Posted this week", value: `${principalDashboard?.classroomMonitoring?.postedThisWeek || 0} / ${principalDashboard?.classroomMonitoring?.totalClassrooms || 0}` },
+      { label: "Zero Activity", value: `${principalDashboard?.classroomMonitoring?.zeroActivityThisWeek || 0} classrooms` },
+      { label: "Assignments", value: `${principalDashboard?.classroomMonitoring?.assignmentsCreatedThisWeek || 0} this week`, actionTab: "assignments" },
+      { label: "Submission rate", value: `${principalDashboard?.classroomMonitoring?.averageSubmissionRate || principalDashboard?.classroomMonitoring?.avgSubmissionRate || 0}%` },
+      { label: "Meet sessions", value: `${principalDashboard?.classroomMonitoring?.meetSessionsHeldThisWeek || 0} held` }
     ];
 
     return (
@@ -5803,12 +5803,25 @@ export default function DashboardOverview({
 
                 {renderSectionState("classroom", (
                   <div className="space-y-3.5 select-none">
-                    {principalClassroomMetricRows.map(([label, value]) => (
-                      <div key={String(label)} className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 cursor-pointer transition-all">
-                        <span className="text-xs text-slate-600 font-medium font-sans">{label}</span>
-                        <span className="px-2 py-0.5 font-bold font-sans text-xs bg-slate-100 border border-slate-200 text-slate-705 rounded-full shrink-0">{value as string | number}</span>
-                      </div>
-                    ))}
+                    {principalClassroomMetricRows.map((metric) => {
+                      const RowTag = metric.actionTab ? "button" : "div";
+                      const rowProps = metric.actionTab
+                        ? {
+                            type: "button" as const,
+                            onClick: () => onToggleTab(metric.actionTab!),
+                            className: "w-full flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 cursor-pointer transition-all text-left",
+                          }
+                        : {
+                            className: "w-full flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 cursor-default transition-all text-left",
+                          };
+
+                      return (
+                        <RowTag key={metric.label} {...rowProps}>
+                          <span className="text-xs text-slate-600 font-medium font-sans">{metric.label}</span>
+                          <span className="px-2 py-0.5 font-bold font-sans text-xs bg-slate-100 border border-slate-200 text-slate-705 rounded-full shrink-0">{metric.value as string | number}</span>
+                        </RowTag>
+                      );
+                    })}
                   </div>
                 ))}
                 <div className="pt-3 border-t border-slate-100 mt-4 flex justify-end">

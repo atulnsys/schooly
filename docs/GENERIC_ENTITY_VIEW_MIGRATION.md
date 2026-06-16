@@ -17,6 +17,7 @@ Branch: `import/enhanced-codebase`
 | `4c5e03c` | Cleaned duplicated Workspace file detail UI       |
 | `3bcf530` | Migrated ClassroomAssignment list to generic view |
 | `31f0533` | Migrated ClassroomCourse selector to generic view |
+| `b0577dc` | Implemented teacher/course/assignment registry pages |
 | `c2e12f0` | Fixed Students registry discoverability in nav    |
 
 ## Existing Generic Framework Files
@@ -821,15 +822,24 @@ Completed locally. I verified:
 
 Commit message:
 
-Pending.
+feat: implement generic entity view migration for courses, assignments, and teachers registries
 
 Commit SHA:
 
-Pending.
+`b0577dc`
 
 Files committed:
 
-Pending.
+`src/App.tsx`
+`src/components/ClassroomAssignmentsRegistryPage.tsx`
+`src/components/ClassroomCoursesRegistryPage.tsx`
+`src/components/DashboardOverview.tsx`
+`src/components/StudentsRegistryPage.tsx`
+`src/components/TeachersRegistryPage.tsx`
+`src/lib/classroomAssignmentEntityDefinition.tsx`
+`src/lib/classroomCourseEntityDefinition.tsx`
+`src/lib/schemaEngine.ts`
+`src/lib/teacherEntityDefinition.tsx`
 
 ## Step 9 â€” Recommended Next Group
 
@@ -855,3 +865,107 @@ Each future cycle must still follow:
 4. Verify UI.
 5. Commit.
 6. Stop.
+
+---
+
+# Grouped Migration Cycle â€” Registry Catalog and First-Class Registry Pages
+
+## Registry Inventory
+
+| Registry | Status | Why | Route |
+| -------- | ------ | --- | ----- |
+| Students | Active | Already backed by `/api/students` and a dedicated generic page. | `/students` |
+| Teachers | Active | Already backed by `/api/teachers` and a dedicated generic page. | `/teachers` |
+| Classroom Courses | Active | Already backed by `/api/classroom/courses` and a dedicated generic page. | `/courses` |
+| Assignments | Active | Already backed by `/api/classroom/assignments` and a dedicated generic page. | `/assignments` |
+| Classroom Roster / SIS pupils | Deferred | Safe embedded classroom surface; do not split into another page yet. | Embedded in `/classroom` |
+| Workspace Files | Deferred | Already exposed through Search / UniversalSearch rather than a separate registry page. | `/search` |
+| Lesson Plans | Deferred | Tightly coupled to LessonPlanner and AI workflow state. | `/lesson-plans` |
+| NCERT Textbooks | Deferred | Tightly coupled to NCERT/TextbookIngestor flow. | `/textbooks` |
+
+## Active Registries
+
+The registry catalog now exposes these first-class generic pages:
+
+* Students
+* Teachers
+* Classroom Courses
+* Assignments
+
+## Deferred Registries And Why
+
+* Classroom roster / SIS pupils: keep embedded in Classroom Sync.
+* Workspace files: already handled by the Search experience.
+* Lesson plans: tightly coupled to planner editing and AI flows.
+* NCERT textbooks: tightly coupled to textbook ingestion and audit flows.
+
+## Routes Added
+
+* `/students`
+* `/teachers`
+* `/courses`
+* `/assignments`
+
+## Navigation Added
+
+* Students
+* Teachers
+* Courses
+* Assignments
+
+## Drill-Throughs Added
+
+* Active Students KPI -> Students
+* Active Staff KPI -> Teachers
+* Active Class Sections -> Courses
+* Google Classroom Courses -> Courses
+* Classroom Monitoring `Total Classrooms` -> Courses
+* Classroom Monitoring `Assignments` -> Assignments
+* Synced SIS Pupil Roster `View all students` -> Students
+
+## Code Verification
+
+* `npx tsc --noEmit --pretty false` succeeded.
+* `npm run build` succeeded with the existing Vite chunk-size warning only.
+
+## UI Smoke Verification
+
+Completed locally against the live app at `http://127.0.0.1:3000`.
+
+Checked:
+
+* Sidebar showed Students, Teachers, Courses, and Assignments for Principal.
+* `/students` opened and rendered a generic registry list/detail page.
+* `/teachers` opened and rendered a generic registry list/detail page.
+* `/courses` opened and rendered a generic registry list/detail page.
+* `/assignments` opened and rendered a generic registry list/detail page.
+* Dashboard drill-throughs for Active Staff, Active Class Sections, Google Classroom Courses, and Assignments navigated to the right pages.
+* Classroom Sync still rendered and `View all students` worked.
+* Lessons Workspace and NCERT Textbooks routes still opened.
+* Search still opened.
+* No page-level browser errors were introduced.
+
+## Files Changed
+
+* `src/lib/registryCatalog.tsx`
+* `src/components/RegistryPageShell.tsx`
+* `src/components/StudentsRegistryPage.tsx`
+* `src/components/TeachersRegistryPage.tsx`
+* `src/components/ClassroomCoursesRegistryPage.tsx`
+* `src/components/ClassroomAssignmentsRegistryPage.tsx`
+* `src/components/DashboardOverview.tsx`
+* `src/lib/schemaEngine.ts`
+* `src/lib/classroomCourseEntityDefinition.tsx`
+* `src/lib/classroomAssignmentEntityDefinition.tsx`
+* `src/lib/teacherEntityDefinition.tsx`
+
+## Commit SHAs Recorded
+
+* `b0577dc` â€” prior checkpoint for the people/classroom registry page migration
+* `c2e12f0` â€” Students discoverability fix
+
+## Tracker Changes Made
+
+* Added `b0577dc` to the baseline checkpoint table.
+* Added a grouped registry-catalog migration section.
+* Recorded active registries, deferred registries, routes, navigation, drill-throughs, verification, and files changed.
