@@ -19,6 +19,7 @@ Branch: `import/enhanced-codebase`
 | `31f0533` | Migrated ClassroomCourse selector to generic view |
 | `b0577dc` | Implemented teacher/course/assignment registry pages |
 | `c2e12f0` | Fixed Students registry discoverability in nav    |
+| `1d8e3cb` | Added registry catalog and first-class Students page |
 
 ## Existing Generic Framework Files
 
@@ -557,13 +558,13 @@ refactor: migrate classroom student roster to generic entity views
 
 Commit SHA:
 
-Pending.
+`1f9eb7c`
 
 Files committed:
 
-Pending.
-
-Blocked by repository permissions when writing objects to `.git/objects`.
+`src/components/ClassroomManager.tsx`
+`src/lib/classroomStudentEntityDefinition.tsx`
+`docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
 
 ## Step 10 â€” Recommended Next Group
 
@@ -697,15 +698,17 @@ Manual notes: browser automation fell back to the installed Edge executable beca
 
 Commit message:
 
-Pending.
+feat: add registry catalog for generic entity pages
 
 Commit SHA:
 
-Pending.
+`1d8e3cb`
 
 Files committed:
 
-Pending.
+`docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
+`src/components/StudentsRegistryPage.tsx`
+`src/lib/registryCatalog.tsx`
 
 ## Step 10 â€” Recommended Next Group
 
@@ -963,9 +966,11 @@ Checked:
 
 * `b0577dc` â€” prior checkpoint for the people/classroom registry page migration
 * `c2e12f0` â€” Students discoverability fix
+* `1d8e3cb` â€” registry catalog and first-class Students registry page
 
 ## Tracker Changes Made
 
 * Added `b0577dc` to the baseline checkpoint table.
+* Added `1d8e3cb` to the baseline checkpoint table.
 * Added a grouped registry-catalog migration section.
 * Recorded active registries, deferred registries, routes, navigation, drill-throughs, verification, and files changed.
