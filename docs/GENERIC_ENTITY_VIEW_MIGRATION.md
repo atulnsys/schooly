@@ -575,6 +575,148 @@ The roster was the last obvious low-risk classroom card boundary. Anything broad
 
 ---
 
+# Migration Cycle 4
+
+## Step 1 â€” Inventory Findings
+
+| Component/Page | Finding | Risk | Recommendation |
+| -------------- | ------- | ---- | -------------- |
+| `src/components/StudentsRegistryPage.tsx` | Live student registry page can be built directly from the existing `/api/students` feed and shared generic entity framework. | Low | Migrate this page as the first-class Students registry. |
+| `src/components/ClassroomManager.tsx` | Classroom roster stays embedded and already migrated. | Low | Leave unchanged in this cycle. |
+| `LessonPlanner.tsx` | Selection-driven lesson registry/editor with AI and checklist flows. | Medium | Defer. |
+| `TextbookIngestor.tsx` | Large NCERT import/audit workspace. | High | Defer. |
+| `DashboardOverview.tsx` | Broad dashboard and registry drill-through surface. | High | Defer. |
+| `RoleDashboards.tsx` | Status chip rather than list/detail page. | High | Defer. |
+
+## Step 2 â€” Selected Object Group
+
+Selected group: `Students` first-class registry page backed by `StudentDetails` and the existing `/api/students` feed.
+
+Reason selected: The data already exists, the list is typed, and the generic framework can handle the page without changing fetch logic or Classroom Sync behavior.
+
+Risk level: Low
+
+Files expected to change: `src/App.tsx`, `src/lib/schemaEngine.ts`, `src/components/StudentsRegistryPage.tsx`, `src/lib/studentEntityDefinition.tsx`, `docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
+
+## Step 3 â€” Migration Plan
+
+Checklist:
+
+* [x] Reuse existing types where available.
+* [x] Do not create mock records.
+* [x] Do not change data fetching.
+* [x] Add a dedicated entity definition file if needed.
+* [x] Use `GenericEntityListView` where safe.
+* [x] Use `GenericEntityDetailView` where safe.
+* [x] Use `GenericEntityPage` only if the page is naturally list + detail.
+* [x] Preserve existing filters.
+* [x] Preserve existing actions.
+* [ ] Preserve existing drill-through behavior.
+* [x] Preserve role visibility.
+* [x] Preserve Google Drive/Classroom links.
+* [ ] Preserve AI controls if present.
+* [x] Preserve validation/status messages if present.
+* [x] Defer detail migration if specialized UI would break.
+
+## Step 4 â€” Drill-through / Action Coverage
+
+| Action/Drill-through | Existing Behavior | Generic Mapping Used | Preserved? | Notes |
+| -------------------- | ----------------- | -------------------- | ---------- | ----- |
+| Students list display | No dedicated Students page existed; students only appeared inside Classroom Sync roster and dashboard register cards. | `GenericEntityPage` with `createStudentEntityDefinition` | Yes | New dedicated registry page stays read-only and uses the live student feed. |
+| Student selection | No page-level selection existed. | `GenericEntityDetailView` controlled through `StudentsRegistryPage` local state | Yes | Detail shows name, email, grade level, enrollment status, GPA, risk flag, and risk index. |
+
+## Step 5 â€” Behavior Preserved
+
+* Classroom Sync roster remains unchanged and still renders the synced SIS pupil cards.
+* The existing `/api/students` feed is reused directly.
+* No backend, mock data, or dependency changes were added.
+* Navigation remains schema-driven and role-scoped.
+
+## Step 6 â€” Deferred Items
+
+* No new backend registry source was added.
+* No extra classroom sections were migrated.
+* No broader dashboard rewrite was attempted.
+
+## Step 7 â€” Code Verification
+
+Commands to run:
+
+* `npx tsc --noEmit --pretty false`
+* `npm run build`
+
+Verification results:
+
+* `npx tsc --noEmit --pretty false` succeeded.
+* `npm run build` succeeded with the existing Vite chunk-size warning only.
+
+## Step 8 â€” UI Smoke Verification
+
+UI verification should prove that the migrated object works in the browser, not just in TypeScript.
+
+Use existing project tooling only. Do not add Playwright, Cypress, or other UI test dependencies unless explicitly approved.
+
+If existing browser automation is available, use it. Otherwise, run the app locally and perform a manual smoke check.
+
+Minimum UI smoke checklist:
+
+* [x] Page opens without runtime error.
+* [x] Generic list is visible.
+* [x] Existing filters/search still work.
+* [x] Sort/display controls work if enabled.
+* [x] Selecting a row opens or updates detail view.
+* [x] Detail view shows correct selected object.
+* [ ] Existing actions still work.
+* [ ] Drill-through still works where applicable.
+* [x] Existing empty/loading/error state still works.
+* [x] Browser console has no new migration-related errors.
+* [x] Layout does not visibly break on normal desktop width.
+
+UI smoke method used:
+
+Local browser smoke through the bundled browser runtime against the built server.
+
+UI smoke result:
+
+Completed locally. I verified:
+
+* The app opened at the local server without runtime errors.
+* The new Students page opened from the sidebar.
+* The generic list rendered with 6 live student rows from `/api/students`.
+* Clicking a student row cleared the placeholder and showed the generic detail sections for Identity and Academic Snapshot.
+* Classroom Sync still opened and the synced SIS pupil roster remained visible and intact.
+* No page-level browser errors were introduced by this migration.
+
+Screenshots or notes:
+
+Manual notes: browser automation fell back to the installed Edge executable because the bundled Playwright Chromium binary was not present in this environment. The Students page rendered correctly once the local browser was pointed at Edge.
+
+## Step 9 â€” Commit
+
+Commit message:
+
+Pending.
+
+Commit SHA:
+
+Pending.
+
+Files committed:
+
+Pending.
+
+## Step 10 â€” Recommended Next Group
+
+Recommended next group:
+
+No additional group should be migrated in this run. The current cycle should stop after the Students registry page.
+
+Reason:
+
+The next bounded target has already been completed for this run, and the tracker should stay focused on one migration cycle at a time.
+
+---
+
 # Future Migration Cycles
 
 Copy the `Migration Cycle 1` section below for each future cycle.

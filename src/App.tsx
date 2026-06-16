@@ -13,6 +13,7 @@ import {
 import DashboardOverview from "./components/DashboardOverview";
 import UniversalSearch from "./components/UniversalSearch";
 import ClassroomManager from "./components/ClassroomManager";
+import StudentsRegistryPage from "./components/StudentsRegistryPage";
 import TaskProductivity from "./components/TaskProductivity";
 import AIAssistants from "./components/AIAssistants";
 import AcademicRollover from "./components/AcademicRollover";
@@ -43,7 +44,8 @@ import {
   Key,
   AlertTriangle,
   BookOpen,
-  LayoutGrid
+  LayoutGrid,
+  Users
 } from "lucide-react";
 import {
   loadActiveMetadata,
@@ -72,7 +74,8 @@ const IconMap: Record<string, React.ComponentType<{ size: number; className?: st
   Database,
   BookOpen,
   LayoutGrid,
-  FolderOpen
+  FolderOpen,
+  Users
 };
 
 function normalizePersonaToken(value: string): string {
@@ -1430,6 +1433,13 @@ export default function App() {
             assignments={assignments}
             students={students}
             teachers={teachers}
+          />
+        )}
+
+        {activeTab === "students" && (
+          <StudentsRegistryPage
+            students={students}
+            currentRole={currentRole}
           />
         )}
 

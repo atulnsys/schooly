@@ -97,7 +97,8 @@ export const DRAFT_FUTURE_STRUCTURES = {
     { id: "ai-assistant", label: "AI Assistant", route: "ai-assistant" }
   ],
   "Registers": [
-    { id: "registers", label: "Registers", route: "registers" }
+    { id: "registers", label: "Registers", route: "registers" },
+    { id: "students", label: "Students", route: "students" }
   ],
   "School Operations": [
     { id: "rollover", label: "Academic Year", route: "rollover" }
@@ -166,6 +167,17 @@ export const DEFAULT_NAVIGATION_ITEMS: NavigationItemSchema[] = [
     capabilityRequirements: ["Teaching"],
     parentGroup: "Teaching & Learning",
     helperText: "Review Google Classroom activity and class materials."
+  },
+  {
+    id: "students",
+    label: "Students",
+    icon: "Users",
+    route: "students",
+    displayOrder: 5.5,
+    visibilityRules: { capabilities: ["Teaching", "Student Services", "Analytics", "Reporting"] },
+    capabilityRequirements: ["Teaching", "Student Services", "Analytics", "Reporting"],
+    parentGroup: "Registers",
+    helperText: "Browse the live student registry."
   },
   {
     id: "ai-assistant",
@@ -249,8 +261,8 @@ export const DEFAULT_ROLES: RoleSchema[] = [
       "Operations",
       "Teaching"
     ],
-    navigationAccess: ["overview", "search", "tasks", "ai-assistant", "lesson-plans"],
-    pageAccess: ["overview", "search", "tasks", "ai-assistant", "lesson-plans"]
+    navigationAccess: ["overview", "search", "students", "tasks", "ai-assistant", "lesson-plans"],
+    pageAccess: ["overview", "search", "students", "tasks", "ai-assistant", "lesson-plans"]
   },
   {
     roleId: "coordinator",
@@ -265,8 +277,8 @@ export const DEFAULT_ROLES: RoleSchema[] = [
       "AI Usage",
       "Academic Year Management"
     ],
-    navigationAccess: ["overview", "search", "classroom", "tasks", "ai-assistant", "rollover", "lesson-plans"],
-    pageAccess: ["overview", "search", "classroom", "tasks", "ai-assistant", "rollover", "lesson-plans"]
+    navigationAccess: ["overview", "search", "classroom", "students", "tasks", "ai-assistant", "rollover", "lesson-plans"],
+    pageAccess: ["overview", "search", "classroom", "students", "tasks", "ai-assistant", "rollover", "lesson-plans"]
   },
   {
     roleId: "hod",
@@ -280,8 +292,8 @@ export const DEFAULT_ROLES: RoleSchema[] = [
       "Analytics",
       "AI Usage"
     ],
-    navigationAccess: ["overview", "classroom", "tasks", "ai-assistant", "lesson-plans"],
-    pageAccess: ["overview", "classroom", "tasks", "ai-assistant", "lesson-plans"]
+    navigationAccess: ["overview", "classroom", "students", "tasks", "ai-assistant", "lesson-plans"],
+    pageAccess: ["overview", "classroom", "students", "tasks", "ai-assistant", "lesson-plans"]
   },
   {
     roleId: "teacher",
@@ -293,8 +305,8 @@ export const DEFAULT_ROLES: RoleSchema[] = [
       "Operations",
       "AI Usage"
     ],
-    navigationAccess: ["overview", "classroom", "tasks", "ai-assistant", "lesson-plans"],
-    pageAccess: ["overview", "classroom", "tasks", "ai-assistant", "lesson-plans"]
+    navigationAccess: ["overview", "classroom", "students", "tasks", "ai-assistant", "lesson-plans"],
+    pageAccess: ["overview", "classroom", "students", "tasks", "ai-assistant", "lesson-plans"]
   },
   {
     roleId: "admin",
@@ -314,8 +326,8 @@ export const DEFAULT_ROLES: RoleSchema[] = [
       "Academic Year Management",
       "Workflow Management"
     ],
-    navigationAccess: ["overview", "search", "classroom", "tasks", "ai-assistant", "rollover", "governance"],
-    pageAccess: ["overview", "search", "classroom", "tasks", "ai-assistant", "rollover", "governance"]
+    navigationAccess: ["overview", "search", "classroom", "students", "tasks", "ai-assistant", "rollover", "governance"],
+    pageAccess: ["overview", "search", "classroom", "students", "tasks", "ai-assistant", "rollover", "governance"]
   },
   {
     roleId: "manager",
@@ -368,8 +380,8 @@ export const DEFAULT_ROLES: RoleSchema[] = [
       "AI Usage",
       "Teaching"
     ],
-    navigationAccess: ["overview", "search", "classroom", "tasks", "ai-assistant"],
-    pageAccess: ["overview", "search", "classroom", "tasks", "ai-assistant"]
+    navigationAccess: ["overview", "search", "classroom", "students", "tasks", "ai-assistant"],
+    pageAccess: ["overview", "search", "classroom", "students", "tasks", "ai-assistant"]
   },
   {
     roleId: "parent",
@@ -463,6 +475,15 @@ export const DEFAULT_PAGES_SCHEMAS: PageLayoutSchema[] = [
     widgets: ["classroom_courses_grid", "courses_assignments_list", "roster_risk_badge", "performance_charts"],
     actions: ["sync_grades", "fetch_active_courses", "audit_curriculum_gaps"],
     filters: ["course_selection", "enrollment_status"]
+  },
+  {
+    pageId: "students",
+    pageTitle: "Students",
+    layoutType: "split",
+    sections: ["student_registry", "student_detail"],
+    widgets: ["student_registry_list", "student_detail_card"],
+    actions: ["search_query", "toggle_display_mode", "filter_by_grade", "filter_by_status"],
+    filters: ["grade_level", "enrollment_status", "risk_band"]
   },
   {
     pageId: "tasks",
