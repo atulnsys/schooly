@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { WorkspaceFile } from "../types";
 import { schoolyFetch } from "../lib/safeFetch";
+import GenericEntityListView from "./generic/GenericEntityListView";
+import { createWorkspaceFileEntityDefinition } from "../lib/workspaceFileEntityDefinition";
 import { 
   Search, 
   Filter, 
@@ -153,6 +155,19 @@ export default function UniversalSearch({
 
     return matchesSearch && matchesSource && matchesTag;
   });
+
+  const workspaceFileDefinition = createWorkspaceFileEntityDefinition({
+    currentRole,
+    onToggleFavorite,
+  });
+
+  const handleSelectFile = (file: WorkspaceFile) => {
+    setSelectedFile(file);
+    setAiResponse("");
+    setQaPrompt("");
+    setSelectedFileSuggestions([]);
+    setSelectedFileSuggestionsError("");
+  };
 
   // --- Google Workspace Sign-In & Linking Simulation ---
   const handleConnectWorkspace = async (e: React.FormEvent) => {
@@ -931,124 +946,23 @@ export default function UniversalSearch({
             <div className="lg:col-span-2 space-y-3">
 
               {/* SEARCH RESULTS LIST */}
-              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm animate-fadeIn">
-            <div className="p-4 border-b border-slate-100 bg-slate-50/75 flex justify-between items-center text-xs text-slate-500 font-mono font-medium">
-              <span>SHOWING {filteredFiles.length} RESULTS OF {files.length} indexed files</span>
-              <span>AUTO INDEXED SECURE</span>
+              <GenericEntityListView
+                definition={workspaceFileDefinition}
+                rows={filteredFiles}
+                selectedRow={selectedFile}
+                onSelectRow={handleSelectFile}
+                permissionContext={{ currentRole, activeCapabilities }}
+                showSearch={false}
+                showFilters={false}
+                showSort={true}
+                showDisplayModeToggle={true}
+                showPagination={true}
+                className="animate-fadeIn"
+              />
+
             </div>
 
-            {filteredFiles.length === 0 ? (
-              <div className="p-12 text-center text-slate-400 space-y-2">
-                <Search size={32} className="mx-auto text-slate-350" />
-                <p className="text-sm font-semibold text-slate-600">No workspace results correspond to your tags / keyword search parameters.</p>
-                <button 
-                  onClick={() => { setSearchQuery(""); setSourceFilter("All"); setSelectedTag("All"); }}
-                  className="text-xs text-blue-600 hover:text-blue-700 hover:underline cursor-pointer font-bold"
-                >
-                  Clear Filters
-                </button>
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {filteredFiles.map(file => (
-                  <div 
-                    key={file.id}
-                    onClick={() => { 
-                      setSelectedFile(file); 
-                      setAiResponse(""); 
-                      setQaPrompt(""); 
-                      setSelectedFileSuggestions([]); 
-                      setSelectedFileSuggestionsError("");
-                    }}
-                    className={`p-4 hover:bg-slate-50/75 cursor-pointer transition-all flex items-start justify-between gap-4 ${
-                      selectedFile?.id === file.id ? "bg-blue-50/35 border-l-4 border-blue-550 pl-3" : ""
-                    }`}
-                    id={`search-doc-${file.id}`}
-                  >
-                    <div className="space-y-1.5 flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <div className={`p-1.5 rounded-lg ${
-                          file.type === 'doc' ? 'bg-blue-50 text-blue-600' :
-                          file.type === 'sheet' ? 'bg-emerald-50 text-emerald-600' :
-                          file.type === 'slide' ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600'
-                        }`}>
-                          <FileText size={14} />
-                        </div>
-                        <span className="font-semibold text-slate-800 text-sm truncate block max-w-sm sm:max-w-md">
-                          {sanitizeStudentTerminology(file.name, currentRole === "Student")}
-                        </span>
-
-                        {/* Rendering tags small badge */}
-                        <div className="hidden sm:flex flex-wrap gap-1 leading-none">
-                          {file.tags.slice(0, 3).map(t => (
-                            <span key={t} className="bg-slate-100 text-slate-600 text-[8.5px] font-mono px-1.5 py-0.5 rounded-md">
-                              {sanitizeStudentTerminology(t, currentRole === "Student")}
-                            </span>
-                          ))}
-                          {file.tags.length > 3 && (
-                            <span className="text-slate-400 text-[8px] font-mono self-center">
-                              +{file.tags.length - 3} more
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <p className="text-xs text-slate-500 line-clamp-1 italic font-sans pl-1">
-                        "{file.contentSum}"
-                      </p>
-
-                      <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-450 font-mono pt-1">
-                        <span className="flex items-center gap-1">
-                          <Folder size={10} /> {sanitizeStudentTerminology(file.path, currentRole === "Student")}
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                          <User size={10} /> {file.owner}
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1 opacity-80 font-mono">
-                          <Clock size={10} /> {new Date(file.modifiedAt).toLocaleDateString()}
-                        </span>
-                      </div>
-
-                      {/* File visibility access context badges (Phase 19 compliance) */}
-                      {(() => {
-                        const info = getFileVisibilityDetails(file);
-                        return (
-                          <div className="flex flex-wrap items-center gap-2 pt-1">
-                            <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[9px] font-semibold font-sans">
-                              Source: {info.source}
-                            </span>
-                            <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded text-[9px] font-semibold font-sans">
-                              Access: {info.accessContext}
-                            </span>
-                            <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[9px] font-semibold font-sans">
-                              Area: {sanitizeStudentTerminology(info.schoolArea, currentRole === "Student")}
-                            </span>
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onToggleFavorite(file.id);
-                        }}
-                        className="p-1.5 hover:bg-slate-150 rounded-md text-amber-400 hover:text-amber-500 cursor-pointer transition-colors"
-                      >
-                        <Star size={14} className={file.isFavorite ? "fill-amber-450" : ""} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* METADATA DETAILS & Q&A PANEL (1/3 width) */}
+            {/* METADATA DETAILS & Q&A PANEL (1/3 width) */}
         <div className="space-y-4">
 
           {selectedFile ? (
@@ -1320,3 +1234,4 @@ export default function UniversalSearch({
     </div>
   );
 }
+
