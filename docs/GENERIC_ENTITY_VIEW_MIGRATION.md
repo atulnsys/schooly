@@ -101,8 +101,7 @@ Not allowed during migration:
 | Object/Registry | Entity Definition Exists? | Generic List? | Generic Detail? | Drill-through Mapped? | UI Smoke Tested? | Status             | Notes                     |
 | --------------- | ------------------------: | ------------: | --------------: | --------------------: | ---------------: | ------------------ | ------------------------- |
 | `WorkspaceFile` |                       Yes |           Yes |             Yes |               Partial |              Yes | Completed baseline | Used in `UniversalSearch` |
-| `ClassroomAssignment` |                  Yes |           Yes |              No |                    N/A |               Yes | In progress        | List migrated in `ClassroomManager`; detail deferred |
-|                 |                           |               |                 |                       |                  |                    |                           |
+| `ClassroomAssignment` |                  Yes |           Yes |              No |                    N/A |               Yes | Completed list migration        | List migrated in `ClassroomManager`; detail deferred |
 
 ## Candidate Inventory
 
@@ -263,11 +262,9 @@ refactor: migrate classroom assignments to generic entity views
 
 Commit SHA:
 
-To be filled after manual commit.
+`3bcf530`
 
 Files committed:
-
-Not yet committed.
 
 `src/components/ClassroomManager.tsx`
 `src/lib/classroomAssignmentEntityDefinition.tsx`
@@ -288,6 +285,148 @@ The current pilot stayed intentionally small. The next safe move should be anoth
 Notes:
 
 The classroom assignment list is now backed by the generic entity framework, while the rest of `ClassroomManager` remains specialized and untouched.
+
+---
+
+# Migration Cycle 2
+
+## Step 1 â€” Inventory Findings
+
+| Component/Page | Finding | Risk | Recommendation |
+| -------------- | ------- | ---- | -------------- |
+| `ClassroomManager.tsx` | Course selector is a small, isolated list/card boundary driven by typed `ClassroomCourse` data. | Low | Migrate the course selector only. |
+| `LessonPlanner.tsx` | Selection-driven lesson registry/editor with AI and checklist flows. | Medium | Defer. |
+| `TextbookIngestor.tsx` | Large NCERT import/audit workspace. | High | Defer. |
+| `DashboardOverview.tsx` | Broad dashboard and registry drill-through surface. | High | Defer. |
+| `RoleDashboards.tsx` | Status chip rather than list/detail page. | High | Defer. |
+| `TaskCenter.tsx`, `AcademicYearRollover.tsx`, `DataSourceSettings.tsx`, `DynamicDashboardWidget.tsx` | Not present in repo. | None | Ignore for this cycle. |
+
+## Step 2 â€” Selected Object Group
+
+Selected group: `ClassroomCourse` in `src/components/ClassroomManager.tsx`
+
+Reason selected: It is the next cleanest classroom boundary after assignments. The selector is already isolated, uses existing typed props, and has no separate detail panel to preserve.
+
+Risk level: Low
+
+Files expected to change: `src/components/ClassroomManager.tsx`, `src/lib/classroomCourseEntityDefinition.tsx`, `docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
+
+## Step 3 â€” Migration Plan
+
+Checklist:
+
+* [x] Reuse existing types where available.
+* [x] Do not create mock records.
+* [x] Do not change data fetching.
+* [x] Add a dedicated entity definition file if needed.
+* [x] Use `GenericEntityListView` where safe.
+* [ ] Use `GenericEntityDetailView` where safe.
+* [ ] Use `GenericEntityPage` only if the page is naturally list + detail.
+* [x] Preserve existing filters.
+* [x] Preserve existing actions.
+* [x] Preserve existing drill-through behavior.
+* [x] Preserve role visibility.
+* [x] Preserve Google Drive/Classroom links.
+* [x] Preserve AI controls if present.
+* [x] Preserve validation/status messages if present.
+* [x] Defer detail migration if specialized UI would break.
+
+## Step 4 â€” Drill-through / Action Coverage
+
+| Action/Drill-through | Existing Behavior | Generic Mapping Used | Preserved? | Notes |
+| -------------------- | ----------------- | -------------------- | ---------- | ----- |
+| Course selection | Horizontal course tabs switch the active course and update all course-scoped panels. | `GenericEntityListView` table mode with `createClassroomCourseEntityDefinition` | Yes | Row click updates the selected course; there is no separate detail panel. |
+
+## Step 5 â€” Behavior Preserved
+
+* The selected course still drives assignments, announcements, materials, and roster content.
+* The classroom stream, materials index, and student roster stay in place.
+* Course switching still updates the visible classroom data.
+* Existing empty or fallback classroom messages remain untouched.
+
+## Step 6 â€” Deferred Items
+
+* No course detail panel was added.
+* No drill-through route was introduced.
+* No other classroom sections were migrated in this cycle.
+
+## Step 7 â€” Code Verification
+
+Commands to run:
+
+* `npx tsc --noEmit --pretty false`
+* `npm run build`
+
+Verification results:
+
+* `npx tsc --noEmit --pretty false` succeeded.
+* `npm run build` succeeded with the existing Vite chunk-size warning only.
+
+## Step 8 â€” UI Smoke Verification
+
+UI verification should prove that the migrated object works in the browser, not just in TypeScript.
+
+Use existing project tooling only. Do not add Playwright, Cypress, or other UI test dependencies unless explicitly approved.
+
+If existing browser automation is available, use it. Otherwise, run the app locally and perform a manual smoke check.
+
+Minimum UI smoke checklist:
+
+* [ ] Page opens without runtime error.
+* [ ] Generic list is visible.
+* [ ] Existing filters/search still work.
+* [ ] Sort/display controls work if enabled.
+* [ ] Selecting a row opens or updates detail view.
+* [ ] Detail view shows correct selected object.
+* [ ] Existing actions still work.
+* [ ] Drill-through still works where applicable.
+* [ ] Existing empty/loading/error state still works.
+* [ ] Browser console has no new migration-related errors.
+* [ ] Layout does not visibly break on normal desktop width.
+
+UI smoke method used:
+
+Local browser smoke through the bundled browser runtime against the built server.
+
+UI smoke result:
+
+Completed locally. I verified:
+
+* Classroom page opened without runtime error.
+* The generic course selector rendered in the classroom header area.
+* Clicking `Class VIII-A | Science` switched the selected course.
+* The populated course showed the course-scoped assignment list, stream, materials, and roster without layout breakage.
+* No browser console errors were introduced by this migration.
+
+Screenshots or notes:
+
+Manual notes: the course selector is now a compact generic table. The rest of `ClassroomManager` remained specialized and unchanged.
+
+## Step 9 â€” Commit
+
+Commit message:
+
+refactor: migrate classroom courses to generic entity views
+
+Commit SHA:
+
+Pending.
+
+Files committed:
+
+Pending.
+
+Blocked by repository permissions when creating `.git/index.lock`.
+
+## Step 10 â€” Recommended Next Group
+
+Recommended next group:
+
+`ClassroomAssignment` is already done, so the next low-risk candidate should be another isolated classroom list only if it proves similarly clean in `ClassroomManager`.
+
+Reason:
+
+The course selector was the cleanest remaining boundary. Anything broader should wait until another surface is equally isolated.
 
 ---
 

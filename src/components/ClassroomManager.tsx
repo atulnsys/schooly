@@ -2,17 +2,12 @@ import React, { useState, useEffect } from "react";
 import { ClassroomCourse, ClassroomAssignment, StudentDetails, TeacherDetails } from "../types";
 import { loadConnectionConfig, FALLBACK_ALERT_MESSAGES } from "../lib/dataSourceEngine";
 import GenericEntityListView from "./generic/GenericEntityListView";
+import { createClassroomCourseEntityDefinition } from "../lib/classroomCourseEntityDefinition";
 import { createClassroomAssignmentEntityDefinition } from "../lib/classroomAssignmentEntityDefinition";
 import { 
-  GraduationCap, 
   BookOpen, 
-  User, 
-  Calendar, 
-  CheckCircle2, 
   AlertTriangle, 
   ExternalLink,
-  ChevronRight,
-  TrendingDown,
   Info
 } from "lucide-react";
 
@@ -31,6 +26,7 @@ export default function ClassroomManager({
 }: ClassroomManagerProps) {
   const [activeCourseId, setActiveCourseId] = useState<string>("course-sci-8");
   const selectedCourse = courses.find(c => c.id === activeCourseId) || courses[0];
+  const courseDefinition = createClassroomCourseEntityDefinition();
 
   // Filters assignments for the active course
   const courseAssignments = assignments.filter(a => a.courseId === activeCourseId);
@@ -85,27 +81,21 @@ export default function ClassroomManager({
         </div>
       </div>
 
-      {/* Course Selector Tabs */}
-      <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-none" id="courses-tabs-bar">
-        {courses.map(course => (
-          <button
-            key={course.id}
-            onClick={() => setActiveCourseId(course.id)}
-            className={`px-4 py-3.5 rounded-xl border text-sm font-semibold flex items-center gap-3 shrink-0 transition-colors cursor-pointer ${
-              activeCourseId === course.id
-                ? "bg-blue-600 text-white border-blue-750 shadow-sm"
-                : "bg-white text-slate-705 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
-            }`}
-          >
-            <GraduationCap size={16} />
-            <div className="text-left bg-transparent">
-              <span className="block font-bold">{course.name}</span>
-              <span className={`text-[10px] uppercase font-mono tracking-wider ${activeCourseId === course.id ? "text-blue-200" : "text-slate-400"}`}>
-                {course.section}
-              </span>
-            </div>
-          </button>
-        ))}
+      {/* Course Selector */}
+      <div id="courses-tabs-bar">
+        <GenericEntityListView
+          definition={courseDefinition}
+          rows={courses}
+          selectedRow={selectedCourse}
+          onSelectRow={(course) => setActiveCourseId(course.id)}
+          displayMode="table"
+          showSearch={false}
+          showFilters={false}
+          showSort={false}
+          showDisplayModeToggle={false}
+          showPagination={false}
+          className="bg-transparent border-0 shadow-none"
+        />
       </div>
 
       {/* Main Grid */}
