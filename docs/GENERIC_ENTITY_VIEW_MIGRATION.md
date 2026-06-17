@@ -1474,17 +1474,17 @@ Lesson Plans stays a custom list/detail workspace instead of moving into the gen
 
 ---
 
-# Lesson Resources — Academic Resource Library
+# Lesson Resources - Academic Resource Library
 
 ## Scope
 
-This cycle adds a new `/resources` surface for lesson-linked academic resources without changing the Lesson Plans custom workflow or the NCERT textbook ingestion workspace.
+This cycle introduced the `/resources` surface for lesson-linked academic resources without changing the Lesson Plans custom workflow or the NCERT textbook ingestion workspace.
 
 ## What Was Added
 
-* A new `AcademicResourceLibraryPage` wired into the app shell.
-* A new `/resources` route and sidebar entry under Teaching & Learning.
-* A small academic resource taxonomy helper in `src/lib/academicResourceTypes.ts`.
+* `AcademicResourceLibraryPage` wired into the app shell.
+* A `/resources` route and sidebar entry under Teaching & Learning.
+* `src/lib/academicResourceTypes.ts` for the academic resource taxonomy.
 * Safe navigation buttons from Lesson Plans and NCERT Textbooks into the resource library.
 
 ## Data Source
@@ -1506,11 +1506,55 @@ This cycle adds a new `/resources` surface for lesson-linked academic resources 
 * Sidebar visibility: added for Teaching-capable roles through schema-driven navigation.
 * Lesson Plans link: added.
 * Textbooks link: added.
-* Browser smoke: verified in headless Chrome on `/resources`, `/lesson-plans`, `/textbooks`, `/students`, and `/classroom`.
+* Browser smoke: verified in Chrome on `/resources`, `/lesson-plans`, `/textbooks`, `/students`, and `/classroom`.
 
 ## Commit SHA
 
-* `43817b8`
+* `9463671`
+
+---
+
+# Academic Resources - Library Completion and Evidence Mapping
+
+## Scope
+
+This follow-up refines the `/resources` page into a read-only evidence-map surface with source notes, compact filters, and safer drill-throughs while keeping Lesson Plans and NCERT Textbooks specialized.
+
+## What Was Refined
+
+* The resource page now uses the richer academic resource helper in `src/lib/academicResourceLibrary.ts`.
+* Summary cards now show visible resources, Drive-linked rows, evidence-mapped rows, and metadata-only / unavailable rows.
+* Compact source and status filters were added on the page itself so the generic list stays usable without extra generic filter noise.
+* The selected-resource detail panel now includes a source note and an evidence snapshot before and after the generic sections.
+* Safe drill-through actions were added for the source surface, Drive, and Classroom when those links exist.
+* Saved lesson-plan archive rows are now merged into the resource list alongside `WorkspaceFile` rows.
+
+## Data Source
+
+* Existing `WorkspaceFile` rows from Search-backed workspace data.
+* Existing saved lesson-plan archive rows from local storage.
+* No backend, mock data, or registry write path was added.
+
+## Behavior Preserved
+
+* Lesson Plans remains a custom list/detail workspace.
+* NCERT Textbooks remains a custom ingestion and audit workspace.
+* `/lesson-plans` and `/textbooks` still use their existing workflows.
+* The resource page remains read-only.
+
+## Tracker Notes
+
+* `/resources` direct route: still works.
+* Sidebar visibility: still available for Teaching-capable roles.
+* Source notes: added in the header and the selected-resource detail panel.
+* Evidence mapping: added as a detail snapshot and detail sections.
+* Compact filters: added for source family and status.
+* Safe drill-throughs: added for source surface, Drive, and Classroom where available.
+* Browser smoke: verified on `/resources`, `/lesson-plans`, `/textbooks`, `/students`, and `/classroom`.
+
+## Commit SHA
+
+* `pending`
 
 ---
 

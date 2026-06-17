@@ -1,255 +1,431 @@
 import type { WorkspaceFile } from "../types";
 
-export type AcademicResourceAudience =
-  | "student-facing"
-  | "teacher-facing"
-  | "parent-facing"
-  | "assessment-facing"
-  | "compliance-facing";
+export type AcademicResourceAudience = "teacher" | "student" | "parent" | "coordinator" | "compliance" | "mixed";
+
+export type AcademicResourceSourceFamily =
+  | "LessonPlanner"
+  | "TextbookIngestor"
+  | "Google Drive"
+  | "Google Classroom"
+  | "Registry Explorer"
+  | "unknown";
+
+export type AcademicResourceCategory =
+  | "Planning"
+  | "Instruction"
+  | "Assessment"
+  | "Communication"
+  | "Remediation"
+  | "Enrichment"
+  | "Compliance"
+  | "Evidence"
+  | "Source Material";
 
 export interface AcademicResourceTypeDefinition {
   id: string;
-  displayLabel: string;
+  label: string;
   description: string;
-  category: "Planning" | "Instruction" | "Assessment" | "Communication" | "Compliance" | "Source Material";
-  typicalSource: string;
-  studentFacing: boolean;
-  teacherFacing: boolean;
-  parentFacing: boolean;
-  assessmentFacing: boolean;
-  complianceFacing: boolean;
+  category: AcademicResourceCategory;
+  audience: AcademicResourceAudience;
+  sourceFamily: AcademicResourceSourceFamily;
+  instructional: boolean;
+  assessment: boolean;
+  communication: boolean;
+  remediation: boolean;
+  enrichment: boolean;
+  compliance: boolean;
+  evidenceOriented: boolean;
+  defaultStatusLabel?: string;
   keywords: string[];
 }
 
-export interface AcademicResourceRow {
-  id: string;
-  title: string;
-  description: string;
-  resourceTypeId: string;
-  resourceTypeLabel: string;
-  category: AcademicResourceTypeDefinition["category"];
-  typicalSource: string;
-  studentFacing: boolean;
-  teacherFacing: boolean;
-  parentFacing: boolean;
-  assessmentFacing: boolean;
-  complianceFacing: boolean;
-  source: string;
-  status: string;
-  origin: "WorkspaceFile" | "SavedLessonArchive";
-  className?: string;
-  subjectName?: string;
-  chapterName?: string;
-  lessonLinkage?: string;
-  modifiedAt?: string;
-  owner?: string;
-  webViewLink?: string;
-  path?: string;
-  tags: string[];
+function defineAcademicResourceType(definition: AcademicResourceTypeDefinition): AcademicResourceTypeDefinition {
+  return definition;
 }
-
-const TEXT_TOKEN_MAP = (value?: string) => (value || "").toLowerCase();
 
 export const ACADEMIC_RESOURCE_TYPES: AcademicResourceTypeDefinition[] = [
-  {
-    id: "outline",
-    displayLabel: "Outline",
-    description: "Lesson flow and compliance outline used for planning and review.",
+  defineAcademicResourceType({
+    id: "lesson_plan",
+    label: "Lesson Plan",
+    description: "A complete lesson plan artifact or lesson workspace draft.",
     category: "Planning",
-    typicalSource: "LessonPlanner or chapter-linked Drive notes",
-    studentFacing: false,
-    teacherFacing: true,
-    parentFacing: false,
-    assessmentFacing: false,
-    complianceFacing: true,
-    keywords: ["outline", "lesson plan", "lesson-plan", "lesson_plan", "plan outline"],
-  },
-  {
+    audience: "teacher",
+    sourceFamily: "LessonPlanner",
+    instructional: true,
+    assessment: false,
+    communication: false,
+    remediation: false,
+    enrichment: false,
+    compliance: true,
+    evidenceOriented: true,
+    defaultStatusLabel: "Draft or linked",
+    keywords: ["lesson plan", "lesson-plan", "lesson_plan", "lessonplanner", "plan draft"],
+  }),
+  defineAcademicResourceType({
+    id: "outline",
+    label: "Outline",
+    description: "Lesson flow or compliance outline used for planning and review.",
+    category: "Planning",
+    audience: "teacher",
+    sourceFamily: "LessonPlanner",
+    instructional: true,
+    assessment: false,
+    communication: false,
+    remediation: false,
+    enrichment: false,
+    compliance: true,
+    evidenceOriented: true,
+    defaultStatusLabel: "Linked",
+    keywords: ["outline", "lesson flow", "plan outline"],
+  }),
+  defineAcademicResourceType({
     id: "slides",
-    displayLabel: "Slides / PPT",
+    label: "Slides",
     description: "Presentation deck or slide outline for teaching delivery.",
     category: "Instruction",
-    typicalSource: "LessonPlanner or generated teaching packs",
-    studentFacing: false,
-    teacherFacing: true,
-    parentFacing: false,
-    assessmentFacing: false,
-    complianceFacing: false,
+    audience: "teacher",
+    sourceFamily: "LessonPlanner",
+    instructional: true,
+    assessment: false,
+    communication: false,
+    remediation: false,
+    enrichment: false,
+    compliance: false,
+    evidenceOriented: false,
+    defaultStatusLabel: "Linked",
     keywords: ["slides", "slide deck", "ppt", "presentation", "deck"],
-  },
-  {
+  }),
+  defineAcademicResourceType({
     id: "quiz",
-    displayLabel: "Quiz",
+    label: "Quiz",
     description: "Concept check or diagnostic quiz for a lesson chapter.",
     category: "Assessment",
-    typicalSource: "LessonPlanner or TextbookIngestor",
-    studentFacing: true,
-    teacherFacing: true,
-    parentFacing: false,
-    assessmentFacing: true,
-    complianceFacing: false,
+    audience: "mixed",
+    sourceFamily: "TextbookIngestor",
+    instructional: false,
+    assessment: true,
+    communication: false,
+    remediation: false,
+    enrichment: false,
+    compliance: false,
+    evidenceOriented: true,
+    defaultStatusLabel: "Ready for review",
     keywords: ["quiz", "concept check", "diagnostic", "mcq"],
-  },
-  {
+  }),
+  defineAcademicResourceType({
     id: "worksheet",
-    displayLabel: "Worksheet",
+    label: "Worksheet",
     description: "Student practice sheet with guided exercises.",
     category: "Instruction",
-    typicalSource: "LessonPlanner or chapter resource packs",
-    studentFacing: true,
-    teacherFacing: true,
-    parentFacing: false,
-    assessmentFacing: true,
-    complianceFacing: false,
+    audience: "mixed",
+    sourceFamily: "LessonPlanner",
+    instructional: true,
+    assessment: true,
+    communication: false,
+    remediation: false,
+    enrichment: false,
+    compliance: false,
+    evidenceOriented: false,
+    defaultStatusLabel: "Linked",
     keywords: ["worksheet", "worksheets", "practice sheet"],
-  },
-  {
+  }),
+  defineAcademicResourceType({
     id: "activity_sheet",
-    displayLabel: "Activity Sheet",
+    label: "Activity Sheet",
     description: "Experiential activity or hands-on task sheet.",
     category: "Instruction",
-    typicalSource: "LessonPlanner or classroom activity pack",
-    studentFacing: true,
-    teacherFacing: true,
-    parentFacing: false,
-    assessmentFacing: false,
-    complianceFacing: false,
+    audience: "mixed",
+    sourceFamily: "TextbookIngestor",
+    instructional: true,
+    assessment: false,
+    communication: false,
+    remediation: false,
+    enrichment: true,
+    compliance: false,
+    evidenceOriented: false,
+    defaultStatusLabel: "Linked",
     keywords: ["activity sheet", "activity", "experiential", "lab", "hands-on"],
-  },
-  {
+  }),
+  defineAcademicResourceType({
     id: "question_bank",
-    displayLabel: "Question Bank",
+    label: "Question Bank",
     description: "Reusable question set for discussion, revision, or drills.",
     category: "Assessment",
-    typicalSource: "LessonPlanner or TextbookIngestor",
-    studentFacing: true,
-    teacherFacing: true,
-    parentFacing: false,
-    assessmentFacing: true,
-    complianceFacing: false,
+    audience: "mixed",
+    sourceFamily: "TextbookIngestor",
+    instructional: false,
+    assessment: true,
+    communication: false,
+    remediation: false,
+    enrichment: false,
+    compliance: false,
+    evidenceOriented: true,
+    defaultStatusLabel: "Ready for review",
     keywords: ["question bank", "questionbank", "bank of questions"],
-  },
-  {
+  }),
+  defineAcademicResourceType({
     id: "assessment_bank",
-    displayLabel: "Assessment Bank",
+    label: "Assessment Bank",
     description: "Scored or rubric-driven assessment blueprint.",
     category: "Assessment",
-    typicalSource: "LessonPlanner or evaluation pack",
-    studentFacing: false,
-    teacherFacing: true,
-    parentFacing: false,
-    assessmentFacing: true,
-    complianceFacing: true,
-    keywords: ["assessment bank", "assessment blueprint", "diagnostic blueprint", "blueprint"],
-  },
-  {
+    audience: "coordinator",
+    sourceFamily: "LessonPlanner",
+    instructional: false,
+    assessment: true,
+    communication: false,
+    remediation: false,
+    enrichment: false,
+    compliance: true,
+    evidenceOriented: true,
+    defaultStatusLabel: "Ready for review",
+    keywords: ["assessment bank", "assessment blueprint", "diagnostic blueprint", "blueprint", "assessment plan"],
+  }),
+  defineAcademicResourceType({
     id: "homework",
-    displayLabel: "Homework",
+    label: "Homework",
     description: "Take-home practice, reflection, or independent work.",
     category: "Planning",
-    typicalSource: "LessonPlanner",
-    studentFacing: true,
-    teacherFacing: true,
-    parentFacing: true,
-    assessmentFacing: false,
-    complianceFacing: false,
-    keywords: ["homework", "assignments", "take-home", "class tasks"],
-  },
-  {
+    audience: "mixed",
+    sourceFamily: "LessonPlanner",
+    instructional: true,
+    assessment: false,
+    communication: false,
+    remediation: false,
+    enrichment: false,
+    compliance: false,
+    evidenceOriented: false,
+    defaultStatusLabel: "Linked",
+    keywords: ["homework", "home work", "take-home", "class tasks"],
+  }),
+  defineAcademicResourceType({
     id: "parent_discussion",
-    displayLabel: "Parent Discussion",
+    label: "Parent Discussion",
     description: "Prompts to support home conversation about the lesson.",
     category: "Communication",
-    typicalSource: "LessonPlanner",
-    studentFacing: false,
-    teacherFacing: true,
-    parentFacing: true,
-    assessmentFacing: false,
-    complianceFacing: false,
+    audience: "parent",
+    sourceFamily: "LessonPlanner",
+    instructional: false,
+    assessment: false,
+    communication: true,
+    remediation: false,
+    enrichment: false,
+    compliance: false,
+    evidenceOriented: false,
+    defaultStatusLabel: "Linked",
     keywords: ["parent discussion", "parent prompts", "discussion prompts", "home conversation"],
-  },
-  {
+  }),
+  defineAcademicResourceType({
     id: "parent_communication",
-    displayLabel: "Parent Communication",
+    label: "Parent Communication",
     description: "WhatsApp or broadcast-style family communication draft.",
     category: "Communication",
-    typicalSource: "LessonPlanner",
-    studentFacing: false,
-    teacherFacing: true,
-    parentFacing: true,
-    assessmentFacing: false,
-    complianceFacing: false,
-    keywords: ["parent communication", "whatsapp", "broadcast", "family message"],
-  },
-  {
+    audience: "parent",
+    sourceFamily: "LessonPlanner",
+    instructional: false,
+    assessment: false,
+    communication: true,
+    remediation: false,
+    enrichment: false,
+    compliance: false,
+    evidenceOriented: false,
+    defaultStatusLabel: "Linked",
+    keywords: ["parent communication", "whatsapp", "broadcast", "family message", "parent message"],
+  }),
+  defineAcademicResourceType({
     id: "remediation_enrichment",
-    displayLabel: "Remediation & Enrichment",
+    label: "Remediation and Enrichment",
     description: "Support or extension guidance for mixed-ability classrooms.",
-    category: "Planning",
-    typicalSource: "LessonPlanner",
-    studentFacing: true,
-    teacherFacing: true,
-    parentFacing: false,
-    assessmentFacing: false,
-    complianceFacing: false,
+    category: "Remediation",
+    audience: "mixed",
+    sourceFamily: "LessonPlanner",
+    instructional: true,
+    assessment: false,
+    communication: false,
+    remediation: true,
+    enrichment: true,
+    compliance: false,
+    evidenceOriented: false,
+    defaultStatusLabel: "Linked",
     keywords: ["remediation", "enrichment", "scaffold", "support", "gifted"],
-  },
-  {
+  }),
+  defineAcademicResourceType({
     id: "rubric",
-    displayLabel: "Rubric",
+    label: "Rubric",
     description: "Scoring rubric or quality-assurance matrix.",
     category: "Compliance",
-    typicalSource: "LessonPlanner or evaluation pack",
-    studentFacing: false,
-    teacherFacing: true,
-    parentFacing: false,
-    assessmentFacing: true,
-    complianceFacing: true,
+    audience: "coordinator",
+    sourceFamily: "LessonPlanner",
+    instructional: false,
+    assessment: true,
+    communication: false,
+    remediation: false,
+    enrichment: false,
+    compliance: true,
+    evidenceOriented: true,
+    defaultStatusLabel: "Ready for review",
     keywords: ["rubric", "grading matrix", "score matrix"],
-  },
-  {
+  }),
+  defineAcademicResourceType({
     id: "sqaa_links",
-    displayLabel: "SQAA Links / Evidence Map",
+    label: "SQAA Links",
     description: "Indicator links and evidence references for compliance review.",
-    category: "Compliance",
-    typicalSource: "LessonPlanner",
-    studentFacing: false,
-    teacherFacing: true,
-    parentFacing: false,
-    assessmentFacing: false,
-    complianceFacing: true,
+    category: "Evidence",
+    audience: "compliance",
+    sourceFamily: "LessonPlanner",
+    instructional: false,
+    assessment: false,
+    communication: false,
+    remediation: false,
+    enrichment: false,
+    compliance: true,
+    evidenceOriented: true,
+    defaultStatusLabel: "Evidence mapped",
     keywords: ["sqaa", "evidence map", "indicator cards", "compliance indicator"],
-  },
-  {
+  }),
+  defineAcademicResourceType({
+    id: "evidence_map",
+    label: "Evidence Map",
+    description: "Crosswalk between lesson artifacts and evidence requirements.",
+    category: "Evidence",
+    audience: "compliance",
+    sourceFamily: "Registry Explorer",
+    instructional: false,
+    assessment: false,
+    communication: false,
+    remediation: false,
+    enrichment: false,
+    compliance: true,
+    evidenceOriented: true,
+    defaultStatusLabel: "Evidence mapped",
+    keywords: ["evidence map", "crosswalk", "traceability map", "mapping"],
+  }),
+  defineAcademicResourceType({
     id: "raw_markdown",
-    displayLabel: "Raw Markdown / Source Material",
+    label: "Raw Markdown / Source Material",
     description: "Source document or unparsed lesson material.",
     category: "Source Material",
-    typicalSource: "Drive file or lesson archive",
-    studentFacing: false,
-    teacherFacing: true,
-    parentFacing: false,
-    assessmentFacing: false,
-    complianceFacing: false,
+    audience: "teacher",
+    sourceFamily: "unknown",
+    instructional: false,
+    assessment: false,
+    communication: false,
+    remediation: false,
+    enrichment: false,
+    compliance: false,
+    evidenceOriented: false,
+    defaultStatusLabel: "Source only",
     keywords: ["raw markdown", "source material", "lesson plan", "markdown", "source"],
-  },
+  }),
+  defineAcademicResourceType({
+    id: "teacher_reflection",
+    label: "Teacher Reflection",
+    description: "Teacher notes or post-lesson reflection for review.",
+    category: "Planning",
+    audience: "teacher",
+    sourceFamily: "LessonPlanner",
+    instructional: false,
+    assessment: false,
+    communication: false,
+    remediation: true,
+    enrichment: false,
+    compliance: false,
+    evidenceOriented: false,
+    defaultStatusLabel: "Linked",
+    keywords: ["reflection", "teacher reflection", "lesson reflection", "teacher notes"],
+  }),
+  defineAcademicResourceType({
+    id: "assessment_plan",
+    label: "Assessment Plan",
+    description: "Assessment blueprint, mark scheme, or planned evaluation sequence.",
+    category: "Assessment",
+    audience: "coordinator",
+    sourceFamily: "LessonPlanner",
+    instructional: false,
+    assessment: true,
+    communication: false,
+    remediation: false,
+    enrichment: false,
+    compliance: true,
+    evidenceOriented: true,
+    defaultStatusLabel: "Ready for review",
+    keywords: ["assessment plan", "assessment blueprint", "mark scheme", "evaluation plan"],
+  }),
+  defineAcademicResourceType({
+    id: "question_paper",
+    label: "Question Paper",
+    description: "Exam paper, sample paper, or term-test style resource.",
+    category: "Assessment",
+    audience: "mixed",
+    sourceFamily: "TextbookIngestor",
+    instructional: false,
+    assessment: true,
+    communication: false,
+    remediation: false,
+    enrichment: false,
+    compliance: false,
+    evidenceOriented: true,
+    defaultStatusLabel: "Ready for review",
+    keywords: ["question paper", "exam paper", "sample paper", "test paper", "board paper"],
+  }),
+  defineAcademicResourceType({
+    id: "report_card_support",
+    label: "Report Card Support",
+    description: "Comment bank, remark support, or progress-report guidance.",
+    category: "Compliance",
+    audience: "coordinator",
+    sourceFamily: "Registry Explorer",
+    instructional: false,
+    assessment: false,
+    communication: true,
+    remediation: false,
+    enrichment: false,
+    compliance: true,
+    evidenceOriented: true,
+    defaultStatusLabel: "Ready for review",
+    keywords: ["report card", "report card support", "progress report", "remark bank"],
+  }),
 ];
 
-const TYPE_LOOKUP = new Map(ACADEMIC_RESOURCE_TYPES.map((type) => [type.id, type]));
+const TYPE_LOOKUP = new Map(ACADEMIC_RESOURCE_TYPES.map((type) => [type.id, type] as const));
 
-function joinParts(parts: Array<string | number | undefined>): string {
-  return parts
-    .map((part) => (part === undefined || part === null ? "" : String(part).trim()))
-    .filter(Boolean)
-    .join(" · ");
+const INFERENCE_RULES: Array<{ typeId: string; patterns: string[] }> = [
+  { typeId: "lesson_plan", patterns: ["lesson plan", "lesson-plan", "lesson_plan", "lessonplanner"] },
+  { typeId: "outline", patterns: ["outline", "lesson flow", "plan outline"] },
+  { typeId: "slides", patterns: ["slides", "slide deck", "ppt", "presentation", "deck"] },
+  { typeId: "quiz", patterns: ["quiz", "concept check", "diagnostic", "mcq"] },
+  { typeId: "worksheet", patterns: ["worksheet", "worksheets", "practice sheet"] },
+  { typeId: "activity_sheet", patterns: ["activity sheet", "activity", "experiential", "lab", "hands-on"] },
+  { typeId: "question_bank", patterns: ["question bank", "questionbank", "bank of questions"] },
+  { typeId: "assessment_bank", patterns: ["assessment bank", "assessment blueprint", "diagnostic blueprint", "blueprint"] },
+  { typeId: "homework", patterns: ["homework", "home work", "take-home", "class tasks"] },
+  { typeId: "parent_discussion", patterns: ["parent discussion", "parent prompts", "discussion prompts", "home conversation"] },
+  { typeId: "parent_communication", patterns: ["parent communication", "whatsapp", "broadcast", "family message"] },
+  { typeId: "remediation_enrichment", patterns: ["remediation", "enrichment", "scaffold", "support", "gifted"] },
+  { typeId: "rubric", patterns: ["rubric", "grading matrix", "score matrix"] },
+  { typeId: "sqaa_links", patterns: ["sqaa", "indicator cards", "evidence map", "compliance indicator"] },
+  { typeId: "evidence_map", patterns: ["evidence map", "crosswalk", "traceability map", "mapping"] },
+  { typeId: "teacher_reflection", patterns: ["reflection", "teacher reflection", "lesson reflection", "teacher notes"] },
+  { typeId: "assessment_plan", patterns: ["assessment plan", "assessment blueprint", "mark scheme", "evaluation plan"] },
+  { typeId: "question_paper", patterns: ["question paper", "exam paper", "sample paper", "test paper", "board paper"] },
+  { typeId: "report_card_support", patterns: ["report card", "report card support", "progress report", "remark bank"] },
+];
+
+function normalizeText(value?: string): string {
+  return String(value || "")
+    .toLowerCase()
+    .trim();
 }
 
-export function getAcademicResourceType(resourceTypeId: string) {
+function containsAny(haystack: string, needles: string[]): boolean {
+  return needles.some((needle) => haystack.includes(needle));
+}
+
+export function getAcademicResourceType(resourceTypeId: string): AcademicResourceTypeDefinition {
   return TYPE_LOOKUP.get(resourceTypeId) || TYPE_LOOKUP.get("raw_markdown")!;
 }
 
 export function inferAcademicResourceType(file: WorkspaceFile): AcademicResourceTypeDefinition {
-  const haystack = TEXT_TOKEN_MAP(
+  const haystack = normalizeText(
     [
       file.name,
       file.path,
@@ -258,82 +434,24 @@ export function inferAcademicResourceType(file: WorkspaceFile): AcademicResource
       file.bookName,
       file.subjectName,
       file.className,
+      file.medium,
       ...(file.tags || []),
     ].join(" "),
   );
 
-  for (const resourceType of ACADEMIC_RESOURCE_TYPES) {
-    if (resourceType.keywords.some((keyword) => haystack.includes(keyword))) {
-      return resourceType;
+  for (const rule of INFERENCE_RULES) {
+    if (containsAny(haystack, rule.patterns)) {
+      return getAcademicResourceType(rule.typeId);
     }
   }
 
-  if (file.type === "slide") return TYPE_LOOKUP.get("slides")!;
-  if (file.type === "form") return TYPE_LOOKUP.get("quiz")!;
-  if (file.name.toLowerCase().includes("worksheet")) return TYPE_LOOKUP.get("worksheet")!;
-  if (file.name.toLowerCase().includes("homework")) return TYPE_LOOKUP.get("homework")!;
+  if (file.type === "slide") return getAcademicResourceType("slides");
+  if (file.type === "form") return getAcademicResourceType("quiz");
+  if (file.name.toLowerCase().includes("worksheet")) return getAcademicResourceType("worksheet");
+  if (file.name.toLowerCase().includes("homework")) return getAcademicResourceType("homework");
+  if (file.name.toLowerCase().includes("reflection")) return getAcademicResourceType("teacher_reflection");
+  if (file.name.toLowerCase().includes("report card")) return getAcademicResourceType("report_card_support");
 
-  return TYPE_LOOKUP.get("raw_markdown")!;
+  return getAcademicResourceType("raw_markdown");
 }
 
-export function buildAcademicResourceRows(files: WorkspaceFile[] = [], savedLessonArchives: WorkspaceFile[] = []): AcademicResourceRow[] {
-  const mergedFiles = [...files, ...savedLessonArchives];
-  const seen = new Set<string>();
-
-  return mergedFiles
-    .filter((file) => {
-      const haystack = TEXT_TOKEN_MAP([file.name, file.path, file.contentSum, file.topicName, ...(file.tags || [])].join(" "));
-      return ACADEMIC_RESOURCE_TYPES.some((type) => type.keywords.some((keyword) => haystack.includes(keyword))) || Boolean(file.topicName || file.chapterNumber);
-    })
-    .map<AcademicResourceRow | null>((file) => {
-      const resourceType = inferAcademicResourceType(file);
-      const id = [file.id, file.path, file.name, resourceType.id].filter(Boolean).join("|");
-      if (seen.has(id)) {
-        return null;
-      }
-      seen.add(id);
-
-      const lessonLinkage = joinParts([
-        file.topicName,
-        file.chapterNumber ? `Chapter ${file.chapterNumber}` : "",
-        file.bookName,
-      ]);
-
-      const row: AcademicResourceRow = {
-        id,
-        title: file.topicName || file.name,
-        description: file.contentSum || file.path || "No additional description is available.",
-        resourceTypeId: resourceType.id,
-        resourceTypeLabel: resourceType.displayLabel,
-        category: resourceType.category,
-        typicalSource: resourceType.typicalSource,
-        studentFacing: resourceType.studentFacing,
-        teacherFacing: resourceType.teacherFacing,
-        parentFacing: resourceType.parentFacing,
-        assessmentFacing: resourceType.assessmentFacing,
-        complianceFacing: resourceType.complianceFacing,
-        source: file.source,
-        status: file.webViewLink ? "Linked" : "Source unavailable",
-        origin: savedLessonArchives.some((archive) => archive.id === file.id) ? "SavedLessonArchive" : "WorkspaceFile",
-        className: file.className,
-        subjectName: file.subjectName,
-        chapterName: file.topicName || (file.chapterNumber ? `Chapter ${file.chapterNumber}` : undefined),
-        lessonLinkage: lessonLinkage || undefined,
-        modifiedAt: file.modifiedAt,
-        owner: file.owner,
-        webViewLink: file.webViewLink,
-        path: file.path,
-        tags: file.tags || [],
-      };
-      return row;
-    })
-    .filter((item): item is AcademicResourceRow => Boolean(item))
-    .sort((left, right) => {
-      const leftTitle = left.title.toLowerCase();
-      const rightTitle = right.title.toLowerCase();
-      if (leftTitle === rightTitle) {
-        return left.resourceTypeLabel.localeCompare(right.resourceTypeLabel);
-      }
-      return leftTitle.localeCompare(rightTitle);
-    });
-}
