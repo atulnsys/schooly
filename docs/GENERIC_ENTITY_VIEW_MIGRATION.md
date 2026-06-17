@@ -1474,6 +1474,46 @@ Lesson Plans stays a custom list/detail workspace instead of moving into the gen
 
 ---
 
+# Lesson Resources — Academic Resource Library
+
+## Scope
+
+This cycle adds a new `/resources` surface for lesson-linked academic resources without changing the Lesson Plans custom workflow or the NCERT textbook ingestion workspace.
+
+## What Was Added
+
+* A new `AcademicResourceLibraryPage` wired into the app shell.
+* A new `/resources` route and sidebar entry under Teaching & Learning.
+* A small academic resource taxonomy helper in `src/lib/academicResourceTypes.ts`.
+* Safe navigation buttons from Lesson Plans and NCERT Textbooks into the resource library.
+
+## Data Source
+
+* The page reads existing `WorkspaceFile` rows from Search-backed workspace data.
+* No backend, mock data, or new registry source was added.
+* The page is read-only and does not mutate any saved records.
+
+## Behavior Preserved
+
+* Lesson Plans remains a custom list/detail workspace.
+* NCERT Textbooks remains a custom ingestion and audit workspace.
+* `/lesson-plans` and `/textbooks` still use their existing workflows.
+* The new page is additive and does not replace Search, Lesson Plans, or Textbooks.
+
+## Tracker Notes
+
+* `/resources` direct route: added in the app shell.
+* Sidebar visibility: added for Teaching-capable roles through schema-driven navigation.
+* Lesson Plans link: added.
+* Textbooks link: added.
+* Browser smoke: verified in headless Chrome on `/resources`, `/lesson-plans`, `/textbooks`, `/students`, and `/classroom`.
+
+## Commit SHA
+
+* `43817b8`
+
+---
+
 # Feature Readiness â€” Registry Count and Drill-Through Closure
 
 ## Count Reconciliation

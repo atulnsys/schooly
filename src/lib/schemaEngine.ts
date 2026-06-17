@@ -262,6 +262,17 @@ export const DEFAULT_NAVIGATION_ITEMS: NavigationItemSchema[] = [
     helperText: "Create, search, reuse and manage structured lesson plans."
   },
   {
+    id: "resources",
+    label: "Academic Resources",
+    icon: "BookOpen",
+    route: "resources",
+    displayOrder: 4.6,
+    visibilityRules: { capabilities: ["Teaching"] },
+    capabilityRequirements: ["Teaching"],
+    parentGroup: "Teaching & Learning",
+    helperText: "Browse lesson-linked resource packs and source materials."
+  },
+  {
     id: "registers",
     label: "Registers",
     icon: "FolderOpen",
@@ -321,8 +332,8 @@ export const DEFAULT_ROLES: RoleSchema[] = [
       "Operations",
       "Teaching"
     ],
-    navigationAccess: ["overview", "search", "students", "teachers", "staff", "courses", "assignments", "registries", "tasks", "ai-assistant", "lesson-plans"],
-    pageAccess: ["overview", "search", "students", "teachers", "staff", "courses", "assignments", "registries", "tasks", "ai-assistant", "lesson-plans"]
+    navigationAccess: ["overview", "search", "students", "teachers", "staff", "courses", "assignments", "registries", "tasks", "ai-assistant", "lesson-plans", "resources"],
+    pageAccess: ["overview", "search", "students", "teachers", "staff", "courses", "assignments", "registries", "tasks", "ai-assistant", "lesson-plans", "resources"]
   },
   {
     roleId: "coordinator",
@@ -337,8 +348,8 @@ export const DEFAULT_ROLES: RoleSchema[] = [
       "AI Usage",
       "Academic Year Management"
     ],
-    navigationAccess: ["overview", "search", "classroom", "students", "teachers", "staff", "courses", "assignments", "registries", "tasks", "ai-assistant", "rollover", "lesson-plans"],
-    pageAccess: ["overview", "search", "classroom", "students", "teachers", "staff", "courses", "assignments", "registries", "tasks", "ai-assistant", "rollover", "lesson-plans"]
+    navigationAccess: ["overview", "search", "classroom", "students", "teachers", "staff", "courses", "assignments", "registries", "tasks", "ai-assistant", "rollover", "lesson-plans", "resources"],
+    pageAccess: ["overview", "search", "classroom", "students", "teachers", "staff", "courses", "assignments", "registries", "tasks", "ai-assistant", "rollover", "lesson-plans", "resources"]
   },
   {
     roleId: "hod",
@@ -352,8 +363,8 @@ export const DEFAULT_ROLES: RoleSchema[] = [
       "Analytics",
       "AI Usage"
     ],
-    navigationAccess: ["overview", "classroom", "students", "teachers", "staff", "courses", "assignments", "registries", "tasks", "ai-assistant", "lesson-plans"],
-    pageAccess: ["overview", "classroom", "students", "teachers", "staff", "courses", "assignments", "registries", "tasks", "ai-assistant", "lesson-plans"]
+    navigationAccess: ["overview", "classroom", "students", "teachers", "staff", "courses", "assignments", "registries", "tasks", "ai-assistant", "lesson-plans", "resources"],
+    pageAccess: ["overview", "classroom", "students", "teachers", "staff", "courses", "assignments", "registries", "tasks", "ai-assistant", "lesson-plans", "resources"]
   },
   {
     roleId: "teacher",
@@ -365,8 +376,8 @@ export const DEFAULT_ROLES: RoleSchema[] = [
       "Operations",
       "AI Usage"
     ],
-    navigationAccess: ["overview", "classroom", "students", "courses", "assignments", "tasks", "ai-assistant", "lesson-plans"],
-    pageAccess: ["overview", "classroom", "students", "courses", "assignments", "tasks", "ai-assistant", "lesson-plans"]
+    navigationAccess: ["overview", "classroom", "students", "courses", "assignments", "tasks", "ai-assistant", "lesson-plans", "resources"],
+    pageAccess: ["overview", "classroom", "students", "courses", "assignments", "tasks", "ai-assistant", "lesson-plans", "resources"]
   },
   {
     roleId: "admin",
@@ -386,8 +397,8 @@ export const DEFAULT_ROLES: RoleSchema[] = [
       "Academic Year Management",
       "Workflow Management"
     ],
-    navigationAccess: ["overview", "search", "classroom", "students", "teachers", "staff", "courses", "assignments", "registries", "tasks", "ai-assistant", "rollover", "governance"],
-    pageAccess: ["overview", "search", "classroom", "students", "teachers", "staff", "courses", "assignments", "registries", "tasks", "ai-assistant", "rollover", "governance"]
+    navigationAccess: ["overview", "search", "classroom", "students", "teachers", "staff", "courses", "assignments", "registries", "tasks", "ai-assistant", "rollover", "governance", "resources"],
+    pageAccess: ["overview", "search", "classroom", "students", "teachers", "staff", "courses", "assignments", "registries", "tasks", "ai-assistant", "rollover", "governance", "resources"]
   },
   {
     roleId: "manager",
@@ -440,8 +451,8 @@ export const DEFAULT_ROLES: RoleSchema[] = [
       "AI Usage",
       "Teaching"
     ],
-    navigationAccess: ["overview", "search", "classroom", "students", "teachers", "courses", "assignments", "registries", "tasks", "ai-assistant"],
-    pageAccess: ["overview", "search", "classroom", "students", "teachers", "courses", "assignments", "registries", "tasks", "ai-assistant"]
+    navigationAccess: ["overview", "search", "classroom", "students", "teachers", "courses", "assignments", "registries", "tasks", "ai-assistant", "resources"],
+    pageAccess: ["overview", "search", "classroom", "students", "teachers", "courses", "assignments", "registries", "tasks", "ai-assistant", "resources"]
   },
   {
     roleId: "parent",
@@ -848,10 +859,10 @@ function ensureStudentsSchemaCoverage(schema: ExportableSchoolySchema): Exportab
     const roleKey = String(role.roleId || role.roleName || "").toLowerCase();
 
     if (["principal", "coordinator", "hod", "admin", "exams"].includes(roleKey)) {
-      return ensureRoleAccess(role, ["students", "registries", "teachers", "staff", "courses", "assignments"]);
+      return ensureRoleAccess(role, ["students", "registries", "teachers", "staff", "courses", "assignments", "resources"]);
     }
     if (roleKey === "teacher") {
-      return ensureRoleAccess(role, ["students", "courses", "assignments"]);
+      return ensureRoleAccess(role, ["students", "courses", "assignments", "resources"]);
     }
     if (roleKey === "hr") {
       return ensureRoleAccess(role, ["staff"]);

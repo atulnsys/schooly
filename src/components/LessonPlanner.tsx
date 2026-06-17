@@ -1842,6 +1842,16 @@ export default function LessonPlanner({
             <p className="text-xs text-white/80 max-w-3xl leading-relaxed">
               Verify CBSE/SQAA compliance checklists across classroom plans, and edit curated teacher materials in the integrated Workspace.
             </p>
+            {setActiveTab && (
+              <button
+                type="button"
+                onClick={() => setActiveTab("resources")}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-[10.5px] font-bold text-white transition-colors hover:bg-white/20 cursor-pointer"
+              >
+                <ExternalLink size={12} />
+                Open Resource Library
+              </button>
+            )}
           </div>
         </div>
       </header>

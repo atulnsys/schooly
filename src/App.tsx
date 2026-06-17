@@ -18,6 +18,7 @@ import TeachersRegistryPage from "./components/TeachersRegistryPage";
 import StaffRegistryPage from "./components/StaffRegistryPage";
 import ClassroomCoursesRegistryPage from "./components/ClassroomCoursesRegistryPage";
 import ClassroomAssignmentsRegistryPage from "./components/ClassroomAssignmentsRegistryPage";
+import AcademicResourceLibraryPage from "./components/AcademicResourceLibraryPage";
 import RegistryExplorerPage from "./components/RegistryExplorerPage";
 import GenericRegistryDataPage from "./components/GenericRegistryDataPage";
 import TaskProductivity from "./components/TaskProductivity";
@@ -463,6 +464,7 @@ const ROUTE_TABS = new Set([
   "governance",
   "mock_studio",
   "lesson-plans",
+  "resources",
   "textbooks",
 ]);
 
@@ -1728,6 +1730,14 @@ export default function App() {
             currentUser={currentUser}
             currentRole={currentRole}
             onRefreshData={fetchAllData}
+            setActiveTab={setActiveTab}
+          />
+        )}
+
+        {activeTab === "resources" && (
+          <AcademicResourceLibraryPage
+            files={files}
+            currentRole={currentRole}
             setActiveTab={setActiveTab}
           />
         )}
