@@ -15,7 +15,8 @@ import {
 } from "./src/types.js";
 
 const app = express();
-const PORT = 3000;
+// AI Studio / Cloud Run can inject PORT; default locally to 3001 to avoid the common 3000 conflict.
+const PORT = Number(process.env.PORT) || 3001;
 
 app.use(express.json());
 
