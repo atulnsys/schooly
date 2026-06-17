@@ -1417,6 +1417,59 @@ The explorer is the single metadata-driven surface that covers the known registr
 
 ## Commit SHA
 
+* `d670de0d52c1ce29b1e1b87745af708c818ee992`
+
+---
+
+# Lesson Plans — Custom List Detail Stabilization
+
+## Why Lesson Plans Remains Custom
+
+Lesson Plans stays a custom list/detail workspace instead of moving into the generic registry framework. The page is tightly coupled to lesson authoring, AI review, checklist management, Drive save/sync, and workbook editing flows.
+
+## List / Detail Improvements Made
+
+* The lesson list and detail/editor panes now read as a clearer custom split workspace.
+* The split layout was tightened with `min-w-0`, `overflow-hidden`, and safer wrapping on the selected lesson title and supporting metadata.
+* The page now shows a subtle custom-workspace note so the surface is clearly identified as specialized.
+* Empty and missing-selection states were clarified so the right-hand detail area does not feel broken when nothing is selected.
+
+## Custom Workflow Areas Preserved
+
+* LessonPlanner AI/editor flows.
+* Checklist configuration and remediation review flows.
+* Parent communication generation.
+* Drive save/sync behavior.
+* Textbook-linked lesson generation and workbook editing.
+
+## Drill-Through Behavior
+
+* No new registry drill-through was introduced.
+* The existing `Open Workbook Workspace` action remains the safe drill-through into the editor.
+* No misleading click affordance was added to lesson cards beyond the current action buttons.
+
+## Empty / Error / Loading State Behavior
+
+* The list now shows a clearer empty state when filters hide all lesson plans.
+* The detail pane now explains when no lesson is selected and offers a one-click selection fallback when visible lessons exist.
+* No backend/source behavior was changed.
+
+## Verification Results
+
+* TypeScript: `npx tsc --noEmit --pretty false` succeeded.
+* Build: `npm run build` succeeded with the existing Vite chunk-size warning only.
+* Browser smoke: completed in headless Chrome against `http://127.0.0.1:3001/lesson-plans`.
+
+## UI Smoke Notes
+
+* `/lesson-plans` opened successfully.
+* The lesson-plan split view rendered at desktop width without visible layout breakage.
+* The custom workspace note rendered above the registry grid.
+* The selected lesson detail pane, checklist area, and workbook action remained visible.
+* Chrome headless reported only its own Google Update / GPU warnings, not a page runtime error.
+
+## Commit SHA
+
 * `pending`
 
 ---

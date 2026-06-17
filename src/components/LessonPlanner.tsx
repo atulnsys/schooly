@@ -1821,6 +1821,15 @@ export default function LessonPlanner({
     inclusiveContent = "### Scaffolded support & fast paths\nSupports standard remedial pacing checks and advanced enrichment pathways to assist all kinds of student capabilities.";
   }
 
+  const visiblePlans = classroomPlans.filter((plan) => {
+    const matchesTopic = searchQuery ? plan.topicName.toLowerCase().includes(searchQuery.toLowerCase()) : true;
+    const matchesTeacher = teacherFilter ? plan.teacherName.toLowerCase().includes(teacherFilter.toLowerCase()) : true;
+    const matchesClass = classFilter ? plan.className.toLowerCase().includes(classFilter.toLowerCase()) : true;
+    const matchesSubject = subjectFilter ? plan.subjectName.toLowerCase().includes(subjectFilter.toLowerCase()) : true;
+    const matchesStatus = statusFilter ? plan.reviewStatus === statusFilter : true;
+    return matchesTopic && matchesTeacher && matchesClass && matchesSubject && matchesStatus;
+  });
+
   return (
     <div className="flex-1 min-h-screen bg-slate-50/50 p-4 md:p-6 flex flex-col gap-6" id="lesson-plan-workspace">
       
@@ -1836,6 +1845,11 @@ export default function LessonPlanner({
           </div>
         </div>
       </header>
+
+      <div className="rounded-2xl border border-blue-100 bg-blue-50/50 px-4 py-3 text-[11px] text-slate-600 shadow-sm" id="lesson-plan-custom-workspace-note">
+        <span className="font-semibold text-slate-800">Custom list/detail workspace:</span>{" "}
+        Lesson Plans stays specialized. Registry rows can be inspected through Registry Explorer where available, but planning, AI review, checklist, and editing remain custom workflows.
+      </div>
 
       {/* 3. Setup configurations View tab (Google Classroom Registry & Metrics) */}
       {activeView === "setup" && (
@@ -2108,10 +2122,10 @@ export default function LessonPlanner({
               )}
 
               {/* Main content split grid */}
-              <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start" id="registry-inner-split-grid">
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-stretch" id="registry-inner-split-grid">
                 
                 {/* Left Side: Filtering and Plan List (col-span-7) */}
-                <div className="xl:col-span-7 space-y-4" id="plans-list-holder">
+                <div className="xl:col-span-7 min-w-0 space-y-4" id="plans-list-holder">
                   
                   {/* Filtering Suite */}
                   <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-150" id="registry-filters-suite">
@@ -2189,16 +2203,8 @@ export default function LessonPlanner({
 
                   {/* Plans Registry Scroll Box */}
                   <div className="space-y-3 max-h-[620px] overflow-y-auto pr-1" id="registry-items-scrollable">
-                    {classroomPlans
-                      .filter(p => {
-                        const matchesTopic = searchQuery ? p.topicName.toLowerCase().includes(searchQuery.toLowerCase()) : true;
-                        const matchesTeacher = teacherFilter ? p.teacherName.toLowerCase().includes(teacherFilter.toLowerCase()) : true;
-                        const matchesClass = classFilter ? p.className.toLowerCase().includes(classFilter.toLowerCase()) : true;
-                        const matchesSubject = subjectFilter ? p.subjectName.toLowerCase().includes(subjectFilter.toLowerCase()) : true;
-                        const matchesStatus = statusFilter ? p.reviewStatus === statusFilter : true;
-                        return matchesTopic && matchesTeacher && matchesClass && matchesSubject && matchesStatus;
-                      })
-                      .map((plan) => {
+                    {visiblePlans.length > 0 ? (
+                      visiblePlans.map((plan) => {
                         let statusClass = "bg-slate-100 text-slate-700 border-slate-200";
                         if (plan.reviewStatus === "Compliant") statusClass = "bg-emerald-50 text-emerald-800 border-emerald-250";
                         if (plan.reviewStatus === "Pending Review") statusClass = "bg-amber-50 text-amber-705 border-amber-250";
@@ -2239,7 +2245,7 @@ export default function LessonPlanner({
                             <div className="space-y-4">
                               {/* Card Title */}
                               <div className="min-w-0">
-                                <strong className="block text-[13px] font-bold text-slate-800 leading-snug line-clamp-2" title={plan.topicName}>
+                                <strong className="block text-[13px] font-bold text-slate-800 leading-snug line-clamp-2 break-words" title={plan.topicName}>
                                   {plan.topicName}
                                 </strong>
                               </div>
@@ -2417,18 +2423,20 @@ export default function LessonPlanner({
 
                           </div>
                         );
-                      })}
-
-                    {classroomPlans.length === 0 && (
-                      <div className="text-center p-8 bg-slate-50 rounded-xl">
-                        <p className="text-slate-400 text-xs font-sans">No classroom lesson plans matched current filter.</p>
+                      })
+                    ) : (
+                      <div className="text-center p-8 bg-slate-50 rounded-xl border border-slate-200" id="lesson-plans-empty-state">
+                        <p className="text-slate-700 text-xs font-semibold">No lesson plans match the current filters.</p>
+                        <p className="text-slate-400 text-[11px] font-sans leading-relaxed mt-1">
+                          Clear the filters to view the custom planning registry, or sync Drive lessons if the workspace is empty.
+                        </p>
                       </div>
                     )}
                   </div>
                 </div>
 
                 {/* Right Side: Interactive Audit & Compliance Detail Suite + Configurator (col-span-12 or xl:col-span-5) */}
-                <div className="xl:col-span-5 bg-slate-50/50 rounded-2xl border border-slate-200 p-4 space-y-4" id="classroom-qa-audit-details-column">
+                <div className="xl:col-span-5 min-w-0 bg-slate-50/50 rounded-2xl border border-slate-200 p-4 space-y-4 overflow-hidden" id="classroom-qa-audit-details-column">
                   
                   {/* Right Header Navigation */}
                   <div className="flex border-b border-slate-200">
@@ -2460,8 +2468,8 @@ export default function LessonPlanner({
                       <div className="space-y-4 animate-fadeIn" id="audit-presentation-pane">
                         
                         {/* Title Info Header */}
-                        <div>
-                          <h3 className="text-sm font-bold text-slate-800 leading-snug mt-1">{activePlan.topicName}</h3>
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-bold text-slate-800 leading-snug mt-1 break-words line-clamp-2">{activePlan.topicName}</h3>
                           <p className="text-[11px] text-slate-555 font-sans mt-0.5">Teacher: <strong className="text-slate-700">{activePlan.teacherName}</strong> · Area: <span className="text-slate-600">{activePlan.className} {activePlan.subjectName}</span></p>
                         </div>
 
@@ -2528,7 +2536,7 @@ export default function LessonPlanner({
                                               <span className="text-red-500 bg-red-55 text-red-600 bg-red-50 font-bold px-1 rounded-md text-[9px] border border-red-200">FAIL</span>
                                             )}
                                           </span>
-                                          <span className="text-slate-600 font-sans leading-snug">{item.text}</span>
+                                          <span className="text-slate-600 font-sans leading-snug min-w-0 break-words">{item.text}</span>
                                         </div>
                                       );
                                     })}
@@ -2562,8 +2570,17 @@ export default function LessonPlanner({
 
                       </div>
                     ) : (
-                      <div className="text-center p-8 text-slate-400 text-xs font-sans">
-                        Select a planning entry to display its quality compliance scorecard.
+                      <div className="text-left p-4 rounded-xl border border-dashed border-slate-200 bg-white text-slate-500 text-xs font-sans space-y-2" id="lesson-plan-detail-empty-state">
+                        <p className="font-semibold text-slate-700">No lesson plan is selected.</p>
+                        <p className="leading-relaxed">Choose a lesson on the left to inspect its review summary, checklist, and workbook editor.</p>
+                        {visiblePlans.length > 0 && (
+                          <button
+                            onClick={() => setSelectedPlanId(visiblePlans[0].id)}
+                            className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-[11px] font-bold text-blue-700 hover:bg-blue-100 transition-all"
+                          >
+                            Select first visible lesson
+                          </button>
+                        )}
                       </div>
                     )
                   ) : (
