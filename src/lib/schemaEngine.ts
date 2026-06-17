@@ -29,7 +29,7 @@ export interface NavigationItemSchema {
     featureFlag?: string;
   };
   capabilityRequirements: string[];
-  parentGroup: "My Workspace" | "Teaching & Learning" | "Registers" | "School Operations" | "Leadership & Governance" | "Settings";
+  parentGroup: "My Workspace" | "Teaching & Learning" | "School Operations" | "System & Data" | "Leadership & Governance" | "Settings";
   helperText?: string;
 }
 
@@ -90,23 +90,24 @@ export const DRAFT_FUTURE_STRUCTURES = {
     { id: "overview", label: "Dashboard", route: "overview" },
     { id: "search", label: "Search", route: "search" },
     { id: "documents", label: "School Files", route: "search" },
-    { id: "tasks", label: "Tasks", route: "tasks" }
+    { id: "role-cards", label: "Role Dashboards", route: "role-cards" },
+    { id: "tasks", label: "Tasks", route: "tasks" },
+    { id: "ai-assistant", label: "My AI Assistant", route: "ai-assistant" }
   ],
   "Teaching & Learning": [
     { id: "classroom", label: "Classroom Sync", route: "classroom" },
     { id: "students", label: "Students", route: "students" },
-    { id: "ai-assistant", label: "AI Assistant", route: "ai-assistant" }
-  ],
-  "Registers": [
-    { id: "registers", label: "Registers", route: "registers" },
-    { id: "registries", label: "Registries", route: "registries" },
-    { id: "teachers", label: "Teachers", route: "teachers" },
-    { id: "staff", label: "Staff", route: "staff" },
     { id: "courses", label: "Classroom Courses", route: "courses" },
-    { id: "assignments", label: "Assignments", route: "assignments" }
+    { id: "assignments", label: "Assignments", route: "assignments" },
+    { id: "resources", label: "Resources", route: "resources" }
   ],
   "School Operations": [
+    { id: "staff", label: "Staff", route: "staff" },
+    { id: "teachers", label: "Teachers", route: "teachers" },
     { id: "rollover", label: "Academic Year", route: "rollover" }
+  ],
+  "System & Data": [
+    { id: "registries", label: "Registry Explorer", route: "registries" }
   ],
   "Leadership & Governance": [
     { id: "governance", label: "Governance", route: "governance" }
@@ -142,14 +143,14 @@ export const DEFAULT_NAVIGATION_ITEMS: NavigationItemSchema[] = [
   },
   {
     id: "role-cards",
-    label: "Role Cards",
+    label: "Role Dashboards",
     icon: "LayoutGrid",
     route: "role-cards",
     displayOrder: 2.5,
     visibilityRules: { capabilities: ["Analytics", "Teaching", "Student Services", "Operations", "Reporting", "Administration", "Governance", "Academic Leadership"] },
     capabilityRequirements: ["Analytics", "Teaching", "Student Services", "Operations", "Reporting", "Administration", "Governance", "Academic Leadership"],
     parentGroup: "My Workspace",
-    helperText: "Open compact role-specific cards."
+    helperText: "Open compact role-specific dashboards."
   },
   {
     id: "tasks",
@@ -186,13 +187,13 @@ export const DEFAULT_NAVIGATION_ITEMS: NavigationItemSchema[] = [
   },
   {
     id: "registries",
-    label: "Registries",
+    label: "Registry Explorer",
     icon: "FolderOpen",
     route: "registries",
     displayOrder: 5.55,
     visibilityRules: { capabilities: ["Administration", "Academic Leadership"] },
     capabilityRequirements: ["Administration", "Academic Leadership"],
-    parentGroup: "Registers",
+    parentGroup: "System & Data",
     helperText: "Explore the master registry catalog and live registry routes."
   },
   {
@@ -203,7 +204,7 @@ export const DEFAULT_NAVIGATION_ITEMS: NavigationItemSchema[] = [
     displayOrder: 5.6,
     visibilityRules: { capabilities: ["Administration", "Academic Leadership", "Analytics", "Reporting"] },
     capabilityRequirements: ["Administration", "Academic Leadership", "Analytics", "Reporting"],
-    parentGroup: "Registers",
+    parentGroup: "School Operations",
     helperText: "View teacher roster derived from Staff Directory."
   },
   {
@@ -214,7 +215,7 @@ export const DEFAULT_NAVIGATION_ITEMS: NavigationItemSchema[] = [
     displayOrder: 5.65,
     visibilityRules: { capabilities: ["Administration", "Operations", "Analytics", "Reporting"] },
     capabilityRequirements: ["Administration", "Operations", "Analytics", "Reporting"],
-    parentGroup: "Registers",
+    parentGroup: "School Operations",
     helperText: "View staff directory and role load."
   },
   {
@@ -225,7 +226,7 @@ export const DEFAULT_NAVIGATION_ITEMS: NavigationItemSchema[] = [
     displayOrder: 5.7,
     visibilityRules: { capabilities: ["Teaching", "Academic Leadership", "Analytics", "Reporting"] },
     capabilityRequirements: ["Teaching", "Academic Leadership", "Analytics", "Reporting"],
-    parentGroup: "Registers",
+    parentGroup: "Teaching & Learning",
     helperText: "Browse live classroom course records."
   },
   {
@@ -236,18 +237,18 @@ export const DEFAULT_NAVIGATION_ITEMS: NavigationItemSchema[] = [
     displayOrder: 5.8,
     visibilityRules: { capabilities: ["Teaching", "Academic Leadership", "Analytics", "Reporting"] },
     capabilityRequirements: ["Teaching", "Academic Leadership", "Analytics", "Reporting"],
-    parentGroup: "Registers",
+    parentGroup: "Teaching & Learning",
     helperText: "Browse class assignments and status."
   },
   {
     id: "ai-assistant",
-    label: "AI Assistant",
+    label: "My AI Assistant",
     icon: "Sparkles",
     route: "ai-assistant",
     displayOrder: 4,
     visibilityRules: { capabilities: ["AI Usage"] },
     capabilityRequirements: ["AI Usage"],
-    parentGroup: "Teaching & Learning",
+    parentGroup: "My Workspace",
     helperText: "Create lesson resources, summaries, and school drafts."
   },
   {
@@ -263,7 +264,7 @@ export const DEFAULT_NAVIGATION_ITEMS: NavigationItemSchema[] = [
   },
   {
     id: "resources",
-    label: "Academic Resources",
+    label: "Resources",
     icon: "BookOpen",
     route: "resources",
     displayOrder: 4.6,
@@ -271,17 +272,6 @@ export const DEFAULT_NAVIGATION_ITEMS: NavigationItemSchema[] = [
     capabilityRequirements: ["Teaching"],
     parentGroup: "Teaching & Learning",
     helperText: "Browse lesson-linked resource packs and source materials."
-  },
-  {
-    id: "registers",
-    label: "Registers",
-    icon: "FolderOpen",
-    route: "registers",
-    displayOrder: 4.2,
-    visibilityRules: { capabilities: ["Analytics", "Operations", "Teaching", "Student Services", "Reporting"] },
-    capabilityRequirements: ["Analytics", "Operations", "Teaching", "Student Services", "Reporting"],
-    parentGroup: "Registers",
-    helperText: "Open live student, teacher, class, and staff registers."
   },
   {
     id: "rollover",
@@ -668,13 +658,13 @@ function ensureStudentsSchemaCoverage(schema: ExportableSchoolySchema): Exportab
 
   const registriesNav: NavigationItemSchema = {
     id: "registries",
-    label: "Registries",
+    label: "Registry Explorer",
     icon: "FolderOpen",
     route: "registries",
     displayOrder: 5.55,
     visibilityRules: { capabilities: ["Administration", "Academic Leadership"] },
     capabilityRequirements: ["Administration", "Academic Leadership"],
-    parentGroup: "Registers",
+    parentGroup: "School Operations",
     helperText: "Explore the master registry catalog and live registry routes."
   };
 
@@ -686,7 +676,7 @@ function ensureStudentsSchemaCoverage(schema: ExportableSchoolySchema): Exportab
     displayOrder: 5.6,
     visibilityRules: { capabilities: ["Administration", "Academic Leadership", "Analytics", "Reporting"] },
     capabilityRequirements: ["Administration", "Academic Leadership", "Analytics", "Reporting"],
-    parentGroup: "Registers",
+    parentGroup: "School Operations",
     helperText: "View teacher roster derived from Staff Directory."
   };
 
@@ -698,7 +688,7 @@ function ensureStudentsSchemaCoverage(schema: ExportableSchoolySchema): Exportab
     displayOrder: 5.65,
     visibilityRules: { capabilities: ["Administration", "Operations", "Analytics", "Reporting"] },
     capabilityRequirements: ["Administration", "Operations", "Analytics", "Reporting"],
-    parentGroup: "Registers",
+    parentGroup: "School Operations",
     helperText: "View staff directory and role load."
   };
 
@@ -710,7 +700,7 @@ function ensureStudentsSchemaCoverage(schema: ExportableSchoolySchema): Exportab
     displayOrder: 5.7,
     visibilityRules: { capabilities: ["Teaching", "Academic Leadership", "Analytics", "Reporting"] },
     capabilityRequirements: ["Teaching", "Academic Leadership", "Analytics", "Reporting"],
-    parentGroup: "Registers",
+    parentGroup: "Teaching & Learning",
     helperText: "Browse live classroom course records."
   };
 
@@ -722,7 +712,7 @@ function ensureStudentsSchemaCoverage(schema: ExportableSchoolySchema): Exportab
     displayOrder: 5.8,
     visibilityRules: { capabilities: ["Teaching", "Academic Leadership", "Analytics", "Reporting"] },
     capabilityRequirements: ["Teaching", "Academic Leadership", "Analytics", "Reporting"],
-    parentGroup: "Registers",
+    parentGroup: "Teaching & Learning",
     helperText: "Browse class assignments and status."
   };
 
@@ -786,8 +776,56 @@ function ensureStudentsSchemaCoverage(schema: ExportableSchoolySchema): Exportab
     filters: ["status", "course_name", "due_date"]
   };
 
+  const settingsNav: NavigationItemSchema = {
+    id: "settings",
+    label: "Settings",
+    icon: "Settings",
+    route: "settings",
+    displayOrder: 8,
+    visibilityRules: { capabilities: ["Administration", "Governance", "Operations", "Academic Leadership"] },
+    capabilityRequirements: ["Administration", "Governance", "Operations", "Academic Leadership"],
+    parentGroup: "Settings",
+    helperText: "Configure data sources, setup, and registry details."
+  };
+
   const ensureArrayItem = <T,>(items: T[], matcher: (item: T) => boolean, item: T): T[] => {
     return items.some(matcher) ? items : [...items, item];
+  };
+
+  const normalizeNavigationItem = (item: NavigationItemSchema): NavigationItemSchema | null => {
+    if (item.id === "registers" || item.route === "registers") {
+      return null;
+    }
+
+    const normalizedItem = { ...item };
+    if (item.id === "role-cards") {
+      normalizedItem.label = "Role Dashboards";
+      normalizedItem.parentGroup = "My Workspace";
+    }
+    if (item.id === "ai-assistant") {
+      normalizedItem.label = "My AI Assistant";
+      normalizedItem.parentGroup = "My Workspace";
+    }
+    if (item.id === "resources") {
+      normalizedItem.label = "Resources";
+      normalizedItem.parentGroup = "Teaching & Learning";
+    }
+    if (item.id === "registries") {
+      normalizedItem.label = "Registry Explorer";
+      normalizedItem.parentGroup = "System & Data";
+    }
+    if (item.id === "courses" || item.id === "assignments") {
+      normalizedItem.parentGroup = "Teaching & Learning";
+    }
+    if (item.id === "staff" || item.id === "teachers" || item.id === "rollover") {
+      normalizedItem.parentGroup = "School Operations";
+    }
+    if (item.id === "settings") {
+      normalizedItem.label = "Settings";
+      normalizedItem.parentGroup = "Settings";
+    }
+
+    return normalizedItem;
   };
 
   const normalizedNavigation = ensureArrayItem(
@@ -795,8 +833,53 @@ function ensureStudentsSchemaCoverage(schema: ExportableSchoolySchema): Exportab
     (item) => item.id === "students" || item.route === "students",
     studentsNav,
   );
-  const normalizedRegistriesNavigation = ensureArrayItem(
+  const normalizedRoleDashboardsNavigation = ensureArrayItem(
     normalizedNavigation,
+    (item) => item.id === "role-cards" || item.route === "role-cards",
+    {
+      id: "role-cards",
+      label: "Role Dashboards",
+      icon: "LayoutGrid",
+      route: "role-cards",
+      displayOrder: 2.5,
+      visibilityRules: { capabilities: ["Analytics", "Teaching", "Student Services", "Operations", "Reporting", "Administration", "Governance", "Academic Leadership"] },
+      capabilityRequirements: ["Analytics", "Teaching", "Student Services", "Operations", "Reporting", "Administration", "Governance", "Academic Leadership"],
+      parentGroup: "My Workspace",
+      helperText: "Open compact role-specific dashboards."
+    },
+  );
+  const normalizedAiAssistantNavigation = ensureArrayItem(
+    normalizedRoleDashboardsNavigation,
+    (item) => item.id === "ai-assistant" || item.route === "ai-assistant",
+    {
+      id: "ai-assistant",
+      label: "My AI Assistant",
+      icon: "Sparkles",
+      route: "ai-assistant",
+      displayOrder: 4,
+      visibilityRules: { capabilities: ["AI Usage"] },
+      capabilityRequirements: ["AI Usage"],
+      parentGroup: "My Workspace",
+      helperText: "Create lesson resources, summaries, and school drafts."
+    },
+  );
+  const normalizedResourcesNavigation = ensureArrayItem(
+    normalizedAiAssistantNavigation,
+    (item) => item.id === "resources" || item.route === "resources",
+    {
+      id: "resources",
+      label: "Resources",
+      icon: "BookOpen",
+      route: "resources",
+      displayOrder: 4.6,
+      visibilityRules: { capabilities: ["Teaching"] },
+      capabilityRequirements: ["Teaching"],
+      parentGroup: "Teaching & Learning",
+      helperText: "Browse lesson-linked resource packs and source materials."
+    },
+  );
+  const normalizedRegistriesNavigation = ensureArrayItem(
+    normalizedResourcesNavigation,
     (item) => item.id === "registries" || item.route === "registries",
     registriesNav,
   );
@@ -809,6 +892,11 @@ function ensureStudentsSchemaCoverage(schema: ExportableSchoolySchema): Exportab
     normalizedTeachersNavigation,
     (item) => item.id === "staff" || item.route === "staff",
     staffNav,
+  );
+  const normalizedSettingsNavigation = ensureArrayItem(
+    normalizedStaffNavigation,
+    (item) => item.id === "settings" || item.route === "settings",
+    settingsNav,
   );
   const normalizedPages = ensureArrayItem(
     schema.pages || [],
@@ -841,13 +929,9 @@ function ensureStudentsSchemaCoverage(schema: ExportableSchoolySchema): Exportab
     assignmentsPage,
   );
   const ensureRoleAccess = (role: RoleSchema, ids: string[]): RoleSchema => {
-    const navigationAccess = [...(role.navigationAccess || [])];
-    const pageAccess = [...(role.pageAccess || [])];
-
-    ids.forEach((id) => {
-      if (!navigationAccess.includes(id)) navigationAccess.push(id);
-      if (!pageAccess.includes(id)) pageAccess.push(id);
-    });
+    const normalizeAccessId = (id: string) => (id === "registers" ? "registries" : id);
+    const navigationAccess = Array.from(new Set([...(role.navigationAccess || []).map(normalizeAccessId), ...ids.map(normalizeAccessId)]));
+    const pageAccess = Array.from(new Set([...(role.pageAccess || []).map(normalizeAccessId), ...ids.map(normalizeAccessId)]));
 
     return {
       ...role,
@@ -859,10 +943,10 @@ function ensureStudentsSchemaCoverage(schema: ExportableSchoolySchema): Exportab
     const roleKey = String(role.roleId || role.roleName || "").toLowerCase();
 
     if (["principal", "coordinator", "hod", "admin", "exams"].includes(roleKey)) {
-      return ensureRoleAccess(role, ["students", "registries", "teachers", "staff", "courses", "assignments", "resources"]);
+      return ensureRoleAccess(role, ["students", "registries", "teachers", "staff", "courses", "assignments", "resources", "role-cards", "ai-assistant"]);
     }
     if (roleKey === "teacher") {
-      return ensureRoleAccess(role, ["students", "courses", "assignments", "resources"]);
+      return ensureRoleAccess(role, ["students", "courses", "assignments", "resources", "ai-assistant"]);
     }
     if (roleKey === "hr") {
       return ensureRoleAccess(role, ["staff"]);
@@ -872,7 +956,7 @@ function ensureStudentsSchemaCoverage(schema: ExportableSchoolySchema): Exportab
 
   return {
     ...schema,
-    navigation: normalizedStaffNavigation,
+    navigation: normalizedSettingsNavigation.map(normalizeNavigationItem).filter((item): item is NavigationItemSchema => Boolean(item)),
     pages: normalizedAssignmentsPages,
     roles: (schema.roles || []).map(normalizeRoleAccess),
   };
@@ -894,11 +978,7 @@ export function loadActiveMetadata(): ExportableSchoolySchema {
         localStorage.setItem("schooly_active_metadata_schemas", JSON.stringify(upgraded));
         return upgraded;
       }
-      if (normalizedParsed.navigation.length !== parsed.navigation?.length ||
-          normalizedParsed.pages.length !== parsed.pages?.length ||
-          normalizedParsed.roles.some((role, index) =>
-            role.navigationAccess.length !== parsed.roles?.[index]?.navigationAccess?.length ||
-            role.pageAccess.length !== parsed.roles?.[index]?.pageAccess?.length)) {
+      if (JSON.stringify(normalizedParsed) !== JSON.stringify(parsed)) {
         localStorage.setItem("schooly_active_metadata_schemas", JSON.stringify(normalizedParsed));
       }
       return normalizedParsed;

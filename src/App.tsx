@@ -54,7 +54,8 @@ import {
   BookOpen,
   LayoutGrid,
   Users,
-  UserCheck
+  UserCheck,
+  Settings
 } from "lucide-react";
 import {
   loadActiveMetadata,
@@ -88,7 +89,8 @@ const IconMap: Record<string, React.ComponentType<{ size: number; className?: st
   Users,
   UserCheck,
   User,
-  FileText
+  FileText,
+  Settings
 };
 
 function normalizePersonaToken(value: string): string {
@@ -212,22 +214,22 @@ function resolveSidebarGroupsForDisplay(
 
   if (isAdminHeavy) {
     // Case D: Admin-heavy menu
-    // Group into Daily Work, Registers, School Management, and Settings.
-    const dailyItems: typeof items = [];
-    const registerItems: typeof items = [];
+    // Group into My Workspace, Teaching & Learning, System & Data, and School Operations.
+    const myWorkspaceItems: typeof items = [];
+    const teachingLearningItems: typeof items = [];
+    const systemDataItems: typeof items = [];
     const managementItems: typeof items = [];
-    const settingsItems: typeof items = [];
     const otherGroups: Record<string, typeof items> = {};
 
     items.forEach(item => {
-      if (item.parentGroup === "My Workspace" || item.parentGroup === "Teaching & Learning") {
-        dailyItems.push(item);
-      } else if (item.parentGroup === "Registers") {
-        registerItems.push(item);
+      if (item.parentGroup === "My Workspace") {
+        myWorkspaceItems.push(item);
+      } else if (item.parentGroup === "Teaching & Learning") {
+        teachingLearningItems.push(item);
+      } else if (item.parentGroup === "System & Data") {
+        systemDataItems.push(item);
       } else if (item.parentGroup === "School Operations" || item.parentGroup === "Leadership & Governance") {
         managementItems.push(item);
-      } else if (item.parentGroup === "Settings") {
-        settingsItems.push(item);
       } else {
         if (!otherGroups[item.parentGroup]) {
           otherGroups[item.parentGroup] = [];
@@ -237,17 +239,17 @@ function resolveSidebarGroupsForDisplay(
     });
 
     const groups: SidebarGroup[] = [];
-    if (dailyItems.length > 0) {
-      groups.push({ label: "Daily Work", items: dailyItems });
+    if (myWorkspaceItems.length > 0) {
+      groups.push({ label: "My Workspace", items: myWorkspaceItems });
     }
-    if (settingsItems.length > 0) {
-      groups.push({ label: "Settings", items: settingsItems });
+    if (teachingLearningItems.length > 0) {
+      groups.push({ label: "Teaching & Learning", items: teachingLearningItems });
     }
-    if (registerItems.length > 0) {
-      groups.push({ label: "Registers", items: registerItems });
+    if (systemDataItems.length > 0) {
+      groups.push({ label: "System & Data", items: systemDataItems });
     }
     if (managementItems.length > 0) {
-      groups.push({ label: "School Management", items: managementItems });
+      groups.push({ label: "School Operations", items: managementItems });
     }
     Object.keys(otherGroups).forEach(groupName => {
       groups.push({ label: groupName, items: otherGroups[groupName] });
@@ -270,92 +272,32 @@ function resolveSidebarGroupsForDisplay(
 
   // Case B: Sparse groups or merges needed
   if (sparseGroups.length > 0) {
-    const dailyItems: typeof items = [];
-    const managementItems: typeof items = [];
-
-    items.forEach(item => {
-      if (item.parentGroup === "My Workspace" || item.parentGroup === "Teaching & Learning") {
-        dailyItems.push(item);
-      } else if (item.parentGroup === "School Operations" || item.parentGroup === "Leadership & Governance") {
-        managementItems.push(item);
-      }
-    });
-
     const countMyWorkspace = (groupMap["My Workspace"] || []).length;
     const countTeachingLearning = (groupMap["Teaching & Learning"] || []).length;
+    const countSystemData = (groupMap["System & Data"] || []).length;
     const countSchoolOperations = (groupMap["School Operations"] || []).length;
     const countLeadershipGovernance = (groupMap["Leadership & Governance"] || []).length;
 
-    const shouldMergeDaily = (countMyWorkspace > 0 && countTeachingLearning > 0) &&
-                             (countMyWorkspace === 1 || countTeachingLearning === 1);
-
-    const shouldMergeManagement = (countSchoolOperations > 0 && countLeadershipGovernance > 0) ||
-                                  (countSchoolOperations === 1 || countLeadershipGovernance === 1);
-
     const groups: SidebarGroup[] = [];
-    if (shouldMergeDaily) {
-      if (dailyItems.length > 0) {
-        groups.push({ label: "Daily Work", items: dailyItems });
-      }
-    } else {
-      if (countMyWorkspace > 0) {
-        groups.push({ label: "My Workspace", items: groupMap["My Workspace"] });
-      }
-      if (countTeachingLearning > 0) {
-        groups.push({ label: "Teaching & Learning", items: groupMap["Teaching & Learning"] });
-      }
+    if (countMyWorkspace > 0) {
+      groups.push({ label: "My Workspace", items: groupMap["My Workspace"] });
+    }
+    if (countTeachingLearning > 0) {
+      groups.push({ label: "Teaching & Learning", items: groupMap["Teaching & Learning"] });
     }
 
-    if ((groupMap["Settings"] || []).length > 0) {
-      groups.push({ label: "Settings", items: groupMap["Settings"] });
+    if (countSystemData > 0) {
+      groups.push({ label: "System & Data", items: groupMap["System & Data"] });
     }
 
-    if ((groupMap["Registers"] || []).length > 0) {
-      groups.push({ label: "Registers", items: groupMap["Registers"] });
+    if (countSchoolOperations > 0) {
+      groups.push({ label: "School Operations", items: groupMap["School Operations"] });
+    }
+    if (countLeadershipGovernance > 0) {
+      groups.push({ label: "Leadership & Governance", items: groupMap["Leadership & Governance"] });
     }
 
-    if (shouldMergeManagement) {
-      if (managementItems.length > 0) {
-        groups.push({ label: "School Management", items: managementItems });
-      }
-    } else {
-      if (countSchoolOperations > 0) {
-        groups.push({ label: "School Operations", items: groupMap["School Operations"] });
-      }
-      if (countLeadershipGovernance > 0) {
-        groups.push({ label: "Leadership & Governance", items: groupMap["Leadership & Governance"] });
-      }
-    }
-
-    // Post-pass check: If any group has only 1 item, make its label null to render flat
-    const processedResult: SidebarGroup[] = [];
-    groups.forEach(g => {
-      if (g.items.length === 1 && g.label !== "Settings") {
-        processedResult.push({ label: null, items: g.items });
-      } else {
-        processedResult.push(g);
-      }
-    });
-
-    // Consolidate contiguous flat groups (label: null)
-    const finalResult: SidebarGroup[] = [];
-    let flatAccumulator: typeof items = [];
-    processedResult.forEach(g => {
-      if (g.label === null) {
-        flatAccumulator.push(...g.items);
-      } else {
-        if (flatAccumulator.length > 0) {
-          finalResult.push({ label: null, items: flatAccumulator });
-          flatAccumulator = [];
-        }
-        finalResult.push(g);
-      }
-    });
-    if (flatAccumulator.length > 0) {
-      finalResult.push({ label: null, items: flatAccumulator });
-    }
-
-    return finalResult;
+    return groups;
   }
 
   // Case C: Normal larger menu with no sparse groups of size 1
@@ -366,17 +308,14 @@ function resolveSidebarGroupsForDisplay(
   if ((groupMap["Teaching & Learning"] || []).length > 0) {
     normalResult.push({ label: "Teaching & Learning", items: groupMap["Teaching & Learning"] });
   }
-  if ((groupMap["Settings"] || []).length > 0) {
-    normalResult.push({ label: "Settings", items: groupMap["Settings"] });
+  if ((groupMap["System & Data"] || []).length > 0) {
+    normalResult.push({ label: "System & Data", items: groupMap["System & Data"] });
   }
   if ((groupMap["School Operations"] || []).length > 0) {
     normalResult.push({ label: "School Operations", items: groupMap["School Operations"] });
   }
   if ((groupMap["Leadership & Governance"] || []).length > 0) {
     normalResult.push({ label: "Leadership & Governance", items: groupMap["Leadership & Governance"] });
-  }
-  if ((groupMap["Registers"] || []).length > 0) {
-    normalResult.push({ label: "Registers", items: groupMap["Registers"] });
   }
 
   return normalResult;
@@ -478,6 +417,12 @@ function getRouteStateFromPathname(pathname: string): RouteState {
   if (!path) return { tab: "overview", registryId: null };
 
   const [firstSegment, ...rest] = path.split("/");
+  if (firstSegment === "registers") {
+    return {
+      tab: "registries",
+      registryId: null,
+    };
+  }
   if (firstSegment === "registries") {
     return {
       tab: "registries",
@@ -493,6 +438,7 @@ function getRouteStateFromPathname(pathname: string): RouteState {
 
 function getPathnameFromRouteState(tab: string, registryId: string | null): string {
   if (tab === "overview") return "/";
+  if (tab === "registers") return "/registries";
   if (tab === "registries") {
     return registryId ? `/registries/${encodeURIComponent(registryId)}` : "/registries";
   }
@@ -1010,13 +956,47 @@ export default function App() {
     const compiled = compileDynamicNavigation(activeRoles, schema, schemaDrivenRendering);
 
     // Resolve proper Lucide React component structures dynamically to maintain 100% type-safety & backwards compatibility
-    const items = compiled.map(item => ({
-      id: item.id,
-      name: item.label,
-      icon: IconMap[item.icon] || Command,
-      parentGroup: item.parentGroup,
-      helperText: item.helperText
-    }));
+    const items = compiled
+      .map(item => {
+        if (item.id === "teachers" || item.id === "registers" || item.id === "settings") return null;
+
+        const normalizedParentGroup =
+          item.id === "ai-assistant" || item.id === "role-cards"
+            ? "My Workspace"
+            : item.id === "registries"
+              ? "System & Data"
+              : item.id === "staff"
+            ? "School Operations"
+              : item.id === "courses" || item.id === "assignments" || item.id === "resources"
+                ? "Teaching & Learning"
+                : item.parentGroup;
+
+        const normalizedName =
+          item.id === "role-cards"
+            ? "Role Dashboards"
+            : item.id === "ai-assistant"
+            ? "My AI Assistant"
+            : item.id === "registries"
+              ? "Registry Explorer"
+              : item.id === "resources"
+                ? "Resources"
+              : item.label;
+
+        return {
+          id: item.id,
+          name: normalizedName,
+          icon: IconMap[item.icon] || Command,
+          parentGroup: normalizedParentGroup,
+          helperText: item.helperText
+        };
+      })
+      .filter(Boolean) as Array<{
+        id: string;
+        name: string;
+        icon: React.ComponentType<{ size: number; className?: string }>;
+        parentGroup: string;
+        helperText?: string;
+      }>;
 
     // Inject Textbook Ingestor Tab
     items.push({
@@ -1035,16 +1015,47 @@ export default function App() {
     { id: "overview", name: "Dashboard", icon: LayoutGrid, parentGroup: "Primary" },
     { id: "search", name: "Search", icon: Search, parentGroup: "Primary" }
   ];
+  const settingsNavItem = navigationItems.find((item) => item.id === "settings");
+  const visibleNavigationItems = navigationItems.filter((item) => item.id !== "settings");
   const workspaceNavItems = [
-    { id: "ai-assistant", name: "AI Assistant", icon: Sparkles, parentGroup: "My Workspace" },
-    ...navigationItems.filter((item) => !["overview", "search", "ai-assistant"].includes(item.id))
+    { id: "ai-assistant", name: "My AI Assistant", icon: Sparkles, parentGroup: "My Workspace" },
+    ...visibleNavigationItems.filter((item) => !["overview", "search", "ai-assistant"].includes(item.id))
   ];
   const getDisplayNavName = (item: { id: string; name: string }) => {
     if (item.id === "lesson-plans") {
       return "Lessons Workspace";
     }
+    if (item.id === "role-cards") {
+      return "Role Dashboards";
+    }
+    if (item.id === "ai-assistant") {
+      return "My AI Assistant";
+    }
+    if (item.id === "registries") {
+      return "Registry Explorer";
+    }
+    if (item.id === "resources") {
+      return "Resources";
+    }
+    if (item.id === "settings") {
+      return "Settings";
+    }
     return sanitizeStudentTerminology(item.name, currentRole === "Student");
   };
+  const liveRegisterCards = useMemo(() => {
+    const teacherCount = [...new Set((courses || []).map((course) => course.teacherName).filter(Boolean))].length;
+    const subjectCount = [...new Set((courses || []).map((course) => course.name).filter(Boolean))].length;
+
+    return [
+      { title: "Students", count: students.length, detail: "Live student records", source: "Master Registry / Student_Directory", drillTab: "students" },
+      { title: "Teachers", count: teacherCount, detail: "Active teaching staff", source: "Master Registry / Teacher_Allocations", drillTab: "teachers" },
+      { title: "Classes & Sections", count: courses.length, detail: "Live classroom sections", source: "Master Registry / Classes_Sections", drillTab: "courses" },
+      { title: "Staff", count: schoolRegistry?.staffDirectory.length || 0, detail: "Administrative and support staff", source: "Master Registry / Staff_Directory", drillTab: "staff" },
+      { title: "Subjects", count: subjectCount, detail: "Unique subject or course names", source: "Master Registry / Subjects", drillTab: "registries" },
+      { title: "Assignments", count: assignments.length, detail: "Current assignment rows", source: "Classroom / Assignment records", drillTab: "assignments" },
+      { title: "Tasks & Follow-ups", count: tasks.length, detail: "Open work items and follow-ups", source: "Dashboard Data Source / Alert_Log", drillTab: "tasks" }
+    ];
+  }, [assignments.length, courses, schoolRegistry?.staffDirectory.length, students.length, tasks.length]);
   const hideRolePersonaWidget = currentRole === "Principal" || currentRole === "Manager";
 
   const renderDashboardWorkspace = (dashboardView?: "overview" | "role-cards" | "registers" | "settings" | "data-source" | "setup" | "setup-registries" | "registry-detail") => (
@@ -1352,7 +1363,7 @@ export default function App() {
             ) : (
               // Classic single-list layout (Guarantees perfect visual backward compatibility)
               <div className="space-y-1">
-                {navigationItems.map(item => {
+                {visibleNavigationItems.map(item => {
                   const Icon = item.icon;
                   return (
                     <button
@@ -1383,6 +1394,27 @@ export default function App() {
               </div>
             )}
           </nav>
+
+          {settingsNavItem && (
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("settings");
+                setMobileMenuOpen(false);
+              }}
+              className={`w-full py-2 px-4 rounded-xl text-xs font-semibold flex items-center gap-3 transition-all cursor-pointer group ${
+                activeTab === "settings"
+                  ? "bg-blue-50 text-blue-700 font-bold"
+                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+              }`}
+              id="nav-link-settings"
+            >
+              <Settings size={14} className="shrink-0 mt-0.5" />
+              <div className="flex flex-col text-left">
+                <span className="font-semibold">{getDisplayNavName(settingsNavItem)}</span>
+              </div>
+            </button>
+          )}
         </div>
 
         {/* Sidebar Footer segment */}
@@ -1540,10 +1572,6 @@ export default function App() {
           renderDashboardWorkspace("role-cards")
         )}
 
-        {activeTab === "registers" && (
-          renderDashboardWorkspace("registers")
-        )}
-
         {activeTab === "settings" && (
           renderDashboardWorkspace("settings")
         )}
@@ -1564,11 +1592,13 @@ export default function App() {
           renderDashboardWorkspace("registry-detail")
         )}
 
-        {activeTab === "registries" && !selectedRegistryId && (
+        {(activeTab === "registries" || activeTab === "registers") && !selectedRegistryId && (
           <RegistryExplorerPage
             currentRole={currentRole}
             onOpenPageRoute={openRegistryPage}
             onOpenDataRoute={openRegistryDataRoute}
+            onNavigateTab={setActiveTab}
+            liveRegisterCards={liveRegisterCards}
           />
         )}
 

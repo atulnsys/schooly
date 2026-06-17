@@ -1474,6 +1474,129 @@ Lesson Plans stays a custom list/detail workspace instead of moving into the gen
 
 ---
 
+# Sidebar Navigation Cleanup - Registry Explorer and Settings Simplification
+
+## Scope
+
+This follow-up cleanup removes the separate `Registers` sidebar section, keeps `Registry Explorer` as the main system/data entry point, renames `AI Assistant` to `My AI Assistant`, and flattens `Settings` so the top-level item is the link instead of a repeated section item.
+
+## What Changed
+
+* `AI Assistant` sidebar label now renders as `My AI Assistant`.
+* `Registry Explorer` is the visible system/data entry point instead of a separate `Registers` section.
+* `Teachers` remains a route, but it is no longer shown as a main sidebar item.
+* `Assignments` stays under `Teaching & Learning`.
+* The `Settings` section no longer renders a nested `Settings` child item.
+* The old live school register cards were moved into `RegistryExplorerPage` as KPI cards.
+* `/registers` now aliases safely to `/registries`.
+
+## Behavior Preserved
+
+* `/`, `/search`, `/lesson-plans`, `/resources`, `/classroom`, `/students`, `/courses`, `/assignments`, `/staff`, `/teachers`, `/registries`, `/registries/:registryId`, `/textbooks`, and `/settings` still work.
+* Registry Explorer still opens the registry explorer shell and registry detail routes.
+* Teachers still opens as a derived route.
+* The registry explorer KPI cards still drill through to the live student, course, staff, assignment, and related pages.
+
+## Verification Result
+
+* `npx tsc --noEmit --pretty false` succeeded.
+* `npm run build` succeeded with the existing Vite chunk-size warning only.
+* Browser smoke completed locally:
+  * `/` opened successfully.
+  * `/registers` aliased to the Registry Explorer surface.
+  * `/registries` showed the Registry Explorer header and the moved live school register KPI cards.
+  * The sidebar rendered `My AI Assistant` instead of `AI Assistant`.
+  * The sidebar no longer showed a separate `Registers` section.
+  * The sidebar no longer showed a repeated `Settings` section item.
+  * No new browser console errors were introduced beyond the existing Vite websocket and network noise.
+
+## Files Changed
+
+* `src/App.tsx`
+* `src/components/DashboardOverview.tsx`
+* `src/components/RegistryExplorerPage.tsx`
+* `src/lib/schemaEngine.ts`
+* `docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
+
+---
+
+# Sidebar Navigation - Complete Final IA Correction
+
+## Final Sidebar Structure
+
+* `Dashboard`
+* `Search`
+* `My Workspace`
+  * `My AI Assistant`
+  * `Role Dashboards`
+  * `Tasks`
+* `Teaching & Learning`
+  * `Lessons Workspace`
+  * `Resources`
+  * `Classroom Sync`
+  * `Students`
+  * `Classroom Courses`
+  * `Assignments`
+  * `NCERT Textbooks`
+* `School Operations`
+  * `Staff`
+* `System & Data`
+  * `Registry Explorer`
+* `Settings`
+
+## What Changed
+
+* `Settings` now renders as a standalone sidebar action instead of appearing inside `Teaching & Learning`.
+* `Registers` was removed from the visible sidebar.
+* `/registers` remains a compatibility alias that resolves to `/registries`.
+* `Registry Explorer` now lives under `System & Data`.
+* `Resources` was added under `Teaching & Learning`.
+* `Role Cards` was renamed to `Role Dashboards` where retained.
+* `Teachers` stays hidden from the main sidebar while the `/teachers` route remains available.
+* Old saved schema metadata is reconciled on load so stale `Registers`, `Role Cards`, `AI Assistant`, or `Academic Resources` labels do not require manual local-storage cleanup.
+
+## Routes Preserved
+
+* `/`
+* `/search`
+* `/lesson-plans`
+* `/resources`
+* `/classroom`
+* `/students`
+* `/courses`
+* `/assignments`
+* `/staff`
+* `/teachers`
+* `/registries`
+* `/registers`
+* `/registries/:registryId`
+* `/textbooks`
+* `/settings`
+
+## Verification Result
+
+* `npx tsc --noEmit --pretty false` succeeded.
+* `npm run build` succeeded with the existing Vite chunk-size warning only.
+* Browser smoke was attempted, but local browser execution was blocked because the bundled Playwright browser binary is not installed and the local `ms-playwright` cache path is access-restricted in this environment.
+
+## UI Smoke Notes
+
+* I verified the code path that removes `Registers` from the sidebar and moves `Registry Explorer`, `Resources`, and `Settings` into the requested IA.
+* I could not complete a live browser render check in this environment because Chromium was unavailable.
+
+## Files Changed
+
+* `src/App.tsx`
+* `src/components/DashboardOverview.tsx`
+* `src/lib/schemaEngine.ts`
+* `docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
+
+## Commit SHA
+
+* Pending
+
+---
+
 # Lesson Resources - Academic Resource Library
 
 ## Scope

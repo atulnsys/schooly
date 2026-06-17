@@ -3280,7 +3280,6 @@ export default function DashboardOverview({
         {renderDashboardSourcePanel()}
         {renderRegistryBootstrapPreview()}
         {renderRegistryDetailPanel()}
-        {renderRegistersHub()}
       </div>
     </div>
   );
@@ -3518,7 +3517,7 @@ export default function DashboardOverview({
               <div className="mt-4 flex justify-end">
                 <button
                   type="button"
-                  onClick={() => onToggleTab("registers")}
+                  onClick={() => onToggleTab("registries")}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
                 >
                   View All ({teacherDashboard.classPerformance.length})
@@ -4247,7 +4246,7 @@ export default function DashboardOverview({
             <div className="mt-4">
               <button
                 type="button"
-                onClick={() => onToggleTab("registers")}
+                onClick={() => onToggleTab("registries")}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-600 px-3 py-2 text-[11px] font-extrabold text-white hover:bg-violet-700"
               >
                 Export Board Registration Ledgers
@@ -4302,7 +4301,7 @@ export default function DashboardOverview({
               <div className="text-[10px] uppercase tracking-wider font-mono font-black text-violet-600">Recent Classroom Announcements</div>
               <h3 className="text-sm font-extrabold text-slate-900">Recent classroom announcements</h3>
             </div>
-            <button type="button" onClick={() => onToggleTab("registers")} className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-white px-3 py-2 text-[11px] font-extrabold text-violet-700 hover:bg-violet-50">
+            <button type="button" onClick={() => onToggleTab("registries")} className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-white px-3 py-2 text-[11px] font-extrabold text-violet-700 hover:bg-violet-50">
               Track Class Syllabi
               <ChevronRight size={12} />
             </button>
@@ -4613,7 +4612,7 @@ export default function DashboardOverview({
                 <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Repository Health</div>
                 <h3 className="text-sm font-extrabold text-slate-900">Repository Health - By Class</h3>
               </div>
-              <button type="button" onClick={() => onToggleTab("registers")} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50">
+              <button type="button" onClick={() => onToggleTab("registries")} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50">
                 Fix gaps
                 <ChevronRight size={12} />
               </button>
@@ -4639,7 +4638,7 @@ export default function DashboardOverview({
               <div className="mt-4 flex justify-end">
                 <button
                   type="button"
-                  onClick={() => onToggleTab("registers")}
+                  onClick={() => onToggleTab("registries")}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
                 >
                   View All ({repositoryRows.length})
@@ -4754,7 +4753,7 @@ export default function DashboardOverview({
               <div className="mt-4 flex justify-end">
                 <button
                   type="button"
-                  onClick={() => onToggleTab("registers")}
+                  onClick={() => onToggleTab("registries")}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
                 >
                   View All ({assessmentRows.length})
@@ -4763,7 +4762,7 @@ export default function DashboardOverview({
               </div>
             )}
             <div className="mt-4 flex justify-end">
-              <button type="button" onClick={() => onToggleTab("registers")} className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700">
+                <button type="button" onClick={() => onToggleTab("registries")} className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700">
                 Chase pending <ChevronRight size={14} />
               </button>
             </div>

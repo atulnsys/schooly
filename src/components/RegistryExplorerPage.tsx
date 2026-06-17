@@ -11,12 +11,22 @@ interface RegistryExplorerPageProps {
   currentRole: string;
   onOpenPageRoute: (registryId: string) => void;
   onOpenDataRoute: (registryId: string) => void;
+  onNavigateTab?: (tab: string) => void;
+  liveRegisterCards?: Array<{
+    title: string;
+    count: number;
+    detail: string;
+    source: string;
+    drillTab: string;
+  }>;
 }
 
 export default function RegistryExplorerPage({
   currentRole,
   onOpenPageRoute,
   onOpenDataRoute,
+  onNavigateTab,
+  liveRegisterCards,
 }: RegistryExplorerPageProps) {
   const rows = useMemo(() => getRegistryExplorerRows(), []);
   const summary = useMemo(() => getRegistryExplorerSummary(rows), [rows]);
@@ -68,6 +78,44 @@ export default function RegistryExplorerPage({
           </div>
         </div>
       </div>
+
+      {liveRegisterCards && liveRegisterCards.length > 0 && (
+        <div className="mb-6 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-white p-5 shadow-sm space-y-4">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-1">
+              <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">
+                Live school registers
+              </div>
+              <h3 className="text-base font-extrabold text-slate-900">Registry KPI cards moved here</h3>
+              <p className="text-xs text-slate-600 max-w-3xl">
+                Registry Explorer is now the main system and data entry point. The live register summaries stay visible here instead of taking up a separate sidebar section.
+              </p>
+            </div>
+            <span className="text-[10px] font-black px-2.5 py-1 rounded-lg bg-white text-blue-700 border border-blue-100">
+              {liveRegisterCards.length} live summaries
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+            {liveRegisterCards.map((card) => (
+              <div key={card.title} className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => onNavigateTab?.(card.drillTab)}
+                  className="w-full text-left flex items-center justify-between gap-2 cursor-pointer"
+                >
+                  <h4 className="text-sm font-extrabold text-slate-900">{card.title}</h4>
+                  <span className="text-[10px] font-sans font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                    {card.count.toLocaleString()} rows
+                  </span>
+                </button>
+                <div className="text-xs font-semibold text-slate-600">{card.detail}</div>
+                <div className="text-[10px] font-mono font-bold text-blue-700">Source: {card.source}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <GenericEntityPage
         definition={definition}
