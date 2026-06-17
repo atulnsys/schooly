@@ -400,6 +400,7 @@ interface DashboardOverviewProps {
   activeAcademicYearLabel?: string;
   academicYearOptions?: string[];
   onAcademicYearChange?: (academicYearLabel: string) => void;
+  onOpenRegistryDataRoute?: (registryId: string) => void;
   dashboardView?: "overview" | "role-cards" | "registers" | "settings" | "data-source" | "setup" | "setup-registries" | "registry-detail";
 }
 
@@ -422,6 +423,7 @@ export default function DashboardOverview({
   activeAcademicYearLabel = "",
   academicYearOptions = [],
   onAcademicYearChange,
+  onOpenRegistryDataRoute,
   dashboardView = "overview"
 }: DashboardOverviewProps) {
   // Widget capability & role verification helper (Phase 4 dynamic permission binding)
@@ -2847,6 +2849,14 @@ export default function DashboardOverview({
       : trimmed;
     window.open(targetUrl, "_blank", "noopener,noreferrer");
   };
+  const openRegistryExplorer = () => onToggleTab("registries");
+  const openRegistryDataRoute = (registryId: string) => {
+    if (onOpenRegistryDataRoute) {
+      onOpenRegistryDataRoute(registryId);
+      return;
+    }
+    onToggleTab("registries");
+  };
   const countTabs = (items: Array<[string, string]>) =>
     items.reduce((sum, [key, tabName]) => sum + getTabRowCount(key, tabName), 0);
   const liveSectionCards = [
@@ -3089,7 +3099,7 @@ export default function DashboardOverview({
       { title: "Students", count: students.length, detail: "Live student records", source: "Master Registry / Student_Directory", drillTab: "students" },
       { title: "Teachers", count: teacherCount, detail: "Active teaching staff", source: "Master Registry / Teacher_Allocations", drillTab: "teachers" },
       { title: "Classes & Sections", count: courses.length, detail: "Live classroom sections", source: "Master Registry / Classes_Sections", drillTab: "courses" },
-      { title: "Staff", count: teacherCount, detail: "Administrative and support staff", source: "Master Registry / Staff_Directory", drillTab: "admin-registry-detail" },
+      { title: "Staff", count: getTabRowCount("masterDataRegistryUrl", "Staff_Directory"), detail: "Administrative and support staff", source: "Master Registry / Staff_Directory", drillTab: "staff" },
       { title: "Subjects", count: [...new Set((courses || []).map((course) => course.name).filter(Boolean))].length, detail: "Unique subject or course names", source: "Master Registry / Subjects", drillTab: "admin-registry-detail" },
       { title: "Attendance", count: dashboardSourceState.registries?.find((registry) => /attendance/i.test(registry.label || registry.url || registry.key || ""))?.rowCount || 0, detail: "Attendance records when connected", source: "Attendance Registry / Attendance_Summary", drillTab: "admin-registry-detail" },
       { title: "Assessments", count: dashboardSourceState.registries?.find((registry) => /assessment/i.test(registry.label || registry.url || registry.key || ""))?.rowCount || 0, detail: "Assessment and result rows", source: "Assessment/Result Registry", drillTab: "assignments" },
@@ -3106,9 +3116,19 @@ export default function DashboardOverview({
               Keep live records here instead of mock summaries. Common practice is to centralize students, teachers, classes & sections, staff, subjects, attendance, assessments, and timetables in one register area.
             </p>
           </div>
-          <span className="text-[10px] font-sans font-black px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700">
-            {students.length + teacherCount + courses.length + tasks.length} live rows
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-sans font-black px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700">
+              {students.length + teacherCount + courses.length + tasks.length} live rows
+            </span>
+            <button
+              type="button"
+              onClick={openRegistryExplorer}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[10px] font-extrabold text-blue-700 hover:bg-blue-50 cursor-pointer"
+            >
+              Open Registry Explorer
+              <ChevronRight size={12} />
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
@@ -4834,15 +4854,25 @@ export default function DashboardOverview({
 
   const renderRegistryDetailPanel = () => (
     <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4" id="dashboard-live-only-overview">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Admin Registry Detail</div>
-          <h2 className="text-base font-extrabold text-slate-900">Registry-derived overview</h2>
-        </div>
-        <span className="text-[10px] font-mono bg-blue-50 text-blue-700 px-2 py-1 rounded-md font-bold uppercase">
-          {(dashboardSourceState.registries || []).reduce((sum, registry) => sum + registry.rowCount, 0)} live rows
-        </span>
-      </div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Admin Registry Detail</div>
+                <h2 className="text-base font-extrabold text-slate-900">Registry-derived overview</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono bg-blue-50 text-blue-700 px-2 py-1 rounded-md font-bold uppercase">
+                  {(dashboardSourceState.registries || []).reduce((sum, registry) => sum + registry.rowCount, 0)} live rows
+                </span>
+                <button
+                  type="button"
+                  onClick={openRegistryExplorer}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[10px] font-extrabold text-blue-700 hover:bg-blue-50 cursor-pointer"
+                >
+                  Open Registry Explorer
+                  <ChevronRight size={12} />
+                </button>
+              </div>
+            </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {liveSectionCards.map((card) => (
@@ -5482,12 +5512,17 @@ export default function DashboardOverview({
     const teacherAllocationCoverage = teacherPerformanceData.length > 0
       ? Math.round((teacherPerformanceData.filter((row) => row.plannerStatus === "Done").length / teacherPerformanceData.length) * 100)
       : 0;
-
-    const glanceCards = [
+    const glanceCards: Array<{
+      label: string;
+      value: string | number;
+      note: string;
+      actionTab?: string;
+      actionRegistryId?: string;
+    }> = [
       { label: "Active Students", value: students.length, note: "Live enrollment rows", actionTab: "students" },
-      { label: "Active Staff", value: teacherPerformanceData.length, note: "Live allocation rows", actionTab: "teachers" },
+      { label: "Active Staff", value: teacherPerformanceData.length, note: "Live allocation rows", actionTab: "staff" },
       { label: "Active Class Sections", value: activeClassSections, note: "From Classes_Sections", actionTab: "courses" },
-      { label: "Teacher Allocation Coverage", value: `${teacherAllocationCoverage}%`, note: "Planner rows completed" },
+      { label: "Teacher Allocation Coverage", value: `${teacherAllocationCoverage}%`, note: "Planner rows completed", actionRegistryId: "REG_TEACHER_ALLOCATIONS" },
       { label: "Google Classroom Courses", value: googleClassroomCourses, note: "Live Classroom course map", actionTab: "courses" },
       { label: "Attendance / Engagement", value: `${principalDashboard?.classroomMonitoring?.averageSubmissionRate || principalDashboard?.classroomMonitoring?.avgSubmissionRate || 0}%`, note: `${monitoredClassrooms} monitored classrooms` }
     ];
@@ -5513,11 +5548,17 @@ export default function DashboardOverview({
             id="school-glance-grid"
           >
             {glanceCards.map((item) => {
-              const CardTag = item.actionTab ? "button" : "div";
-              const cardProps = item.actionTab
+              const hasAction = Boolean(item.actionTab || item.actionRegistryId);
+              const CardTag = hasAction ? "button" : "div";
+              const cardProps = hasAction
                 ? {
                     type: "button" as const,
-                    onClick: () => onToggleTab(item.actionTab!),
+                    onClick: () => item.actionRegistryId
+                      ? openRegistryDataRoute(item.actionRegistryId)
+                      : onToggleTab(item.actionTab!),
+                    title: item.actionRegistryId
+                      ? `Open ${item.label} registry`
+                      : `Open ${item.label}`,
                     className: "w-full h-full flex flex-col justify-between p-4 bg-slate-50 hover:bg-slate-100/60 border border-slate-100 rounded-xl space-y-1 transition-all cursor-pointer hover:border-blue-200 hover:shadow-xs group text-left",
                   }
                 : {

@@ -3,6 +3,7 @@ import GenericEntityPage from "./generic/GenericEntityPage";
 import type { GenericEntityDefinition, GenericEntityPermissionContext } from "../lib/genericEntityView";
 import {
   getRegistryCatalogEntry,
+  type RegistryCapabilityMetadata,
   type RegistryCatalogEntry,
 } from "../lib/registryCatalog";
 import { Info } from "lucide-react";
@@ -55,10 +56,80 @@ function renderRegistryHeader(entry: RegistryCatalogEntry, rowCount: number, cur
 
       <div className="flex items-start gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
         <Info size={14} className="text-blue-600 shrink-0 mt-0.5" />
-        <p>
-          Data source: <span className="font-mono font-bold text-slate-700">{entry.sourceLabel}</span>.
-          {entry.status === "deferred" ? ` ${entry.statusReason || entry.emptyStateDescription}` : " If this feed is empty, the registry will show the generic empty state instead of synthetic rows."}
-        </p>
+        <div className="space-y-1">
+          <p>
+            Data source: <span className="font-mono font-bold text-slate-700">{entry.sourceLabel}</span>.
+            {entry.status === "deferred" ? ` ${entry.statusReason || entry.emptyStateDescription}` : " If this feed is empty, the registry will show the generic empty state instead of synthetic rows."}
+          </p>
+          {entry.capabilityMetadata && (
+            <p className="text-[10px] text-slate-500">
+              {entry.capabilityMetadata.derivedFromRegistryId
+                ? `Derived from ${entry.capabilityMetadata.derivedFromRegistryId}. `
+                : `Canonical source: ${entry.capabilityMetadata.displayName}. `}
+              {entry.capabilityMetadata.discoveryNotes}
+            </p>
+          )}
+        </div>
+      </div>
+      {entry.capabilityMetadata && (
+        <CapabilityMetadataStrip metadata={entry.capabilityMetadata} />
+      )}
+    </div>
+  );
+}
+
+function MetadataPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+      <div className="text-[9px] uppercase tracking-wider font-mono font-bold text-slate-400">{label}</div>
+      <div className="mt-0.5 text-[11px] font-semibold text-slate-700 break-words">{value}</div>
+    </div>
+  );
+}
+
+function CapabilityMetadataStrip({ metadata }: { metadata: RegistryCapabilityMetadata }) {
+  const operations = metadata.supportedOperations.join(", ");
+  const queryKeys = metadata.queryKeys.join(", ");
+
+  return (
+    <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-3 space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[10px] font-black uppercase tracking-wider text-blue-700">
+          Capability Metadata
+        </span>
+        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-white border border-blue-100 text-blue-700">
+          {metadata.status}
+        </span>
+        {metadata.derivedFromRegistryId && (
+          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-white border border-blue-100 text-blue-700">
+            Derived from {metadata.derivedFromRegistryId}
+          </span>
+        )}
+      </div>
+
+      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+        <MetadataPill label="Capability ID" value={metadata.capabilityId} />
+        <MetadataPill label="Registry ID" value={metadata.registryId} />
+        <MetadataPill label="Canonical Registry" value={metadata.canonicalRegistryName} />
+        <MetadataPill label="Display Name" value={metadata.displayName} />
+        <MetadataPill label="Resource URI" value={metadata.resourceUri} />
+        <MetadataPill label="Object Category" value={metadata.objectCategory} />
+        <MetadataPill label="Source Role" value={metadata.sourceRole} />
+        <MetadataPill label="Scope" value={metadata.scope} />
+        <MetadataPill label="Write Policy" value={metadata.writePolicy} />
+        <MetadataPill label="Supported Operations" value={operations} />
+        <MetadataPill label="Query Keys" value={queryKeys} />
+        {metadata.sourceSpreadsheetId && (
+          <MetadataPill label="Source Spreadsheet" value={metadata.sourceSpreadsheetId} />
+        )}
+        {metadata.tabName && (
+          <MetadataPill label="Tab Name" value={metadata.tabName} />
+        )}
+        <div className="md:col-span-2 xl:col-span-3 rounded-xl border border-white/80 bg-white px-3 py-2 shadow-sm">
+          <div className="text-[9px] uppercase tracking-wider font-mono font-bold text-slate-400">Discovery Notes</div>
+          <div className="mt-0.5 text-[11px] text-slate-700 leading-relaxed">{metadata.discoveryNotes}</div>
+        </div>
+        <MetadataPill label="Duplicate Search Policy" value={metadata.duplicateSearchPolicy} />
       </div>
     </div>
   );

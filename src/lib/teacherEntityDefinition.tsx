@@ -5,18 +5,18 @@ export function createTeacherEntityDefinition(): GenericEntityDefinition<Teacher
   return {
     entityName: "Teacher",
     entityNamePlural: "Teachers",
-    description: "Live teacher registry rows synced from the school feed.",
+    description: "Derived teacher roster filtered from Staff Directory and teacher allocations.",
     getId: (teacher) => teacher.id,
     getTitle: (teacher) => teacher.name,
     getSubtitle: (teacher) => teacher.department,
     getSummary: (teacher) =>
       teacher.currentCourses.length > 0
-        ? `${teacher.department} · ${teacher.currentCourses.length} current courses`
-        : `${teacher.department} · No active courses`,
+        ? `${teacher.department} - ${teacher.currentCourses.length} current courses`
+        : `${teacher.department} - No active courses`,
     defaultDisplayMode: "table",
     searchPlaceholder: "Search teachers by name, email, department, or course",
     emptyTitle: "No teacher records are available.",
-    emptyDescription: "The live /api/teachers feed did not return any rows for the selected context.",
+    emptyDescription: "The derived teacher view from Staff Directory did not return any rows for the selected context.",
     fields: [
       {
         key: "email",

@@ -20,6 +20,7 @@ Branch: `import/enhanced-codebase`
 | `b0577dc` | Implemented teacher/course/assignment registry pages |
 | `c2e12f0` | Fixed Students registry discoverability in nav    |
 | `1d8e3cb` | Added registry catalog and first-class Students page |
+| `d35334b` | Reconciled generic registry migration tracker     |
 
 ## Existing Generic Framework Files
 
@@ -877,14 +878,24 @@ Each future cycle must still follow:
 
 | Registry | Status | Why | Route |
 | -------- | ------ | --- | ----- |
-| Students | Active | Already backed by `/api/students` and a dedicated generic page. | `/students` |
-| Teachers | Active | Already backed by `/api/teachers` and a dedicated generic page. | `/teachers` |
-| Classroom Courses | Active | Already backed by `/api/classroom/courses` and a dedicated generic page. | `/courses` |
-| Assignments | Active | Already backed by `/api/classroom/assignments` and a dedicated generic page. | `/assignments` |
-| Classroom Roster / SIS pupils | Deferred | Safe embedded classroom surface; do not split into another page yet. | Embedded in `/classroom` |
-| Workspace Files | Deferred | Already exposed through Search / UniversalSearch rather than a separate registry page. | `/search` |
-| Lesson Plans | Deferred | Tightly coupled to LessonPlanner and AI workflow state. | `/lesson-plans` |
-| NCERT Textbooks | Deferred | Tightly coupled to NCERT/TextbookIngestor flow. | `/textbooks` |
+| Students | Active generic registry | Already backed by `/api/students` and a dedicated generic page. | `/students` |
+| Teachers | Active generic registry | Already backed by `/api/teachers` and a dedicated generic page. | `/teachers` |
+| Staff | Active generic registry | Backed by `Staff_Directory` from the live master registry. | `/staff` |
+| Classroom Courses | Active generic registry | Already backed by `/api/classroom/courses` and a dedicated generic page. | `/courses` |
+| Assignments | Active generic registry | Already backed by `/api/classroom/assignments` and a dedicated generic page. | `/assignments` |
+| Classroom Roster / SIS pupils | Deferred: not a registry | Safe embedded classroom surface; do not split into another page yet. | Embedded in `/classroom` |
+| Workspace Files | Active via Search/UniversalSearch | Already exposed through Search / UniversalSearch rather than a separate registry page. | `/search` |
+| Lesson Plans | Custom List & Detail View | Selection-driven lesson workspace that stays specialized. | `/lesson-plans` |
+| LessonPlanner editor/checklist/AI flows | Custom workflow | AI-assisted editing and workflow controls stay specialized. | `/lesson-plans` |
+| TextbookIngestor / NCERT ingestion | Custom workflow | NCERT import and audit flow stays specialized. | `/textbooks` |
+| DashboardOverview broad cards | Dashboard surface | Broad dashboard panels stay dashboard-only. | `/overview` |
+| RoleDashboards broad role dashboards | Dashboard surface | Role dashboard cards stay dashboard-only. | `/role-cards` |
+| Compliance Monitoring | Deferred: dashboard-only metric | Uses dashboard source data and chip-style panels only. | Dashboard-only |
+| Assessment Tracking | Deferred: dashboard-only metric | Uses dashboard source data and chip-style panels only. | Dashboard-only |
+| SQAA Evidence | Deferred: dashboard-only metric | Uses dashboard source data and chip-style panels only. | Dashboard-only |
+| Remedial Feed | Deferred: dashboard-only metric | Uses dashboard source data and chip-style panels only. | Dashboard-only |
+| Dashboard alerts | Dashboard surface | Alert cards stay on the dashboard surface. | Dashboard-only |
+| Registry health/status chips | Deferred: not a registry | Status chips are health indicators, not registries. | Dashboard-only |
 
 ## Active Registries
 
@@ -892,6 +903,7 @@ The registry catalog now exposes these first-class generic pages:
 
 * Students
 * Teachers
+* Staff
 * Classroom Courses
 * Assignments
 
@@ -906,6 +918,7 @@ The registry catalog now exposes these first-class generic pages:
 
 * `/students`
 * `/teachers`
+* `/staff`
 * `/courses`
 * `/assignments`
 
@@ -913,6 +926,7 @@ The registry catalog now exposes these first-class generic pages:
 
 * Students
 * Teachers
+* Staff
 * Courses
 * Assignments
 
@@ -920,6 +934,7 @@ The registry catalog now exposes these first-class generic pages:
 
 * Active Students KPI -> Students
 * Active Staff KPI -> Teachers
+* Staff register card -> Staff
 * Active Class Sections -> Courses
 * Google Classroom Courses -> Courses
 * Classroom Monitoring `Total Classrooms` -> Courses
@@ -940,9 +955,10 @@ Checked:
 * Sidebar showed Students, Teachers, Courses, and Assignments for Principal.
 * `/students` opened and rendered a generic registry list/detail page.
 * `/teachers` opened and rendered a generic registry list/detail page.
+* `/staff` opened and rendered a generic registry list/detail page.
 * `/courses` opened and rendered a generic registry list/detail page.
 * `/assignments` opened and rendered a generic registry list/detail page.
-* Dashboard drill-throughs for Active Staff, Active Class Sections, Google Classroom Courses, and Assignments navigated to the right pages.
+* Dashboard drill-throughs for Active Staff, Staff, Active Class Sections, Google Classroom Courses, and Assignments navigated to the right pages.
 * Classroom Sync still rendered and `View all students` worked.
 * Lessons Workspace and NCERT Textbooks routes still opened.
 * Search still opened.
@@ -956,8 +972,10 @@ Checked:
 * `src/components/TeachersRegistryPage.tsx`
 * `src/components/ClassroomCoursesRegistryPage.tsx`
 * `src/components/ClassroomAssignmentsRegistryPage.tsx`
+* `src/components/StaffRegistryPage.tsx`
 * `src/components/DashboardOverview.tsx`
 * `src/lib/schemaEngine.ts`
+* `src/lib/staffEntityDefinition.tsx`
 * `src/lib/classroomCourseEntityDefinition.tsx`
 * `src/lib/classroomAssignmentEntityDefinition.tsx`
 * `src/lib/teacherEntityDefinition.tsx`
@@ -967,10 +985,513 @@ Checked:
 * `b0577dc` â€” prior checkpoint for the people/classroom registry page migration
 * `c2e12f0` â€” Students discoverability fix
 * `1d8e3cb` â€” registry catalog and first-class Students registry page
+* `d35334b` â€” tracker reconciliation checkpoint
 
 ## Tracker Changes Made
 
 * Added `b0577dc` to the baseline checkpoint table.
 * Added `1d8e3cb` to the baseline checkpoint table.
+* Added `d35334b` to the baseline checkpoint table.
 * Added a grouped registry-catalog migration section.
+* Added the `Registry Completion Sprint — All Safe Registries` inventory and classification section.
 * Recorded active registries, deferred registries, routes, navigation, drill-throughs, verification, and files changed.
+
+---
+
+# Registry Capability Catalog Alignment
+
+## Scope
+
+Align the app-level registry catalog with the canonical Schooly master registry capability catalog, starting with Staff Directory and then classifying the remaining live surfaces as canonical, derived, custom, or deferred.
+
+## Staff Directory Canonical Metadata
+
+| Field | Value |
+| ----- | ----- |
+| Capability ID | `CAP_STAFF_DIRECTORY` |
+| Registry ID | `REG_STAFF_DIRECTORY` |
+| Canonical Registry Name | `Staff_Directory` |
+| Display Name | `Staff Directory` |
+| Resource URI | `schooly://registry/REG_STAFF_DIRECTORY` |
+| Source Spreadsheet ID | `12HRgp9O0mkIh5tWSc1Ev0PRTlGPGhpcxAne-oG6MSNM` |
+| Tab Name | `Staff_Directory` |
+| Object Category | `people` |
+| Source Role | `Master Data` |
+| Supported Operations | `read, search, append, update, validate` |
+| Scope | `school_private` |
+| Write Policy | `controlled_write` |
+| Query Keys | `staff_id, school_id, academic_year, status, is_demo_data` |
+| Duplicate Search Policy | `staff_directory, staff directory, staff_directory, people` |
+| Discovery Notes | Canonical source registry. Use as the first-choice source for the people/staff category. |
+| Status | `Active` |
+
+## Canonical / Derived Decision
+
+| Registry | Classification | Decision |
+| -------- | -------------- | -------- |
+| Staff Directory | Active canonical generic registry | Canonical master registry source for people/staff records. |
+| Teachers | Active derived generic registry | Role-filtered view derived from `REG_STAFF_DIRECTORY`; no separate canonical teacher registry was found. |
+| Students | Active canonical generic registry | Live first-class page remains canonical in the app, but explicit capability metadata is still pending. |
+| Classroom Courses | Active canonical generic registry | Live first-class page remains canonical in the app, but explicit capability metadata is still pending. |
+| Classroom Assignments | Active canonical generic registry | Live first-class page remains canonical in the app, but explicit capability metadata is still pending. |
+| Workspace Files | Active custom list/detail view | Generic Search/UniversalSearch surface, not a registry page. |
+| Lesson Plans | Active custom list/detail view | Custom selection-driven list/detail workspace. |
+| Lesson Resources / Academic Resources | Deferred: tightly coupled workflow | Coupled to lesson planning and authoring flows. |
+| NCERT Textbooks | Custom workflow | Specialized NCERT ingestion and audit flow. |
+| NCERT Chapters | Custom workflow | Specialized NCERT review and mapping flow. |
+| Classroom Roster / SIS Pupils | Deferred: not a registry | Embedded classroom surface stays inside Classroom Sync. |
+| Compliance Monitoring | Deferred: dashboard-only metric | KPI / dashboard surface only. |
+| Assessment Tracking | Deferred: dashboard-only metric | KPI / dashboard surface only. |
+| SQAA Evidence | Deferred: dashboard-only metric | KPI / dashboard surface only. |
+| Remedial Feed | Deferred: dashboard-only metric | KPI / dashboard surface only. |
+| Dashboard Alerts | Deferred: dashboard-only metric | Dashboard alert surface only. |
+| Registry health/status chips | Deferred: not a registry | Health chips and indicators are not registries. |
+
+## Active Canonical Registries
+
+* Staff Directory
+* Students
+* Classroom Courses
+* Classroom Assignments
+
+## Active Derived Registries
+
+* Teachers
+
+## Active Custom List & Detail Views
+
+* Workspace Files
+* Lesson Plans
+
+## Custom Workflows
+
+* NCERT Textbooks
+* NCERT Chapters
+* Lesson Resources / Academic Resources
+
+## Deferred Registries And Reasons
+
+* Classroom Roster / SIS Pupils: keep embedded in Classroom Sync.
+* Compliance Monitoring: dashboard-only metric, not a registry page.
+* Assessment Tracking: dashboard-only metric, not a registry page.
+* SQAA Evidence: dashboard-only metric, not a registry page.
+* Remedial Feed: dashboard-only metric, not a registry page.
+* Dashboard Alerts: dashboard-only metric, not a registry page.
+* Registry health/status chips: indicators only, not registry records.
+* Lesson Resources / Academic Resources: tightly coupled to lesson-planning and authoring workflows.
+* Students, Classroom Courses, and Classroom Assignments: app pages are active, but explicit capability metadata rows are still pending.
+
+## Drill-Through Coverage
+
+* Active Students KPI -> Students
+* Active Staff KPI -> Staff
+* Teachers dashboard/card surfaces -> Teachers
+* Classroom count/class sections -> Courses
+* Assignments count/value -> Assignments
+* Staff Directory surfaces -> Staff
+
+## Missing Capability Catalog Rows
+
+* Students
+* Classroom Courses
+* Classroom Assignments
+* Workspace Files
+
+These app surfaces are active today, but their explicit capability metadata rows still need canonical registry evidence before they can be mirrored into the catalog.
+
+## Verification Results
+
+* `npx tsc --noEmit --pretty false` succeeded after the metadata alignment changes.
+* `npm run build` succeeded with the existing Vite chunk-size warning only.
+* Browser smoke completed locally against the running app.
+* `/staff` opened and showed the canonical Staff Directory metadata block.
+* `/teachers` opened and showed the derived-from-Staff note.
+* `/students`, `/courses`, and `/assignments` still opened normally.
+* `/search`, `/classroom`, `/lesson-plans`, and `/textbooks` still opened without runtime errors.
+* `/registers` exposed the registers hub and the Staff drill-through landed on `/staff`.
+* The browser console showed existing network-access and 404 messages, but no new runtime failure from the metadata alignment work.
+* Local commit SHA for this alignment pass: `422cef239637189d80c4a03b21e659e3eb5bd13a`.
+* Push attempt failed because this shell cannot reach `github.com` over port 443.
+
+---
+
+# Registry Completion Sprint — All Safe Registries
+
+## Registry Inventory
+
+| Candidate | Classification | Source / Reason | Route / Surface |
+| --------- | -------------- | --------------- | --------------- |
+| Students | Active generic registry | Existing `/api/students` feed and dedicated generic page. | `/students` |
+| Teachers | Derived staff-backed registry view | Staff Directory rows plus teacher allocations, surfaced through the compatibility `/teachers` page. | `/teachers` |
+| Staff | Active generic registry | Live `Staff_Directory` rows from the master registry. | `/staff` |
+| Classroom Courses | Active generic registry | Existing `/api/classroom/courses` feed and dedicated generic page. | `/courses` |
+| Assignments | Active generic registry | Existing `/api/classroom/assignments` feed and dedicated generic page. | `/assignments` |
+| Classroom Roster / SIS Pupils | Deferred: not a registry | Embedded classroom surface stays inside Classroom Sync. | `/classroom` embedded panel |
+| Workspace Files | Active via Search/UniversalSearch | Already covered by Search and the generic Workspace file framework. | `/search` |
+| Lesson Plans | Custom List & Detail View | Selection-driven planning workspace remains specialized. | `/lesson-plans` |
+| LessonPlanner editor/checklist/AI flows | Custom workflow | AI-assisted editing and workflow controls are not a registry page. | `/lesson-plans` |
+| Lesson Resources / Academic Resources | Deferred: tightly coupled workflow | Coupled to lesson planning and workspace authoring. | Lesson workspace / dashboard surfaces |
+| TextbookIngestor / NCERT ingestion | Custom workflow | NCERT import, OCR, and audit flows stay specialized. | `/textbooks` |
+| NCERT Textbooks | Custom workflow | Existing textbook workspace is intentionally specialized. | `/textbooks` |
+| NCERT Chapters | Custom workflow | Chapter import/review/publish flows stay inside the NCERT workspace. | `/textbooks` |
+| Tasks | Custom workflow | Task board is action-oriented, not a registry page. | `/tasks` |
+| Audit Logs | Dashboard surface | Read-only audit trail shown in governance/dashboard panels. | `/governance` |
+| Automations | Custom workflow | Automation builder is an interactive workflow surface. | `/ai-assistant` |
+| Compliance Monitoring | Deferred: dashboard-only metric | Dashboard KPI and panel data only. | Dashboard surface |
+| Assessment Tracking | Deferred: dashboard-only metric | Dashboard KPI and panel data only. | Dashboard surface |
+| SQAA Evidence | Deferred: dashboard-only metric | Dashboard KPI and panel data only. | Dashboard surface |
+| Remedial Feed | Deferred: dashboard-only metric | Dashboard KPI and panel data only. | Dashboard surface |
+| Dashboard alerts | Dashboard surface | Alert cards stay on the dashboard surface. | Dashboard surface |
+| Registry health/status chips | Deferred: not a registry | Health chips are indicators, not registry pages. | Dashboard surface |
+| DashboardOverview broad cards | Dashboard surface | Broad dashboard panels should remain specialized. | `/overview` |
+| RoleDashboards broad role dashboards | Dashboard surface | Role cards are dashboard surfaces, not registry pages. | `/role-cards` |
+| Teacher Allocations | Deferred: dashboard-only metric | Used by dashboards and role cards, but not promoted as a registry page this sprint. | Dashboard surface |
+| Student Directory / Enrollment | Deferred: missing data source | Data exists in the master registry, but the app already exposes Students through `/api/students`. | Master registry source |
+
+## Active First-Class Registry Pages
+
+* Students
+* Teachers
+* Staff
+* Classroom Courses
+* Assignments
+
+## Newly Activated Registries
+
+* Staff
+
+## Custom List & Detail View Registries
+
+* Lesson Plans
+
+## Custom Workflows
+
+* LessonPlanner editor/checklist/AI flows
+* TextbookIngestor / NCERT ingestion
+* NCERT Textbooks
+* NCERT Chapters
+* Tasks
+* Automations
+
+## Deferred Registries
+
+* Classroom Roster / SIS Pupils
+* Workspace Files
+* Lesson Resources / Academic Resources
+* Compliance Monitoring
+* Assessment Tracking
+* SQAA Evidence
+* Remedial Feed
+* Teacher Allocations
+* Student Directory / Enrollment
+
+## Deferred Registries And Why
+
+* Classroom roster / SIS pupils: keep embedded in Classroom Sync.
+* Workspace files: already handled by Search / UniversalSearch.
+* Lesson resources / academic resources: too coupled to lesson-planning and authoring flows.
+* Compliance / assessment / SQAA / remedial surfaces: still dashboard-only metrics in this app.
+* Teacher allocations: already used by dashboards and role cards; no first-class page added in this sprint.
+* Student directory / enrollment: the live Students page already exists through `/api/students`.
+
+## Routes Available
+
+* `/students`
+* `/teachers`
+* `/staff`
+* `/courses`
+* `/assignments`
+* `/search`
+
+## Drill-Throughs Added
+
+* Active Students KPI -> Students
+* Active Staff KPI -> Teachers
+* Staff register card -> Staff
+* Active Class Sections -> Courses
+* Google Classroom Courses -> Courses
+* Classroom Monitoring `Total Classrooms` -> Courses
+* Classroom Monitoring `Assignments` -> Assignments
+* Synced SIS Pupil Roster `View all students` -> Students
+
+## Verification Entries Added
+
+* `npx tsc --noEmit --pretty false` succeeded.
+* `npm run build` succeeded with the existing Vite chunk-size warning only.
+
+## Files Changed
+
+* `src/App.tsx`
+* `src/components/DashboardOverview.tsx`
+* `src/components/StaffRegistryPage.tsx`
+* `src/lib/registryCatalog.tsx`
+* `src/lib/schemaEngine.ts`
+* `src/lib/staffEntityDefinition.tsx`
+
+## Commit SHAs Recorded
+
+* `d35334b` â€” tracker reconciliation checkpoint
+
+## Tracker Changes Made
+
+* Added `d35334b` to the baseline checkpoint table.
+* Added Staff as a newly activated generic registry.
+* Added the completion sprint inventory section.
+* Recorded active registries, custom list/detail surfaces, custom workflows, deferred registries, routes, drill-throughs, verification entries, files changed, and commit SHAs.
+
+# Universal Registry Explorer Cycle
+
+## Selected Object Group
+
+Registry Explorer and universal registry data route.
+
+## Why This Group
+
+This is a single metadata-driven browser surface that can cover the registry catalog without creating more bespoke pages.
+
+## Files Changed
+
+* `src/App.tsx`
+* `src/lib/schemaEngine.ts`
+* `src/components/RegistryExplorerPage.tsx`
+* `src/components/GenericRegistryDataPage.tsx`
+* `src/lib/registryExplorerEntityDefinition.tsx`
+
+## Behavior Preserved
+
+* Existing sidebar navigation
+* Existing `Registers` hub
+* Existing first-class pages for Students, Teachers, Staff, Courses, and Assignments
+* Existing generic registry pages and dashboard surfaces
+
+## Verification
+
+* `npx tsc --noEmit --pretty false` succeeded.
+* `npm run build` succeeded with the existing Vite chunk-size warning only.
+* Browser smoke completed locally:
+  * `/registries` opened the registry explorer and showed the registry catalog.
+  * Sidebar `Registries` item was visible for the active Principal session.
+  * `/registries/students` opened the Students first-class page.
+  * `/registries/masterDataRegistryUrl__staff_directory` opened the generic registry data route fallback.
+  * No new browser console errors were observed in the smoke run.
+
+## Deferred
+
+* No new live row loader was added for the schema-only registry tabs.
+* No dashboard drill-through changes were made in this cycle.
+
+## Commit SHA
+
+* `ad42319` - `feat: add universal registry explorer`
+
+---
+
+# Staff / Teachers Consolidation Follow-up
+
+## Selected Object Group
+
+Teachers, now derived from Staff Directory instead of a separate canonical teacher registry.
+
+## Why This Group
+
+The teacher page already had a stable generic shell. The smallest safe consolidation was to keep `/teachers` as a compatibility route while sourcing its rows from `Staff_Directory` and `Teacher_Allocations`.
+
+## Files Changed
+
+* `src/App.tsx`
+* `src/components/TeachersRegistryPage.tsx`
+* `src/lib/schoolRegistry.ts`
+* `src/lib/staffEntityDefinition.tsx`
+* `src/lib/teacherEntityDefinition.tsx`
+* `src/lib/registryCatalog.tsx`
+* `src/lib/registryExplorerEntityDefinition.tsx`
+* `src/lib/schemaEngine.ts`
+* `docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
+
+## Behavior Preserved
+
+* `/teachers` still opens the teacher page.
+* `/staff` still opens the canonical staff directory.
+* `/registries` still opens the registry explorer.
+* Students, courses, assignments, search, classroom, lesson plans, and textbooks were left alone.
+* The teacher page still uses the generic registry shell and row selection.
+
+## Verification
+
+* `npx tsc --noEmit --pretty false` succeeded.
+* `npm run build` succeeded with the existing Vite chunk-size warning only.
+* Browser smoke completed locally with the local Chrome executable:
+  * `/teachers` opened the generic teacher registry page and showed the derived-from-staff metadata block.
+  * `/staff` opened the canonical staff registry page.
+  * `/registries` opened the registry explorer shell.
+  * Browser console showed the existing network-access and 404 noise from the app, but no new runtime errors from this consolidation.
+
+## Deferred
+
+* No backend or database changes were made.
+* No separate canonical teacher registry was added.
+* The registry explorer still includes the compatibility teacher route as a derived view, not as a new canonical source.
+
+---
+
+# Post Staff/Teachers Consolidation Governance
+
+## Schema Check
+
+* `is_teacher` status: `pending`
+* The actual `Staff_Directory` header set in `src/lib/registrySchema.ts` does not currently list `is_teacher`.
+* Code support exists for inference and optional loading, but the live registry schema itself still needs the field if we want a first-class source value.
+
+## Suggested Registry_Field_Catalog Row
+
+| registry_id | field_name | display_name | data_type | required | default_value | description |
+| ----------- | ----------- | ------------ | --------- | -------- | ------------- | ----------- |
+| `REG_STAFF_DIRECTORY` | `is_teacher` | `Is Teacher?` | `BOOLEAN` | `FALSE` | `FALSE` | TRUE when the staff member performs teaching duties and should appear in teacher views, teacher allocation workflows, and academic staff filters. |
+
+## Registry Decisions
+
+* Staff Directory remains the canonical people/employee registry.
+* Teachers remains a derived view sourced from `REG_STAFF_DIRECTORY`.
+* Teacher Allocations remains a separate relationship/allocation registry.
+* Teachers is not counted as a separate canonical registry in the governance model.
+
+## Registry Explorer Classification
+
+* `Teachers` -> `Derived view`
+* `Teacher Allocations` -> `Relationship registry`
+* `Staff` -> canonical registry
+
+## Registry Count Impact
+
+* Canonical people/employee registry count remains unchanged.
+* Explorer totals still show the derived Teachers view and the separate Teacher Allocations registry, but they are labeled distinctly so they are not mistaken for separate canonical people registries.
+
+## Verification Result
+
+* TypeScript/build/browser smoke were completed successfully during the consolidation pass.
+* No Google Sheets writes were performed.
+* Commit SHA: `8ae7a99`
+
+## Commit SHA
+
+* `1a4b0c7` - `docs: finalize registry explorer coverage`
+
+---
+
+# Registry Finalization — 56 Registry Explorer Coverage
+
+## Selected Object Group
+
+Universal Registry Explorer and universal registry data route.
+
+## Why This Group
+
+The explorer is the single metadata-driven surface that covers the known registry catalog without creating more bespoke pages.
+
+## Files Changed
+
+* `docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
+
+## Behavior Preserved
+
+* `/registries` still opens the registry explorer.
+* `/registries/:registryId` still opens first-class registry pages or the generic registry data fallback.
+* `/staff`, `/teachers`, `/students`, `/courses`, `/assignments`, `/classroom`, `/search`, `/lesson-plans`, and `/textbooks` still open.
+* Staff/Teachers governance stays intact: Staff remains canonical, Teachers remains derived, and Teacher Allocations remains separate.
+
+## Verification
+
+* `npx tsc --noEmit --pretty false` succeeded.
+* `npm run build` succeeded with the existing Vite chunk-size warning only.
+* Browser smoke completed locally against the running app:
+  * `/registries` opened the explorer and showed `SHOWING 79 OF 79`.
+  * `/registries/students`, `/registries/staff`, and `/registries/REG_TEACHER_ALLOCATIONS` loaded successfully.
+  * `/students`, `/teachers`, `/courses`, `/assignments`, `/classroom`, `/search`, `/lesson-plans`, and `/textbooks` loaded successfully.
+  * No new browser console errors were observed during the smoke pass.
+
+## Deferred
+
+* No new bespoke registry pages were created.
+* No backend, database, mock data, or dependency work was added.
+* No registry row data was invented.
+
+## Commit SHA
+
+* `pending`
+
+---
+
+# Feature Readiness â€” Registry Count and Drill-Through Closure
+
+## Count Reconciliation
+
+* Master capability catalog baseline: `56` registry IDs supplied by the Schooly registry capability catalog.
+* Registry Explorer UI baseline: `79` explorer entries shown in the app.
+* The 79-entry explorer surface is broader than the canonical catalog because it includes:
+  * `4` canonical first-class pages
+  * `1` derived view
+  * `1` relationship registry
+  * `69` schema-tab entries
+  * `4` embedded/custom surfaces
+  * `43` source-unavailable entries that still need mapping or later review
+* No canonical registry is being shown twice as two separate canonical registries.
+* The UI now describes the surface as explorer entries rather than implying that all 79 are canonical registries.
+
+## Drill-Through Coverage
+
+* Active Students -> `/students`
+* Active Staff -> `/staff`
+* Teachers / teacher people view -> `/teachers`
+* Teacher Allocation Coverage -> `/registries/REG_TEACHER_ALLOCATIONS`
+* Courses / class sections / classroom course surfaces -> `/courses`
+* Assignments -> `/assignments`
+* Registry explorer / registry-derived surfaces -> `/registries`
+* `REG_STAFF_DIRECTORY` -> `/registries/REG_STAFF_DIRECTORY`
+* `REG_TEACHER_ALLOCATIONS` -> `/registries/REG_TEACHER_ALLOCATIONS`
+* Source-unavailable registry IDs now show a clear fallback state instead of a confusing blank route.
+
+## Preserved Routes
+
+* `/registries`
+* `/registries/REG_STAFF_DIRECTORY`
+* `/registries/REG_TEACHER_ALLOCATIONS`
+* `/staff`
+* `/teachers`
+* `/students`
+* `/courses`
+* `/assignments`
+* `/classroom`
+* `/search`
+* `/lesson-plans`
+* `/textbooks`
+
+## Readiness Result
+
+* The registry UI migration is complete enough to proceed to the next feature sprint.
+* Remaining registry work is source mapping and data-governance cleanup, not UI migration.
+
+## Verification Result
+
+* `npx tsc --noEmit --pretty false` succeeded.
+* `npm run build` succeeded with the existing Vite chunk-size warning only.
+* Browser smoke completed locally:
+  * `/registries` opened with understandable explorer count labels.
+  * Search and filters still worked in the registry explorer.
+  * `/registries/REG_STAFF_DIRECTORY` and `/registries/REG_TEACHER_ALLOCATIONS` opened.
+  * `/staff`, `/teachers`, `/students`, `/courses`, and `/assignments` opened.
+  * `/classroom`, `/search`, `/lesson-plans`, and `/textbooks` opened.
+  * Dashboard drill-throughs for Students, Staff, Teachers, Teacher Allocation Coverage, Courses, and Assignments were present.
+  * Registry explorer and dashboard smoke showed no new browser console errors.
+
+## Files Changed
+
+* `src/App.tsx`
+* `src/components/DashboardOverview.tsx`
+* `src/components/GenericRegistryDataPage.tsx`
+* `src/components/RegistryExplorerPage.tsx`
+* `src/lib/registryExplorerEntityDefinition.tsx`
+* `docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
+
+## Commit SHA
+
+* `pending`

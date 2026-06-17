@@ -61,6 +61,11 @@ export interface StaffDirectoryRow {
   role: string;
   department: string;
   status: string;
+  designation?: string;
+  staff_category?: string;
+  primary_staff_role?: string;
+  employment_type?: string;
+  is_teacher?: string;
 }
 
 export interface TeacherAllocationRow {
@@ -346,7 +351,12 @@ function normalizeStaff(row: Record<string, string>): StaffDirectoryRow {
     email: pick(row, ["email", "teacher_email", "staff_email"], ""),
     role: pick(row, ["role", "designation"], ""),
     department: pick(row, ["department"], ""),
-    status: pick(row, ["status"], "Active")
+    status: pick(row, ["status"], "Active"),
+    designation: pick(row, ["designation"], ""),
+    staff_category: pick(row, ["staff_category", "staff_type"], ""),
+    primary_staff_role: pick(row, ["primary_staff_role", "primary_role"], ""),
+    employment_type: pick(row, ["employment_type"], ""),
+    is_teacher: pick(row, ["is_teacher", "teacher_flag", "teacher"], "")
   };
 }
 

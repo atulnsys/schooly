@@ -15,8 +15,11 @@ import UniversalSearch from "./components/UniversalSearch";
 import ClassroomManager from "./components/ClassroomManager";
 import StudentsRegistryPage from "./components/StudentsRegistryPage";
 import TeachersRegistryPage from "./components/TeachersRegistryPage";
+import StaffRegistryPage from "./components/StaffRegistryPage";
 import ClassroomCoursesRegistryPage from "./components/ClassroomCoursesRegistryPage";
 import ClassroomAssignmentsRegistryPage from "./components/ClassroomAssignmentsRegistryPage";
+import RegistryExplorerPage from "./components/RegistryExplorerPage";
+import GenericRegistryDataPage from "./components/GenericRegistryDataPage";
 import TaskProductivity from "./components/TaskProductivity";
 import AIAssistants from "./components/AIAssistants";
 import AcademicRollover from "./components/AcademicRollover";
@@ -41,6 +44,7 @@ import {
   FolderOpen,
   Link,
   AlertCircle,
+  ArrowLeft,
   Database,
   Eye,
   EyeOff,
@@ -48,7 +52,8 @@ import {
   AlertTriangle,
   BookOpen,
   LayoutGrid,
-  Users
+  Users,
+  UserCheck
 } from "lucide-react";
 import {
   loadActiveMetadata,
@@ -56,6 +61,7 @@ import {
   saveActiveMetadata,
   ExportableSchoolySchema
 } from "./lib/schemaEngine";
+import { getRegistryExplorerRow } from "./lib/registryExplorerEntityDefinition";
 import { loadConnectionConfig, FALLBACK_ALERT_MESSAGES, validateSourceLink } from "./lib/dataSourceEngine";
 import { DEFAULT_DASHBOARD_SHEET_URL } from "./lib/dashboardConfig";
 import { loadSchoolRegistry, type SchoolRegistryState, type StaffDirectoryRow, type StudentDirectoryRow, type StudentEnrollmentRow } from "./lib/schoolRegistry";
@@ -79,6 +85,7 @@ const IconMap: Record<string, React.ComponentType<{ size: number; className?: st
   LayoutGrid,
   FolderOpen,
   Users,
+  UserCheck,
   User,
   FileText
 };
@@ -445,7 +452,9 @@ const ROUTE_TABS = new Set([
   "search",
   "classroom",
   "students",
+  "registries",
   "teachers",
+  "staff",
   "courses",
   "assignments",
   "tasks",
@@ -457,10 +466,35 @@ const ROUTE_TABS = new Set([
   "textbooks",
 ]);
 
-function getTabFromPathname(pathname: string): string {
+interface RouteState {
+  tab: string;
+  registryId: string | null;
+}
+
+function getRouteStateFromPathname(pathname: string): RouteState {
   const path = String(pathname || "").replace(/^\/+/, "");
-  if (!path) return "overview";
-  return ROUTE_TABS.has(path) ? path : "overview";
+  if (!path) return { tab: "overview", registryId: null };
+
+  const [firstSegment, ...rest] = path.split("/");
+  if (firstSegment === "registries") {
+    return {
+      tab: "registries",
+      registryId: rest.length > 0 ? decodeURIComponent(rest.join("/")) : null,
+    };
+  }
+
+  return {
+    tab: ROUTE_TABS.has(firstSegment) ? firstSegment : "overview",
+    registryId: null,
+  };
+}
+
+function getPathnameFromRouteState(tab: string, registryId: string | null): string {
+  if (tab === "overview") return "/";
+  if (tab === "registries") {
+    return registryId ? `/registries/${encodeURIComponent(registryId)}` : "/registries";
+  }
+  return `/${tab}`;
 }
 
 export default function App() {
@@ -469,10 +503,14 @@ export default function App() {
   const [showCapabilities, setShowCapabilities] = useState(false);
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState(() => {
-    if (typeof window === "undefined") return "overview";
-    return getTabFromPathname(window.location.pathname);
-  });
+  const initialRouteState = useMemo(() => {
+    if (typeof window === "undefined") {
+      return { tab: "overview", registryId: null } as RouteState;
+    }
+    return getRouteStateFromPathname(window.location.pathname);
+  }, []);
+  const [activeTab, setActiveTab] = useState(initialRouteState.tab);
+  const [selectedRegistryId, setSelectedRegistryId] = useState<string | null>(initialRouteState.registryId);
 
   // Databases States
   const [files, setFiles] = useState<WorkspaceFile[]>([]);
@@ -613,7 +651,9 @@ export default function App() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handlePopState = () => {
-      setActiveTab(getTabFromPathname(window.location.pathname));
+      const nextRoute = getRouteStateFromPathname(window.location.pathname);
+      setActiveTab(nextRoute.tab);
+      setSelectedRegistryId(nextRoute.registryId);
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
@@ -621,11 +661,17 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const desiredPath = activeTab === "overview" ? "/" : `/${activeTab}`;
+    const desiredPath = getPathnameFromRouteState(activeTab, activeTab === "registries" ? selectedRegistryId : null);
     if (window.location.pathname !== desiredPath) {
       window.history.pushState({}, "", desiredPath);
     }
-  }, [activeTab]);
+  }, [activeTab, selectedRegistryId]);
+
+  useEffect(() => {
+    if (activeTab !== "registries" && selectedRegistryId) {
+      setSelectedRegistryId(null);
+    }
+  }, [activeTab, selectedRegistryId]);
 
   // Protect route views in real-time when roles or configurations shift
   useEffect(() => {
@@ -1018,6 +1064,7 @@ export default function App() {
       activeAcademicYearLabel={dashboardAcademicYearLabel}
       academicYearOptions={schoolRegistryAcademicYearOptions}
       onAcademicYearChange={setSelectedDashboardAcademicYearLabel}
+      onOpenRegistryDataRoute={openRegistryDataRoute}
       dashboardView={dashboardView}
       onConfigureWorkspace={() => {
         setTempUrl(workspaceUrl);
@@ -1026,6 +1073,50 @@ export default function App() {
       }}
     />
   );
+
+  const openRegistryPage = (registryId: string) => {
+    const row = getRegistryExplorerRow(registryId);
+    const routeSegment = String(row?.pageRoute || "").replace(/^\/+/, "");
+    if (!routeSegment) return;
+    setSelectedRegistryId(null);
+    setActiveTab(routeSegment);
+    setMobileMenuOpen(false);
+  };
+
+  const openRegistryDataRoute = (registryId: string) => {
+    setSelectedRegistryId(registryId);
+    setActiveTab("registries");
+    setMobileMenuOpen(false);
+  };
+
+  const renderRegistryDataSurface = (registryId: string) => {
+    switch (registryId) {
+      case "students":
+        return <StudentsRegistryPage students={students} currentRole={currentRole} />;
+      case "teachers":
+        return (
+          <TeachersRegistryPage
+            staffRows={schoolRegistry?.staffDirectory || []}
+            teacherAllocations={schoolRegistry?.teacherAllocations || []}
+            currentRole={currentRole}
+          />
+        );
+      case "staff":
+        return <StaffRegistryPage staffRows={schoolRegistry?.staffDirectory || []} currentRole={currentRole} />;
+      case "courses":
+        return <ClassroomCoursesRegistryPage courses={courses} currentRole={currentRole} />;
+      case "assignments":
+        return <ClassroomAssignmentsRegistryPage assignments={assignments} currentRole={currentRole} />;
+      default:
+        return (
+          <GenericRegistryDataPage
+            registryId={registryId}
+            currentRole={currentRole}
+            onBackToExplorer={() => setSelectedRegistryId(null)}
+          />
+        );
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row font-sans text-slate-900" id="main-app-container">
@@ -1471,6 +1562,40 @@ export default function App() {
           renderDashboardWorkspace("registry-detail")
         )}
 
+        {activeTab === "registries" && !selectedRegistryId && (
+          <RegistryExplorerPage
+            currentRole={currentRole}
+            onOpenPageRoute={openRegistryPage}
+            onOpenDataRoute={openRegistryDataRoute}
+          />
+        )}
+
+        {activeTab === "registries" && selectedRegistryId && (
+          <div className="space-y-4 animate-fade-in">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setSelectedRegistryId(null)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                <ArrowLeft size={12} /> Back to Registries
+              </button>
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">
+                  Universal Registry Route
+                </div>
+                <h2 className="text-sm font-extrabold text-slate-900 truncate">
+                  {getRegistryExplorerRow(selectedRegistryId)?.displayName || selectedRegistryId}
+                </h2>
+                <p className="text-[11px] text-slate-500">
+                  /registries/{selectedRegistryId}
+                </p>
+              </div>
+            </div>
+            {renderRegistryDataSurface(selectedRegistryId)}
+          </div>
+        )}
+
         {activeTab === "search" && (
           <UniversalSearch
             files={files}
@@ -1501,7 +1626,15 @@ export default function App() {
 
         {activeTab === "teachers" && (
           <TeachersRegistryPage
-            teachers={teachers}
+            staffRows={schoolRegistry?.staffDirectory || []}
+            teacherAllocations={schoolRegistry?.teacherAllocations || []}
+            currentRole={currentRole}
+          />
+        )}
+
+        {activeTab === "staff" && (
+          <StaffRegistryPage
+            staffRows={schoolRegistry?.staffDirectory || []}
             currentRole={currentRole}
           />
         )}
