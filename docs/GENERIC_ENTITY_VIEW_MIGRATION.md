@@ -1900,23 +1900,28 @@ This cycle makes the registry detail pages more actionable without rewriting the
 ## What Changed
 
 * Added a small registry readiness model for detail pages with `Ready`, `Empty`, `Missing`, `Incomplete`, `Fallback`, and `Unknown` states.
+* Added an explicit canonical alias for `REG_STAFF_DIRECTORY` so the registry detail route resolves to the Staff Directory metadata shell instead of a not-mapped state.
+* Kept `/staff` as the first-class live Staff page and linked the detail route back to it when that page exists.
 * Added mandatory-field visibility on the generic registry detail route when live or schema metadata is available.
 * Added validation metadata visibility on the generic registry detail route and first-class registry shells.
 * Added compact header chips for source state, row count or source-unavailable state, mandatory-field state, and validation metadata state.
 * Added setup guidance for empty, missing, incomplete, fallback, and unknown registry states.
 * Kept Registry Explorer to detail continuity intact so source labels and source states stay aligned.
+* Removed the duplicate `Back to Registries` header block from the registry detail route and kept the metadata/title/path context in the detail shell itself.
 
 ## Mandatory Field Behavior
 
 * First-class registry pages now mark core fields as required in the existing entity definitions.
 * The selected-row detail panels surface required fields, present fields, missing fields, and validation warnings using existing metadata only.
 * The generic registry detail route surfaces required headers and live row metadata for the mapped registry tab when available.
+* Mandatory-field copy now distinguishes metadata availability from row/value availability when no live rows are present.
 * Unknown or unavailable metadata is shown as unavailable instead of being treated as a failure.
 
 ## Validation Behavior
 
 * Validation metadata is shown only when the registry already exposes useful metadata.
 * Missing mandatory fields and row-level warnings are surfaced from the existing model instead of a new validator.
+* Validation copy now distinguishes available metadata from source-unavailable metadata and uses the existing no-issues phrasing when no problems are detected.
 * No fake validation results were added.
 * No expensive validation pass was added.
 
@@ -1943,34 +1948,31 @@ This cycle makes the registry detail pages more actionable without rewriting the
 * `/registers`
 * `/registries/REG_STAFF_DIRECTORY`
 * `/registries/REG_TEACHER_ALLOCATIONS`
+* `/staff`
 * `/settings`
 
 ## Verification Result
 
-* `npx tsc --noEmit --pretty false` was run after the code changes.
-* `npm run build` was run once for this registry-detail UI work.
-* Existing Vite chunk-size warnings remain acceptable if the build succeeds.
+* `npx tsc --noEmit --pretty false` passed.
+* `npm run build` passed with the existing Vite chunk-size warning.
 
 ## UI Smoke Notes
 
-* Browser smoke should be re-run against `/registries`, `/registers`, `/registries/REG_STAFF_DIRECTORY`, and `/registries/REG_TEACHER_ALLOCATIONS` after the final compile check.
-* The page-level chips and mandatory-field sections are designed to stay compact and read-only.
+* Browser smoke verified `/registries`, `/registers`, `/registries/REG_STAFF_DIRECTORY`, `/registries/REG_TEACHER_ALLOCATIONS`, and `/staff`.
+* `/registries/REG_STAFF_DIRECTORY` no longer shows the not-mapped message.
+* `/registries/REG_TEACHER_ALLOCATIONS` now shows a single `Back to Registries` block.
+* Existing routes remained available during smoke, including `/`, `/search`, `/lesson-plans`, `/resources`, `/textbooks`, `/classroom`, `/students`, `/courses`, `/assignments`, `/teachers`, and `/settings`.
 
 ## Files Changed
 
 * `src/App.tsx`
 * `src/components/GenericRegistryDataPage.tsx`
-* `src/components/RegistryExplorerPage.tsx`
 * `src/components/RegistryPageShell.tsx`
-* `src/lib/classroomAssignmentEntityDefinition.tsx`
-* `src/lib/classroomCourseEntityDefinition.tsx`
-* `src/lib/staffEntityDefinition.tsx`
-* `src/lib/studentEntityDefinition.tsx`
-* `src/lib/teacherEntityDefinition.tsx`
+* `src/lib/registryExplorerEntityDefinition.tsx`
 
 ## Commit SHA
 
-* `pending`
+* Pending
 
 ---
 

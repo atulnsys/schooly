@@ -4,7 +4,7 @@ import type {
   GenericEntityDefinition,
   GenericEntityFieldDefinition,
 } from "./genericEntityView";
-import { REGISTRY_CATALOG, type RegistryCatalogEntry } from "./registryCatalog";
+import { REGISTRY_CATALOG, type RegistryCatalogEntry, type RegistryCapabilityMetadata } from "./registryCatalog";
 import { REGISTRY_SCHEMA } from "./registrySchema";
 
 export interface RegistryExplorerRow {
@@ -33,6 +33,7 @@ export interface RegistryExplorerRow {
   tabCount?: number;
   derivedFromRegistryId?: string;
   discoveryNotes?: string;
+  capabilityMetadata?: RegistryCapabilityMetadata;
   firstClassPageEnabled?: boolean;
   drillThroughEnabled?: boolean;
 }
@@ -131,6 +132,7 @@ function mapCatalogEntry(entry: RegistryCatalogEntry): RegistryExplorerRow {
     sourceSpreadsheetId: capabilityMetadata?.sourceSpreadsheetId,
     discoveryNotes: capabilityMetadata?.discoveryNotes,
     derivedFromRegistryId: capabilityMetadata?.derivedFromRegistryId,
+    capabilityMetadata,
     firstClassPageEnabled: entry.firstClassPageEnabled,
     drillThroughEnabled: entry.drillThroughEnabled,
   };
@@ -194,6 +196,23 @@ const REGISTRY_EXPLORER_ROWS: RegistryExplorerRow[] = [
 ];
 
 const REGISTRY_EXPLORER_BY_ID = new Map(REGISTRY_EXPLORER_ROWS.map((row) => [row.registryId, row] as const));
+const REGISTRY_EXPLORER_ALIASES: Record<string, string> = {
+  REG_STAFF_DIRECTORY: "staff",
+  REG_TEACHER_ALLOCATIONS: "REG_TEACHER_ALLOCATIONS",
+  REG_STUDENT_DIRECTORY: "masterDataRegistryUrl__student-directory",
+  REG_CLASSES_SECTIONS: "masterDataRegistryUrl__classes-sections",
+  REG_SUBJECTS: "masterDataRegistryUrl__subjects",
+  REG_CLASSROOM_COURSE_MAP: "classroomSyncRegistryUrl__classroom-course-map",
+  REG_CLASSROOM_ASSIGNMENT_MAP: "classroomSyncRegistryUrl__classroom-assignment-map",
+};
+
+function cloneRegistryExplorerRow(row: RegistryExplorerRow, registryId: string): RegistryExplorerRow {
+  return {
+    ...row,
+    registryId,
+    dataRoute: getRegistryDataRoute(registryId),
+  };
+}
 
 function renderRegistryRouteLabel(row: RegistryExplorerRow): React.ReactNode {
   const label = row.derivedFromRegistryId
@@ -216,7 +235,25 @@ export function getRegistryExplorerRows(): RegistryExplorerRow[] {
 }
 
 export function getRegistryExplorerRow(registryId: string): RegistryExplorerRow | undefined {
-  return REGISTRY_EXPLORER_BY_ID.get(String(registryId || "").trim());
+  const normalizedRegistryId = String(registryId || "").trim();
+  const directRow = REGISTRY_EXPLORER_BY_ID.get(normalizedRegistryId);
+  if (directRow) return directRow;
+
+  const aliasTarget = REGISTRY_EXPLORER_ALIASES[normalizedRegistryId];
+  if (!aliasTarget) return undefined;
+
+  const aliasedRow = REGISTRY_EXPLORER_BY_ID.get(aliasTarget);
+  if (!aliasedRow) return undefined;
+
+  const clonedRow = cloneRegistryExplorerRow(aliasedRow, normalizedRegistryId);
+  if (normalizedRegistryId === "REG_STAFF_DIRECTORY" && aliasedRow.capabilityMetadata?.displayName) {
+    return {
+      ...clonedRow,
+      displayName: aliasedRow.capabilityMetadata.displayName,
+    };
+  }
+
+  return clonedRow;
 }
 
 export function getRegistryExplorerSummary(rows: RegistryExplorerRow[] = REGISTRY_EXPLORER_ROWS): RegistryExplorerSummary {

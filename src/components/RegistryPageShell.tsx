@@ -57,10 +57,11 @@ function renderRegistryHeader(entry: RegistryCatalogEntry, currentRole: string, 
               : "bg-slate-50 text-slate-600 border-slate-200";
   const mandatoryStateClass = summary.mandatoryFieldLabel === "Mandatory field metadata unavailable"
     ? "bg-slate-50 text-slate-600 border-slate-200"
-    : summary.mandatoryFieldLabel === "Missing mandatory fields"
+    : summary.mandatoryFieldLabel.startsWith("Mandatory fields defined")
+      || summary.mandatoryFieldLabel.startsWith("Mandatory values missing")
       ? "bg-amber-50 text-amber-700 border-amber-100"
       : "bg-emerald-50 text-emerald-700 border-emerald-100";
-  const validationStateClass = summary.validationLabel === "Validation metadata unavailable"
+  const validationStateClass = summary.validationLabel === "Validation metadata not available from this source yet"
     ? "bg-slate-50 text-slate-600 border-slate-200"
     : summary.validationLabel === "Validation metadata available"
       ? "bg-blue-50 text-blue-700 border-blue-100"
@@ -213,7 +214,7 @@ function renderRegistryDetailSummary<T extends object>(row: T, definition: Gener
         <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200">
           <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Validation</span>
           <span className="text-[10px] font-black px-2 py-1 rounded-lg border bg-slate-50 text-slate-600 border-slate-200">
-            Validation metadata unavailable
+            Validation metadata not available from this source yet
           </span>
         </div>
       </div>
@@ -224,9 +225,9 @@ function renderRegistryDetailSummary<T extends object>(row: T, definition: Gener
   const missingFields = requiredFields.filter((field) => isGenericValueEmpty(getGenericFieldValue(row, field)));
   const validationIssues = getAllGenericRowIssues(row, definition);
   const validationRuleCount = requiredFields.length + (definition.getRowIssues ? 1 : 0);
-  const mandatoryLabel = missingFields.length === 0 ? "All mandatory fields available" : "Missing mandatory fields";
+  const mandatoryLabel = missingFields.length === 0 ? "Mandatory values available in live rows" : "Mandatory values missing in available rows";
   const validationLabel = validationIssues.length === 0
-    ? "No validation errors detected from available metadata"
+    ? "No validation issues detected from available metadata"
     : "Validation rules need review";
 
   return (
@@ -299,7 +300,7 @@ function renderRegistryDetailSummary<T extends object>(row: T, definition: Gener
             ))}
           </div>
         ) : (
-          <p>No validation errors detected from available metadata.</p>
+          <p>No validation issues detected from available metadata.</p>
         )}
       </div>
     </div>
@@ -353,22 +354,24 @@ export default function RegistryPageShell<T extends object>({
                 : "State unknown",
     mandatoryFieldLabel:
       requiredFieldCount > 0
-        ? "Mandatory metadata available"
+        ? rows.length === 0
+          ? "Mandatory fields defined, but no rows are available to validate."
+          : "Mandatory metadata available"
         : "Mandatory field metadata unavailable",
     validationLabel:
       requiredFieldCount > 0 || Boolean(definition.getRowIssues)
         ? "Validation metadata available"
-        : "Validation metadata unavailable",
+        : "Validation metadata not available from this source yet",
     guidance:
       sourceState === "Empty"
         ? `${entry.label} exists but has no rows yet.`
         : sourceState === "Missing"
-          ? `Connect or upload the ${entry.label} registry to use this page.`
+          ? `${entry.label} source is unavailable.`
           : sourceState === "Fallback"
             ? `This registry is showing fallback data. Reconnect the live source when ready.`
-            : sourceState === "Incomplete"
-              ? `This registry is missing mandatory fields needed for reliable dashboard use.`
-              : undefined,
+          : sourceState === "Incomplete"
+            ? "Mandatory fields defined, but row data is unavailable in this route."
+            : undefined,
   };
 
   const controls = {

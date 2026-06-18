@@ -107,11 +107,12 @@ function buildRegistryDetailSummary(
 ): RegistryDetailSummary {
   const requiredHeaders = row.requiredHeaders || [];
   const readiness = getRegistryReadiness(row, liveRows, schoolRegistry);
+  const sourceDisplayName = row.capabilityMetadata?.displayName || row.displayName;
   const validationMessages: string[] = [];
 
-  if (readiness === "Missing") {
+  if (requiredHeaders.length === 0) {
     validationMessages.push("Validation metadata not available from this source yet.");
-  } else if (requiredHeaders.length === 0) {
+  } else if (readiness === "Missing") {
     validationMessages.push("Validation metadata not available from this source yet.");
   }
 
@@ -123,19 +124,25 @@ function buildRegistryDetailSummary(
   const mandatoryFieldLabel =
     requiredHeaders.length === 0
       ? "Mandatory field metadata unavailable"
-      : readiness === "Ready" && missingFields.length === 0
-        ? "All mandatory fields available"
-        : readiness === "Ready" && missingFields.length > 0
-          ? "Missing mandatory fields"
-          : readiness === "Incomplete"
-            ? "Missing mandatory fields"
-            : "Mandatory field metadata unavailable";
+      : readiness === "Missing"
+        ? "Mandatory fields defined, but row data is unavailable in this route."
+        : readiness === "Empty"
+          ? "Mandatory fields defined, but no rows are available to validate."
+          : readiness === "Fallback"
+            ? "Mandatory fields defined, but fallback data is in use."
+              : readiness === "Incomplete"
+              ? "Mandatory values missing in available rows."
+              : readiness === "Ready" && missingFields.length === 0
+                ? "Mandatory values available in live rows"
+                : "Mandatory values missing in available rows.";
 
   const validationLabel =
-    readiness === "Ready" || readiness === "Incomplete"
-      ? requiredHeaders.length > 0
-        ? "Validation metadata available"
-        : "Validation metadata not available from this source yet"
+    requiredHeaders.length > 0
+      ? readiness === "Missing"
+        ? "Validation metadata not available from this source yet"
+        : readiness === "Incomplete"
+          ? "Validation rules need review"
+          : "Validation metadata available"
       : "Validation metadata not available from this source yet";
 
   const rowCount = liveRows.length;
@@ -155,16 +162,16 @@ function buildRegistryDetailSummary(
   if (readiness === "Incomplete" && missingFields.length > 0) {
     validationMessages.push(`Validation rules need review: ${missingFields.slice(0, 3).join(", ")}.`);
   } else if (readiness === "Ready" && requiredHeaders.length > 0 && missingFields.length === 0) {
-    validationMessages.push("No validation errors detected from available metadata.");
+    validationMessages.push("No validation issues detected from available metadata.");
   }
 
   let guidance: string | undefined;
   if (readiness === "Missing") {
-    guidance = `Connect or upload the ${row.displayName} registry to use this page.`;
+    guidance = `${sourceDisplayName} source is unavailable.`;
   } else if (readiness === "Empty") {
-    guidance = `${row.displayName} exists but has no rows.`;
+    guidance = `${sourceDisplayName} exists but has no rows.`;
   } else if (readiness === "Incomplete") {
-    guidance = "This registry is missing mandatory fields needed for reliable dashboard use.";
+    guidance = "Mandatory fields defined, but row data is unavailable in this route.";
   } else if (readiness === "Fallback") {
     guidance = "This registry is showing fallback/static data. Reconnect the live source before relying on it.";
   } else if (readiness === "Unknown") {
@@ -217,6 +224,7 @@ function RegistryDetailFallback({
   schoolRegistry?: SchoolRegistryState | null;
   onBackToExplorer: () => void;
 }) {
+  const sourceDisplayName = row.capabilityMetadata?.displayName || row.displayName;
   const definition = useMemo(() => {
     const baseDefinition = createRegistryExplorerEntityDefinition();
     return {
@@ -230,32 +238,49 @@ function RegistryDetailFallback({
 
   return (
     <div className="space-y-4 animate-fade-in">
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <button
-          type="button"
-          onClick={onBackToExplorer}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
-        >
-          <ArrowLeft size={12} /> Back to Registries
-        </button>
-        <span className="text-[10px] font-black px-2.5 py-1 rounded-lg bg-slate-50 text-slate-600 border border-slate-200">
-          Role: {currentRole}
-        </span>
-        {row.pageRoute && (
-          <a
-            href={row.pageRoute}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] font-bold text-blue-700 hover:bg-blue-100 cursor-pointer"
-          >
-            Open first-class page <ExternalLink size={12} />
-          </a>
-        )}
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <button
+              type="button"
+              onClick={onBackToExplorer}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+            >
+              <ArrowLeft size={12} /> Back to Registries
+            </button>
+            <div className="pt-1">
+              <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">
+                Universal Registry Route
+              </div>
+              <h2 className="text-sm font-extrabold text-slate-900 break-words">
+                {sourceDisplayName}
+              </h2>
+              <p className="text-[11px] text-slate-500 break-words">
+                Registry ID: {row.registryId} | /registries/{row.registryId}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-black px-2.5 py-1 rounded-lg bg-slate-50 text-slate-600 border border-slate-200">
+              Role: {currentRole}
+            </span>
+            {row.pageRoute && (
+              <a
+                href={row.pageRoute}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] font-bold text-blue-700 hover:bg-blue-100 cursor-pointer"
+              >
+                Open first-class page <ExternalLink size={12} />
+              </a>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <SummaryPill label="Rows" value={detailSummary.rowCountLabel} tone={detailSummary.sourceState === "Ready" ? "blue" : detailSummary.sourceState === "Empty" ? "slate" : detailSummary.sourceState === "Missing" ? "amber" : detailSummary.sourceState === "Incomplete" ? "orange" : detailSummary.sourceState === "Fallback" ? "violet" : "slate"} />
           <SummaryPill label="Source state" value={detailSummary.sourceState} tone={detailSummary.sourceState === "Ready" ? "emerald" : detailSummary.sourceState === "Empty" ? "slate" : detailSummary.sourceState === "Missing" ? "amber" : detailSummary.sourceState === "Incomplete" ? "orange" : detailSummary.sourceState === "Fallback" ? "violet" : "slate"} />
-          <SummaryPill label="Mandatory fields" value={detailSummary.mandatoryFieldLabel} tone={detailSummary.mandatoryFieldLabel === "All mandatory fields available" ? "emerald" : detailSummary.mandatoryFieldLabel === "Missing mandatory fields" ? "amber" : "slate"} />
+          <SummaryPill label="Mandatory fields" value={detailSummary.mandatoryFieldLabel} tone={detailSummary.mandatoryFieldLabel === "Mandatory values available in live rows" ? "emerald" : detailSummary.mandatoryFieldLabel === "Mandatory field metadata unavailable" ? "slate" : "amber"} />
           <SummaryPill label="Validation" value={detailSummary.validationLabel} tone={detailSummary.validationLabel === "Validation metadata available" ? "blue" : "slate"} />
         </div>
 
@@ -274,11 +299,11 @@ function RegistryDetailFallback({
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Mandatory Fields</span>
               <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${
-                detailSummary.mandatoryFieldLabel === "All mandatory fields available"
+                detailSummary.mandatoryFieldLabel === "Mandatory values available in live rows"
                   ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-                  : detailSummary.mandatoryFieldLabel === "Missing mandatory fields"
-                    ? "bg-amber-50 text-amber-700 border-amber-100"
-                    : "bg-slate-50 text-slate-600 border-slate-200"
+                  : detailSummary.mandatoryFieldLabel === "Mandatory field metadata unavailable"
+                    ? "bg-slate-50 text-slate-600 border-slate-200"
+                    : "bg-amber-50 text-amber-700 border-amber-100"
               }`}>
                 {detailSummary.mandatoryFieldLabel}
               </span>
@@ -337,14 +362,14 @@ function RegistryDetailFallback({
             </div>
             {detailSummary.validationMessages.length > 0 ? (
               <div className="space-y-1">
-                {detailSummary.validationMessages.map((message) => (
-                  <div key={message} className="rounded-lg border border-amber-100 bg-amber-50 px-2.5 py-2 text-[10.5px] font-semibold text-amber-800">
-                    {message}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p>No validation errors detected from available metadata.</p>
+            {detailSummary.validationMessages.map((message) => (
+                <div key={message} className="rounded-lg border border-amber-100 bg-amber-50 px-2.5 py-2 text-[10.5px] font-semibold text-amber-800">
+                  {message}
+                </div>
+              ))}
+            </div>
+          ) : (
+              <p>No validation issues detected from available metadata.</p>
             )}
           </div>
         </div>
@@ -354,14 +379,6 @@ function RegistryDetailFallback({
         definition={definition}
         row={row}
         onClearSelection={onBackToExplorer}
-        childrenAfterSections={
-          <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-xs text-slate-600 space-y-2">
-            <p className="font-semibold text-slate-700">Universal registry route</p>
-            <p>
-              This route exposes the registry metadata directly. Live row rendering stays on the existing first-class page when one is already available.
-            </p>
-          </div>
-        }
       />
     </div>
   );
@@ -381,11 +398,12 @@ export default function GenericRegistryDataPage({
   }
 
   if (!row) {
+    const sourceLabel = catalogEntry?.capabilityMetadata?.displayName || registryId;
     return (
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 space-y-1.5">
-        <div className="font-extrabold">Source unavailable</div>
+        <div className="font-extrabold">{sourceLabel} source is unavailable</div>
         <div>
-          Registry "{registryId}" is not mapped in the registry explorer catalog yet.
+          Use the first-class page when available. This registry detail route remains read-only.
         </div>
         <div className="text-[11px] text-amber-700">
           If this registry exists in the master capability catalog, it still needs source mapping before live rows can render here.
