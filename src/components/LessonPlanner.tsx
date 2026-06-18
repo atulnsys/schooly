@@ -738,6 +738,13 @@ export default function LessonPlanner({
   });
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const openResourceLibrary = () => {
+    if (typeof window !== "undefined") {
+      window.history.replaceState({}, "", "/resources?source=lesson-plans");
+    }
+
+    setActiveTab?.("resources");
+  };
   const [teacherFilter, setTeacherFilter] = useState("");
   const [classFilter, setClassFilter] = useState("");
   const [subjectFilter, setSubjectFilter] = useState("");
@@ -1845,7 +1852,7 @@ export default function LessonPlanner({
             {setActiveTab && (
               <button
                 type="button"
-                onClick={() => setActiveTab("resources")}
+                onClick={openResourceLibrary}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-[10.5px] font-bold text-white transition-colors hover:bg-white/20 cursor-pointer"
               >
                 <ExternalLink size={12} />

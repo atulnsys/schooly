@@ -611,8 +611,11 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const desiredPath = getPathnameFromRouteState(activeTab, activeTab === "registries" ? selectedRegistryId : null);
-    if (window.location.pathname !== desiredPath) {
+    const desiredPath =
+      getPathnameFromRouteState(activeTab, activeTab === "registries" ? selectedRegistryId : null) +
+      (activeTab === "resources" ? window.location.search : "");
+    const currentPath = `${window.location.pathname}${window.location.search}`;
+    if (currentPath !== desiredPath) {
       window.history.pushState({}, "", desiredPath);
     }
   }, [activeTab, selectedRegistryId]);

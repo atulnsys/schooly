@@ -16,6 +16,7 @@ export interface AcademicResourceRow {
   category: AcademicResourceCategory;
   audience: AcademicResourceAudience;
   sourceFamily: AcademicResourceSourceFamily;
+  sourceLabel: string;
   instructional: boolean;
   assessment: boolean;
   communication: boolean;
@@ -33,9 +34,17 @@ export interface AcademicResourceRow {
   source: string;
   sourceRegistryId?: string;
   sourceRoute?: string;
+  sourceRecordId?: string;
+  sourceAvailable: boolean;
+  sourceConfidence: "high" | "medium" | "low";
+  sourceNotes: string;
   driveUrl?: string;
   classroomUrl?: string;
   status: string;
+  evidenceType: string;
+  evidenceUrl?: string;
+  evidenceStatus: "mapped" | "review only" | "unavailable";
+  evidenceNotes: string;
   sqaaTags: string[];
   ncertTags: string[];
   cbseTags: string[];
@@ -119,6 +128,158 @@ function collectEvidenceTags(tags: string[], sourceText: string): {
   return { sqaaTags, cbseTags, ncertTags, evidenceTags };
 }
 
+function buildEvidenceTypeLabel(sqaaTags: string[], cbseTags: string[], ncertTags: string[], evidenceTags: string[]): string {
+  const evidenceParts = [
+    sqaaTags.length > 0 ? "SQAA" : "",
+    cbseTags.length > 0 ? "CBSE" : "",
+    ncertTags.length > 0 ? "NCERT" : "",
+  ].filter(Boolean);
+
+  if (evidenceParts.length > 0) {
+    return evidenceParts.join(" / ");
+  }
+
+  if (evidenceTags.length > 0) {
+    return "Evidence mapping";
+  }
+
+  return "None";
+}
+
+function buildEvidenceStatus(evidenceTags: string[], evidenceOriented: boolean): "mapped" | "review only" | "unavailable" {
+  if (evidenceTags.length > 0) return "mapped";
+  if (evidenceOriented) return "review only";
+  return "unavailable";
+}
+
+function buildSourceLabel(sourceFamily: AcademicResourceSourceFamily, sourceText: string, resourceTypeId: string, isLessonPlanArchive = false): string {
+  if (isLessonPlanArchive) return "Lesson Plan Archive";
+
+  if (
+    resourceTypeId === "assessment_bank" ||
+    resourceTypeId === "assessment_plan"
+  ) {
+    return "Assessment Plan";
+  }
+
+  if (resourceTypeId === "question_paper" || resourceTypeId === "quiz") {
+    return "Question Paper";
+  }
+
+  if (resourceTypeId === "parent_communication" || resourceTypeId === "parent_discussion") {
+    return "Parent Communication";
+  }
+
+  if (resourceTypeId === "remediation_enrichment") {
+    return "Remediation & Enrichment";
+  }
+
+  if (resourceTypeId === "evidence_map" || resourceTypeId === "sqaa_links" || resourceTypeId === "report_card_support") {
+    return "Registry Metadata";
+  }
+
+  if (
+    sourceText.includes("ncert") ||
+    sourceText.includes("textbook") ||
+    sourceText.includes("chapter resources")
+  ) {
+    return "Textbook / NCERT";
+  }
+
+  if (
+    sourceText.includes("lesson plan") ||
+    sourceText.includes("lessonplanner") ||
+    sourceText.includes("lesson workspace") ||
+    sourceText.includes("worksheet") ||
+    sourceText.includes("homework") ||
+    sourceText.includes("slides") ||
+    sourceText.includes("activity")
+  ) {
+    return "Lesson Workspace";
+  }
+
+  if (sourceText.includes("artifact")) {
+    return "Lesson Artifact";
+  }
+
+  if (sourceFamily === "Google Classroom") return "Google Classroom";
+  if (sourceFamily === "Google Drive") return "Workspace File";
+  if (sourceFamily === "Registry Explorer") return "Registry Metadata";
+
+  return "Workspace File";
+}
+
+function buildSourceNotes(sourceLabel: string, sourceFamily: AcademicResourceSourceFamily, hasLiveLink: boolean, isLessonPlanArchive = false): string {
+  if (isLessonPlanArchive) {
+    return "This row was restored from the saved lesson-plan archive and stays read-only in the resource library.";
+  }
+
+  if (sourceLabel === "Textbook / NCERT") {
+    return "This row is linked to NCERT/textbook context inferred from existing file metadata and remains read-only.";
+  }
+
+  if (sourceLabel === "Registry Metadata") {
+    return "This row is derived from registry-linked metadata and supports evidence tracing without writing back to the registry.";
+  }
+
+  if (sourceLabel === "Lesson Artifact") {
+    return "This row was inferred as a lesson artifact from existing source metadata and is shown read-only.";
+  }
+
+  if (sourceLabel === "Lesson Workspace") {
+    return "This row was inferred as a lesson workspace item from existing source metadata and is shown read-only.";
+  }
+
+  if (sourceLabel === "Assessment Plan" || sourceLabel === "Question Paper" || sourceLabel === "Parent Communication" || sourceLabel === "Remediation & Enrichment") {
+    return "This row was classified from existing planning metadata and is surfaced for review only.";
+  }
+
+  if (sourceFamily === "Google Classroom") {
+    return "This row is backed by Classroom metadata and can be reviewed without changing classroom data.";
+  }
+
+  if (hasLiveLink) {
+    return "This row is backed by a live workspace link and remains read-only in the resource library.";
+  }
+
+  return "This row is inferred from existing workspace metadata and stays read-only in the resource library.";
+}
+
+function buildSourceConfidence(sourceLabel: string, hasLiveLink: boolean, sourceFamily: AcademicResourceSourceFamily): "high" | "medium" | "low" {
+  if (hasLiveLink) return "high";
+  if (sourceLabel === "Workspace File" || sourceFamily === "unknown") return "low";
+  return "medium";
+}
+
+function buildSourceRegistryId(sourceLabel: string, sourceFamily: AcademicResourceSourceFamily): string | undefined {
+  if (sourceLabel === "Lesson Plan Archive") return "edu_classroom_review_plans";
+  if (sourceLabel === "Textbook / NCERT") return "ncertRegistryUrl";
+  if (sourceLabel === "Registry Metadata") return "qaSqaaRegistryUrl";
+  if (sourceLabel === "Assessment Plan" || sourceLabel === "Question Paper") return "assessmentResultRegistryUrl";
+  if (sourceLabel === "Google Classroom") return "classroomSyncRegistryUrl";
+  if (sourceLabel === "Lesson Workspace" || sourceLabel === "Lesson Artifact" || sourceLabel === "Parent Communication" || sourceLabel === "Remediation & Enrichment") {
+    return "lessonWorkspaceRegistryUrl";
+  }
+  if (sourceFamily === "Google Drive") return "workspace-files";
+  return "workspace-files";
+}
+
+function buildSourceRoute(sourceLabel: string, sourceFamily: AcademicResourceSourceFamily): string | undefined {
+  if (sourceLabel === "Lesson Plan Archive" || sourceLabel === "Lesson Workspace" || sourceLabel === "Lesson Artifact" || sourceLabel === "Parent Communication" || sourceLabel === "Remediation & Enrichment") {
+    return "/lesson-plans";
+  }
+  if (sourceLabel === "Textbook / NCERT") return "/textbooks";
+  if (sourceLabel === "Registry Metadata") return "/registries";
+  if (sourceLabel === "Assessment Plan" || sourceLabel === "Question Paper") return "/registries";
+  if (sourceLabel === "Google Classroom") return "/classroom";
+  if (sourceFamily === "Google Drive") return "/search";
+  return sourceFamily === "unknown" ? undefined : "/search";
+}
+
+function buildEvidenceUrl(driveUrl: string | undefined, classroomUrl: string | undefined, sourceRoute: string | undefined): string | undefined {
+  return driveUrl || classroomUrl || sourceRoute;
+}
+
 function candidateSourceFamily(file: WorkspaceFile, sourceText: string): AcademicResourceSourceFamily {
   if (normalizeText(file.source) === "classroom") return "Google Classroom";
   if (normalizeText(file.source) === "drive" || normalizeText(file.source) === "shared drive") return "Google Drive";
@@ -146,40 +307,6 @@ function candidateSourceFamily(file: WorkspaceFile, sourceText: string): Academi
 
   if (normalizeText(file.source) === "gmail") return "Google Drive";
   return "unknown";
-}
-
-function sourceRouteForFamily(sourceFamily: AcademicResourceSourceFamily): string | undefined {
-  switch (sourceFamily) {
-    case "LessonPlanner":
-      return "/lesson-plans";
-    case "TextbookIngestor":
-      return "/textbooks";
-    case "Registry Explorer":
-      return "/registries";
-    case "Google Classroom":
-      return "/classroom";
-    case "Google Drive":
-      return "/search";
-    default:
-      return "/search";
-  }
-}
-
-function sourceRegistryIdForFamily(sourceFamily: AcademicResourceSourceFamily): string | undefined {
-  switch (sourceFamily) {
-    case "LessonPlanner":
-      return "edu_classroom_review_plans";
-    case "TextbookIngestor":
-      return "ncert_textbook_resources";
-    case "Registry Explorer":
-      return "registry-explorer";
-    case "Google Classroom":
-      return "workspace-google-classroom";
-    case "Google Drive":
-      return "workspace-google-drive";
-    default:
-      return "workspace-files";
-  }
 }
 
 function shouldIncludeWorkspaceFile(file: WorkspaceFile): boolean {
@@ -225,6 +352,20 @@ function normalizeWorkspaceFile(file: WorkspaceFile): AcademicResourceRow | null
   const description = file.contentSum || file.path || "No additional description is available.";
   const tags = uniqueStrings(file.tags || []);
   const { sqaaTags, cbseTags, ncertTags, evidenceTags } = collectEvidenceTags(tags, sourceText);
+  const sourceLabel = buildSourceLabel(sourceFamily, sourceText, resourceType.id);
+  const sourceRoute = buildSourceRoute(sourceLabel, sourceFamily);
+  const sourceRegistryId = buildSourceRegistryId(sourceLabel, sourceFamily);
+  const sourceRecordId = String(file.id || "").trim() || undefined;
+  const sourceAvailable = Boolean(driveUrl || classroomUrl || sourceRoute);
+  const sourceConfidence = buildSourceConfidence(sourceLabel, Boolean(driveUrl || classroomUrl), sourceFamily);
+  const sourceNotes = buildSourceNotes(sourceLabel, sourceFamily, Boolean(driveUrl || classroomUrl));
+  const evidenceType = buildEvidenceTypeLabel(sqaaTags, cbseTags, ncertTags, evidenceTags);
+  const evidenceStatus = buildEvidenceStatus(evidenceTags, resourceType.evidenceOriented);
+  const evidenceUrl = buildEvidenceUrl(driveUrl, classroomUrl, sourceRoute);
+  const evidenceNotes =
+    evidenceTags.length > 0
+      ? "Evidence tags were inferred from existing metadata and should be treated as review-only."
+      : "Evidence tags are not available from this source yet.";
   const status = driveUrl
     ? "Linked"
     : file.topicName || file.chapterNumber || file.contentSum || tags.length
@@ -240,6 +381,7 @@ function normalizeWorkspaceFile(file: WorkspaceFile): AcademicResourceRow | null
     category: resourceType.category,
     audience: resourceType.audience,
     sourceFamily,
+    sourceLabel,
     instructional: resourceType.instructional,
     assessment: resourceType.assessment,
     communication: resourceType.communication,
@@ -252,11 +394,19 @@ function normalizeWorkspaceFile(file: WorkspaceFile): AcademicResourceRow | null
     subject: file.subjectName,
     chapter: file.topicName || (file.chapterNumber ? `Chapter ${file.chapterNumber}` : undefined),
     source: file.source,
-    sourceRegistryId: sourceRegistryIdForFamily(sourceFamily),
-    sourceRoute: sourceRouteForFamily(sourceFamily),
+    sourceRegistryId,
+    sourceRoute,
+    sourceRecordId,
+    sourceAvailable,
+    sourceConfidence,
+    sourceNotes,
     driveUrl,
     classroomUrl,
     status,
+    evidenceType,
+    evidenceUrl,
+    evidenceStatus,
+    evidenceNotes,
     sqaaTags,
     cbseTags,
     ncertTags,
@@ -313,6 +463,21 @@ function normalizeSavedLessonPlanRow(plan: Record<string, unknown>): AcademicRes
     tags,
     normalizeText([topicName, originalContent].join(" ")),
   );
+  const sourceFamily = "LessonPlanner";
+  const sourceLabel = buildSourceLabel(sourceFamily, normalizeText([topicName, originalContent].join(" ")), inferredType.id, true);
+  const sourceRoute = buildSourceRoute(sourceLabel, sourceFamily);
+  const sourceRegistryId = buildSourceRegistryId(sourceLabel, sourceFamily);
+  const sourceRecordId = String(plan.id || topicName || "").trim() || undefined;
+  const sourceAvailable = Boolean(driveUrl || sourceRoute);
+  const sourceConfidence = buildSourceConfidence(sourceLabel, Boolean(driveUrl), sourceFamily);
+  const sourceNotes = buildSourceNotes(sourceLabel, sourceFamily, Boolean(driveUrl), true);
+  const evidenceType = buildEvidenceTypeLabel(sqaaTags, cbseTags, ncertTags, evidenceTags);
+  const evidenceStatus = buildEvidenceStatus(evidenceTags, inferredType.evidenceOriented);
+  const evidenceUrl = buildEvidenceUrl(driveUrl, undefined, sourceRoute);
+  const evidenceNotes =
+    evidenceTags.length > 0
+      ? "Evidence tags were inferred from the archive metadata and should be treated as review-only."
+      : "Evidence tags are not available from this source yet.";
   const status = driveUrl
     ? "Linked"
     : String(plan.reviewStatus || "").trim()
@@ -327,7 +492,8 @@ function normalizeSavedLessonPlanRow(plan: Record<string, unknown>): AcademicRes
     description: originalContent || String(plan.reviewComments || "No additional description is available."),
     category: inferredType.category,
     audience: inferredType.audience,
-    sourceFamily: "LessonPlanner",
+    sourceFamily,
+    sourceLabel,
     instructional: inferredType.instructional,
     assessment: inferredType.assessment,
     communication: inferredType.communication,
@@ -342,11 +508,19 @@ function normalizeSavedLessonPlanRow(plan: Record<string, unknown>): AcademicRes
     lessonPlanId: String(plan.id || topicName || ""),
     lessonPlanTitle: topicName || undefined,
     source: "LessonPlanner archive",
-    sourceRegistryId: "edu_classroom_review_plans",
-    sourceRoute: "/lesson-plans",
+    sourceRegistryId,
+    sourceRoute,
+    sourceRecordId,
+    sourceAvailable,
+    sourceConfidence,
+    sourceNotes,
     driveUrl,
     classroomUrl: undefined,
     status,
+    evidenceType,
+    evidenceUrl,
+    evidenceStatus,
+    evidenceNotes,
     sqaaTags,
     cbseTags,
     ncertTags,
@@ -411,4 +585,3 @@ export function summarizeAcademicResourceRows(rows: AcademicResourceRow[] = []):
     sourceUnavailableOrMetadataOnly: rows.filter((row) => row.sourceUnavailable || row.isMetadataOnly).length,
   };
 }
-

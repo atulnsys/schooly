@@ -1470,6 +1470,55 @@ Lesson Plans stays a custom list/detail workspace instead of moving into the gen
 
 ## Commit SHA
 
+* `a752086`
+
+---
+
+# Academic Resources - Source Mapping and SQAA Evidence Links
+
+## Scope
+
+This cycle strengthens the `/resources` read-only surface with richer source mapping and SQAA / CBSE / NCERT evidence links while keeping Lesson Plans and NCERT Textbooks specialized.
+
+## What Was Refined
+
+* The academic resource rows now carry richer source metadata: source label, source record ID, source availability, source confidence, and source notes.
+* The academic resource rows now carry richer evidence metadata: evidence type, evidence URL, evidence status, and evidence notes.
+* The selected-resource detail view now surfaces the richer source/evidence context alongside the existing generic detail fields.
+* The resource list subtitle now leans on the more specific source context instead of only the broad source family.
+* Lesson Plans and Textbook Ingestor now open `/resources` with a lightweight source hint in the URL.
+
+## Data Source
+
+* Existing `WorkspaceFile` rows from Search-backed workspace data.
+* Existing saved lesson-plan archive rows from local storage.
+* No backend, mock data, or registry write path was added.
+
+## Behavior Preserved
+
+* Lesson Plans remains a custom list/detail workspace.
+* NCERT Textbooks remains a custom ingestion and audit workspace.
+* `/lesson-plans` and `/textbooks` still use their existing workflows.
+* The resource page remains read-only.
+
+## Tracker Notes
+
+* `/resources` direct route: still works.
+* Source mapping: now shows source label, source record ID, source registry ID, source route, and source confidence.
+* Evidence display: now shows SQAA / CBSE / NCERT / mapping tags plus evidence type, evidence URL, and evidence notes.
+* Evidence-unavailable message: now uses the explicit `Evidence tags are not available from this source yet.` text.
+* Lesson Plans and NCERT Textbooks drill-in: now pass a lightweight `source` hint when opening `/resources`.
+* Browser smoke: verified locally on `/resources`, `/lesson-plans`, and `/textbooks`; the page loaded, the resource table rendered, a selected row exposed the new source/evidence metadata, and the lesson/textbook entry buttons preserved the `/resources?source=...` handoff.
+* Browser smoke note: the environment still blocks some external fetches such as Google Fonts and Google Sheets JSON reads, so the console showed network-access-denied noise that is unrelated to this change.
+
+## Verification Result
+
+* `npx tsc --noEmit --pretty false` succeeded.
+* `npm run build` succeeded with the existing Vite chunk-size warning only.
+* Browser smoke completed locally with the environment-specific external fetch noise noted above.
+
+## Commit SHA
+
 * `pending`
 
 ---

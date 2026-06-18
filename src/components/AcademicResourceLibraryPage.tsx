@@ -20,13 +20,49 @@ interface AcademicResourceLibraryPageProps {
 type ResourceStatusFilter = "all" | "linked" | "metadata" | "sourceUnavailable" | "evidenceMapped";
 type ResourceSourceFilter = "all" | AcademicResourceSourceFamily;
 
+function getResourceFilterPresetFromLocation(): {
+  sourceFilter: ResourceSourceFilter;
+  statusFilter: ResourceStatusFilter;
+} {
+  if (typeof window === "undefined") {
+    return { sourceFilter: "all", statusFilter: "all" };
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const sourceParam = params.get("source");
+  const statusParam = params.get("status");
+
+  const sourceFilterMap: Record<string, AcademicResourceSourceFamily> = {
+    "lesson-plans": "LessonPlanner",
+    textbooks: "TextbookIngestor",
+    classroom: "Google Classroom",
+    drive: "Google Drive",
+    registry: "Registry Explorer",
+    unknown: "unknown",
+  };
+
+  const sourceFilter = sourceParam && sourceFilterMap[sourceParam.toLowerCase()]
+    ? sourceFilterMap[sourceParam.toLowerCase()]
+    : "all";
+
+  const statusFilter =
+    statusParam === "linked" ||
+    statusParam === "metadata" ||
+    statusParam === "sourceUnavailable" ||
+    statusParam === "evidenceMapped"
+      ? (statusParam as ResourceStatusFilter)
+      : "all";
+
+  return { sourceFilter, statusFilter };
+}
+
 const SOURCE_FAMILY_LABELS: Record<AcademicResourceSourceFamily, string> = {
-  LessonPlanner: "Lesson Planner",
-  TextbookIngestor: "Textbook Ingestor",
-  "Google Drive": "Google Drive",
+  LessonPlanner: "Lesson Workspace",
+  TextbookIngestor: "Textbook / NCERT",
+  "Google Drive": "Workspace File",
   "Google Classroom": "Google Classroom",
-  "Registry Explorer": "Registry Explorer",
-  unknown: "Unknown",
+  "Registry Explorer": "Registry Metadata",
+  unknown: "Unknown / Source unavailable",
 };
 
 const STATUS_FILTER_LABELS: Record<ResourceStatusFilter, string> = {
@@ -46,7 +82,7 @@ function buildResourceStatusFilter(row: AcademicResourceRow): ResourceStatusFilt
 
   if (row.status === "Linked") filters.push("linked");
   if (row.isMetadataOnly) filters.push("metadata");
-  if (row.sourceUnavailable) filters.push("sourceUnavailable");
+  if (row.sourceUnavailable || !row.sourceAvailable) filters.push("sourceUnavailable");
   if (countEvidenceSignals(row) > 0) filters.push("evidenceMapped");
 
   return filters;
@@ -113,7 +149,7 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
   getId: (row) => row.id,
   getTitle: (row) => row.title,
   getSubtitle: (row) =>
-    [row.resourceTypeLabel, SOURCE_FAMILY_LABELS[row.sourceFamily], row.status]
+    [row.resourceTypeLabel, row.sourceLabel, row.status]
       .filter(Boolean)
       .join(" / "),
   getSummary: (row) => row.description,
@@ -144,7 +180,7 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
     if (row.evidenceOriented && countEvidenceSignals(row) === 0) {
       issues.push({
         id: `evidence-missing-${row.id}`,
-        message: "No SQAA, CBSE, or NCERT evidence tags were detected for this item.",
+        message: "Evidence tags are not available from this source yet.",
         severity: "warning" as const,
       });
     }
@@ -213,6 +249,16 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
       searchable: true,
       filterable: true,
       sortable: true,
+    },
+    {
+      key: "sourceLabel",
+      label: "Source Context",
+      type: "badge",
+      listVisible: true,
+      detailVisible: true,
+      sortable: true,
+      renderListValue: (row) => row.sourceLabel,
+      renderDetailValue: (row) => row.sourceLabel,
     },
     {
       key: "className",
@@ -288,6 +334,41 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
       searchable: true,
     },
     {
+      key: "sourceRecordId",
+      label: "Source Record ID",
+      type: "text",
+      listVisible: false,
+      detailVisible: true,
+      searchable: true,
+    },
+    {
+      key: "sourceAvailable",
+      label: "Source Available",
+      type: "boolean",
+      listVisible: false,
+      detailVisible: true,
+    },
+    {
+      key: "sourceConfidence",
+      label: "Source Confidence",
+      type: "badge",
+      listVisible: false,
+      detailVisible: true,
+      renderDetailValue: (row) => row.sourceConfidence,
+      getBadgeVariant: (row) => {
+        if (row.sourceConfidence === "high") return "success";
+        if (row.sourceConfidence === "medium") return "warning";
+        return "danger";
+      },
+    },
+    {
+      key: "sourceNotes",
+      label: "Source Notes",
+      type: "longText",
+      listVisible: false,
+      detailVisible: true,
+    },
+    {
       key: "lessonPlanTitle",
       label: "Lesson Plan",
       type: "text",
@@ -336,6 +417,34 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
       getFilterValues: (row) => row.ncertTags,
     },
     {
+      key: "evidenceType",
+      label: "Evidence Type",
+      type: "badge",
+      listVisible: false,
+      detailVisible: true,
+      renderDetailValue: (row) => row.evidenceType,
+    },
+    {
+      key: "evidenceStatus",
+      label: "Evidence Status",
+      type: "badge",
+      listVisible: false,
+      detailVisible: true,
+      renderDetailValue: (row) => row.evidenceStatus,
+      getBadgeVariant: (row) => {
+        if (row.evidenceStatus === "mapped") return "success";
+        if (row.evidenceStatus === "review only") return "warning";
+        return "danger";
+      },
+    },
+    {
+      key: "evidenceUrl",
+      label: "Evidence Link",
+      type: "link",
+      listVisible: false,
+      detailVisible: true,
+    },
+    {
       key: "evidenceTags",
       label: "Evidence Tags",
       type: "tags",
@@ -344,6 +453,13 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
       searchable: true,
       filterable: true,
       getFilterValues: (row) => row.evidenceTags,
+    },
+    {
+      key: "evidenceNotes",
+      label: "Evidence Notes",
+      type: "longText",
+      listVisible: false,
+      detailVisible: true,
     },
     {
       key: "driveUrl",
@@ -365,25 +481,25 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
       id: "resource-summary",
       title: "Resource Summary",
       description: "Type, source, and status for the selected resource.",
-      fields: ["resourceTypeLabel", "category", "status", "sourceFamily", "source", "sourceRoute", "sourceRegistryId"],
+      fields: ["resourceTypeLabel", "category", "status", "sourceFamily", "sourceLabel", "sourceAvailable", "sourceConfidence", "source", "sourceRoute", "sourceRegistryId", "sourceRecordId"],
     },
     {
       id: "lesson-context",
-      title: "Lesson Context",
-      description: "Class, subject, chapter, and source lesson-plan linkage.",
+      title: "Academic Context",
+      description: "Class, subject, chapter, and source linkage from the academic workspace.",
       fields: ["className", "subject", "chapter", "lessonPlanTitle", "updatedAt"],
     },
     {
       id: "source-notes",
       title: "Source Notes",
       description: "Ownership, sharing, and location metadata that already exists in the workspace.",
-      fields: ["owner", "sharingRule", "tags", "driveUrl", "classroomUrl"],
+      fields: ["owner", "sharingRule", "sourceNotes", "tags", "driveUrl", "classroomUrl"],
     },
     {
       id: "evidence-map",
       title: "Evidence Map",
       description: "SQAA, CBSE, NCERT, and mapping tags surfaced from the underlying source.",
-      fields: ["sqaaTags", "cbseTags", "ncertTags", "evidenceTags"],
+      fields: ["evidenceType", "evidenceStatus", "evidenceUrl", "sqaaTags", "cbseTags", "ncertTags", "evidenceTags", "evidenceNotes"],
     },
   ],
   actions: [
@@ -425,14 +541,15 @@ export default function AcademicResourceLibraryPage({
   currentRole,
   setActiveTab,
 }: AcademicResourceLibraryPageProps) {
+  const initialFilterPreset = useMemo(() => getResourceFilterPresetFromLocation(), []);
   const savedLessonPlanArchiveRows = useMemo(() => loadSavedLessonPlanArchiveRows(), []);
   const resourceRows = useMemo(
     () => buildAcademicResourceRows(files, savedLessonPlanArchiveRows),
     [files, savedLessonPlanArchiveRows],
   );
 
-  const [sourceFilter, setSourceFilter] = useState<ResourceSourceFilter>("all");
-  const [statusFilter, setStatusFilter] = useState<ResourceStatusFilter>("all");
+  const [sourceFilter, setSourceFilter] = useState<ResourceSourceFilter>(initialFilterPreset.sourceFilter);
+  const [statusFilter, setStatusFilter] = useState<ResourceStatusFilter>(initialFilterPreset.statusFilter);
 
   const rowsAfterSourceFilter = useMemo(() => {
     return resourceRows.filter((row) => {
@@ -509,10 +626,16 @@ export default function AcademicResourceLibraryPage({
       </p>
       <div className="flex flex-wrap gap-2">
         <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-600">
+          Source label: {row.sourceLabel}
+        </span>
+        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-600">
           Source family: {SOURCE_FAMILY_LABELS[row.sourceFamily]}
         </span>
         <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-600">
           Status: {row.status}
+        </span>
+        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-600">
+          Confidence: {row.sourceConfidence}
         </span>
         <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-600">
           Evidence signals: {countEvidenceSignals(row)}
@@ -545,6 +668,9 @@ export default function AcademicResourceLibraryPage({
       <p>
         These tags are inferred from existing metadata only. Use the detail actions to open the source surface,
         Drive file, or Classroom copy when those links are available.
+      </p>
+      <p className="text-[10px] text-slate-500">
+        {row.evidenceNotes}
       </p>
     </div>
   );
