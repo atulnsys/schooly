@@ -1596,6 +1596,73 @@ This follow-up cleanup removes the separate `Registers` sidebar section, keeps `
 
 ---
 
+# Sidebar Footer - Compact Collapsible Connection Cards
+
+## What Was Compacted
+
+* The lower sidebar connection/status area now renders as a compact summary strip by default.
+* The previous always-expanded footer content is now behind a `Show details` / `Hide details` toggle.
+
+## Visible By Default
+
+* Current role, such as `Principal`.
+* Workspace connection state, such as `Workspace connected` or `Needs setup`.
+* Google Sheets state, such as `Sheets connected` or `Sheets not connected`.
+
+## Expanded Details
+
+* Workspace link / connection URL.
+* Google Sheets write-access state and write-account text.
+* `Configure Workspace Link`.
+* `Test Connection`.
+* Existing connection-test message block.
+* Role details and current operator information.
+* Deployment version and status text.
+
+## Behavior Preserved
+
+* `Configure Workspace Link` still opens the same modal.
+* `Test Connection` still uses the existing connection test handler.
+* Long URLs and status text are truncated or wrapped so they do not widen the sidebar.
+
+## Local State Decision
+
+* Expanded / collapsed state is kept in component state only.
+* The footer is collapsed by default for a lighter sidebar.
+
+## Routes Preserved
+
+* `/`
+* `/search`
+* `/lesson-plans`
+* `/resources`
+* `/classroom`
+* `/students`
+* `/courses`
+* `/assignments`
+* `/staff`
+* `/teachers`
+* `/registries`
+* `/registers`
+* `/textbooks`
+* `/settings`
+
+## Verification Result
+
+* `npx tsc --noEmit --pretty false` pending.
+* `npm run build` pending.
+* Browser smoke pending.
+
+## UI Smoke Notes
+
+* Pending local browser verification.
+
+## Commit SHA
+
+* Pending
+
+---
+
 # Lesson Resources - Academic Resource Library
 
 ## Scope

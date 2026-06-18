@@ -55,7 +55,8 @@ import {
   LayoutGrid,
   Users,
   UserCheck,
-  Settings
+  Settings,
+  ChevronDown
 } from "lucide-react";
 import {
   loadActiveMetadata,
@@ -494,6 +495,7 @@ export default function App() {
       return true;
     }
   });
+  const [sidebarConnectionDetailsOpen, setSidebarConnectionDetailsOpen] = useState(false);
 
   // Concurrent Multi-Roles selection states to enable combined governance capabilities
   const [activeRoles, setActiveRoles] = useState<string[]>(["Principal"]);
@@ -1418,135 +1420,165 @@ export default function App() {
         </div>
 
         {/* Sidebar Footer segment */}
-        <div className="pt-4 border-t border-slate-150 space-y-3 font-mono">
-          {/* Workspace connection status */}
-          <div className="bg-slate-50 border border-slate-150 p-2.5 rounded-2xl font-sans text-[11px] space-y-2">
-            <div className="flex items-center justify-between text-[8px] font-mono font-bold text-slate-400 block uppercase tracking-wider">
-              <span>Google Workspace Connection</span>
-              <span className={`w-2 h-2 rounded-full ${workspaceUrl ? "bg-emerald-500" : "bg-amber-400"}`}></span>
-            </div>
-            <div className="space-y-1.5 font-sans">
-              <p className="text-[10px] text-slate-450 leading-relaxed font-semibold">
-                Schooly uses the configured Workspace link for live registry checks. Google Sheets write access is managed in the onboarding wizard.
-              </p>
-              <div className="flex items-center gap-1.5 text-[10px]">
-                <Link size={11} className="shrink-0 text-blue-600" />
-                {workspaceUrl ? (
-                  <span className="truncate max-w-[180px] text-slate-700 font-semibold" title={workspaceUrl}>{workspaceUrl}</span>
-                ) : (
-                  <span className="text-amber-700 font-bold">No Workspace Link Configured</span>
-                )}
+        <div className="pt-4 border-t border-slate-150 font-mono">
+          <div className="rounded-2xl border border-slate-150 bg-slate-50 px-3 py-2.5 font-sans shadow-sm space-y-2">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[8.5px] font-mono font-bold text-slate-400 uppercase tracking-wider">Connection summary</div>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-bold text-slate-700">
+                    Role: {currentRole || "Not set"}
+                  </span>
+                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-bold ${workspaceUrl ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
+                    {workspaceUrl ? "Workspace connected" : "Needs setup"}
+                  </span>
+                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-bold ${googleWorkspaceAuthState.connected ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
+                    {googleWorkspaceAuthState.connected ? "Sheets connected" : "Sheets not connected"}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 bg-white px-2 py-1">
-                <span className="text-[9px] uppercase font-mono font-black text-slate-400">Google Sheets write access</span>
-                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${googleWorkspaceAuthState.connected ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                  {googleWorkspaceAuthState.connected ? "Connected" : "Not connected"}
-                </span>
-              </div>
-              <div className="text-[9px] text-slate-500 font-mono space-y-0.5">
-                <div>Local Schooly role: {currentRole}</div>
-                <div>Google Sheets write account: {googleWorkspaceAuthState.connected ? "Connected account unavailable" : "Not connected"}</div>
-              </div>
+
               <button
                 type="button"
-                onClick={() => setShowUrlModal(true)}
-                className="w-full py-1.5 border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-xl text-[10px] font-bold font-sans transition-all text-center cursor-pointer"
+                onClick={() => setSidebarConnectionDetailsOpen((open) => !open)}
+                className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                aria-expanded={sidebarConnectionDetailsOpen}
+                aria-controls="sidebar-connection-details"
               >
-                Configure Workspace Link
+                <span>{sidebarConnectionDetailsOpen ? "Hide details" : "Show details"}</span>
+                <ChevronDown size={11} className={`transition-transform ${sidebarConnectionDetailsOpen ? "rotate-180" : ""}`} />
               </button>
             </div>
-          </div>
 
-          <div className="space-y-1 text-[11px] text-slate-450">
-            <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5 mb-1.5">
-              <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider block">Local Schooly role</span>
-              <span className="text-[9px] text-slate-500 font-bold px-1.5 py-0.5 bg-slate-50 border border-slate-150 rounded-md font-mono uppercase shrink-0">
-                {currentRole.split(' ')[0]}
-              </span>
-            </div>
-            <div className="font-semibold text-slate-650 truncate text-[10.5px]" title={currentUser}>Local Schooly operator</div>
-            <div className="text-[9px] text-slate-400 italic flex items-center gap-1">
-              <span>Google Sheets write access: {googleWorkspaceAuthState.connected ? "Connected" : "Not connected"}</span>
-              {schemaDrivenRendering && (
-                <span className="text-[8.5px] text-blue-600 bg-blue-50 px-1 py-0.2 rounded-sm border border-blue-105 font-mono">META</span>
-              )}
-            </div>
-            <div className="text-[9px] text-slate-500 font-mono">Google Sheets write account: {googleWorkspaceAuthState.connected ? "Connected account unavailable" : "Not connected"}</div>
-          </div>
-
-          {/* Workspace URL link status info */}
-          <div className="text-[10px] space-y-1.5 bg-slate-50 border border-slate-150 p-2 rounded-2xl font-sans" id="workspace-url-indicator">
-            <span className="text-[8.5px] font-mono font-bold text-slate-400 block uppercase tracking-wider">Workspace Connection Link</span>
-            {workspaceUrl ? (
-              <div className="flex items-center gap-1.5 text-blue-700 font-semibold">
-                <Link size={11} className="shrink-0" />
-                <span className="truncate max-w-[170px]" title={workspaceUrl}>{workspaceUrl}</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 text-amber-600 font-bold">
-                <AlertCircle size={11} className="shrink-0 animate-pulse" />
-                <span>No Workspace Link Configured</span>
-              </div>
-            )}
-
-            {workspaceUrl && (
-              <div className="pt-1.5 border-t border-slate-150/60 space-y-1.5">
-                <button
-                  type="button"
-                  disabled={isTestingConnection}
-                  onClick={() => handleTestConnection(workspaceUrl)}
-                  className={`w-full py-1 px-2 rounded-lg text-[8.5px] font-bold font-mono uppercase tracking-wider text-center cursor-pointer transition-all flex items-center justify-center gap-1 border ${
-                    isTestingConnection
-                      ? 'bg-slate-100 border-slate-200 text-slate-450'
-                      : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-250'
-                  }`}
-                  id="sidebar-test-connection-btn"
-                >
-                  <RefreshCw size={9} className={`${isTestingConnection ? "animate-spin text-blue-500" : "text-blue-600"}`} />
-                  <span>{isTestingConnection ? "Checking Access..." : "Test Connection"}</span>
-                </button>
-
-                {connectionTestResult && (
-                  <div className={`p-1.5 rounded-lg text-[8.5px] leading-relaxed border animate-fade-in ${
-                    connectionTestResult.success
-                      ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950 font-medium text-left'
-                      : 'bg-amber-50/70 border-amber-200 text-amber-955 font-medium text-left'
-                  }`} id="sidebar-connection-test-result">
-                    <p className="font-extrabold text-[8px] uppercase tracking-wider font-mono mb-0.5 flex items-center gap-1 leading-none">
-                      {connectionTestResult.success ? (
-                        <>
-                          <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block animate-ping"></span>
-                          <span className="text-emerald-700">Verified</span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="w-1.5 h-1.5 bg-amber-500 rounded-full inline-block"></span>
-                          <span className="text-amber-700">Status Alert</span>
-                        </>
-                      )}
-                    </p>
-                    <span className="font-sans block text-left leading-normal text-slate-650">{connectionTestResult.message}</span>
+            {sidebarConnectionDetailsOpen && (
+              <div id="sidebar-connection-details" className="space-y-2 border-t border-slate-200 pt-2">
+                <div className="rounded-xl border border-slate-150 bg-white p-2.5 text-[10px] space-y-2">
+                  <div className="flex items-center justify-between gap-2 text-[8.5px] font-mono font-bold text-slate-400 uppercase tracking-wider">
+                    <span>Google Workspace Connection</span>
+                    <span className={`w-2 h-2 rounded-full ${workspaceUrl ? "bg-emerald-500" : "bg-amber-400"}`} />
                   </div>
-                )}
+                  <p className="text-[10px] text-slate-500 leading-relaxed font-semibold">
+                    Schooly uses the configured Workspace link for live registry checks. Google Sheets write access is managed in the onboarding wizard.
+                  </p>
+                  <div className="flex items-center gap-1.5 text-[10px] min-w-0">
+                    <Link size={11} className="shrink-0 text-blue-600" />
+                    {workspaceUrl ? (
+                      <span className="min-w-0 truncate max-w-full text-slate-700 font-semibold" title={workspaceUrl}>{workspaceUrl}</span>
+                    ) : (
+                      <span className="text-amber-700 font-bold">No Workspace Link Configured</span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 bg-slate-50 px-2 py-1">
+                    <span className="text-[9px] uppercase font-mono font-black text-slate-400">Google Sheets write access</span>
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${googleWorkspaceAuthState.connected ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                      {googleWorkspaceAuthState.connected ? "Connected" : "Not connected"}
+                    </span>
+                  </div>
+                  <div className="text-[9px] text-slate-500 font-mono space-y-0.5">
+                    <div>Local Schooly role: {currentRole || "Not set"}</div>
+                    <div>Google Sheets write account: {googleWorkspaceAuthState.connected ? "Connected account unavailable" : "Not connected"}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowUrlModal(true)}
+                    className="w-full py-1.5 border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-xl text-[10px] font-bold font-sans transition-all text-center cursor-pointer"
+                  >
+                    Configure Workspace Link
+                  </button>
+                </div>
+
+                <div className="rounded-xl border border-slate-150 bg-white p-2.5 text-[10px] space-y-1.5">
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5">
+                    <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider block">Local Schooly role</span>
+                    <span className="text-[9px] text-slate-500 font-bold px-1.5 py-0.5 bg-slate-50 border border-slate-150 rounded-md font-mono uppercase shrink-0">
+                      {(currentRole || "Not set").split(" ")[0]}
+                    </span>
+                  </div>
+                  <div className="font-semibold text-slate-650 truncate text-[10.5px]" title={currentUser}>Local Schooly operator</div>
+                  <div className="text-[9px] text-slate-400 italic flex items-center gap-1 min-w-0">
+                    <span className="min-w-0 truncate">Google Sheets write access: {googleWorkspaceAuthState.connected ? "Connected" : "Not connected"}</span>
+                    {schemaDrivenRendering && (
+                      <span className="shrink-0 text-[8.5px] text-blue-600 bg-blue-50 px-1 py-0.2 rounded-sm border border-blue-105 font-mono">META</span>
+                    )}
+                  </div>
+                  <div className="text-[9px] text-slate-500 font-mono break-words">Google Sheets write account: {googleWorkspaceAuthState.connected ? "Connected account unavailable" : "Not connected"}</div>
+                </div>
+
+                <div className="rounded-xl border border-slate-150 bg-white p-2.5 text-[10px] space-y-1.5" id="workspace-url-indicator">
+                  <span className="text-[8.5px] font-mono font-bold text-slate-400 block uppercase tracking-wider">Workspace Connection Link</span>
+                  {workspaceUrl ? (
+                    <div className="flex items-center gap-1.5 text-blue-700 font-semibold min-w-0">
+                      <Link size={11} className="shrink-0" />
+                      <span className="min-w-0 truncate max-w-full" title={workspaceUrl}>{workspaceUrl}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 text-amber-600 font-bold">
+                      <AlertCircle size={11} className="shrink-0 animate-pulse" />
+                      <span>No Workspace Link Configured</span>
+                    </div>
+                  )}
+
+                  {workspaceUrl && (
+                    <div className="pt-1.5 border-t border-slate-150/60 space-y-1.5">
+                      <button
+                        type="button"
+                        disabled={isTestingConnection}
+                        onClick={() => handleTestConnection(workspaceUrl)}
+                        className={`w-full py-1 px-2 rounded-lg text-[8.5px] font-bold font-mono uppercase tracking-wider text-center cursor-pointer transition-all flex items-center justify-center gap-1 border ${
+                          isTestingConnection
+                            ? 'bg-slate-100 border-slate-200 text-slate-450'
+                            : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-250'
+                        }`}
+                        id="sidebar-test-connection-btn"
+                      >
+                        <RefreshCw size={9} className={`${isTestingConnection ? "animate-spin text-blue-500" : "text-blue-600"}`} />
+                        <span>{isTestingConnection ? "Checking Access..." : "Test Connection"}</span>
+                      </button>
+
+                      {connectionTestResult && (
+                        <div className={`p-1.5 rounded-lg text-[8.5px] leading-relaxed border animate-fade-in ${
+                          connectionTestResult.success
+                            ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950 font-medium text-left'
+                            : 'bg-amber-50/70 border-amber-200 text-amber-955 font-medium text-left'
+                        }`} id="sidebar-connection-test-result">
+                          <p className="font-extrabold text-[8px] uppercase tracking-wider font-mono mb-0.5 flex items-center gap-1 leading-none">
+                            {connectionTestResult.success ? (
+                              <>
+                                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block animate-ping"></span>
+                                <span className="text-emerald-700">Verified</span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="w-1.5 h-1.5 bg-amber-500 rounded-full inline-block"></span>
+                                <span className="text-amber-700">Status Alert</span>
+                              </>
+                            )}
+                          </p>
+                          <span className="font-sans block text-left leading-normal text-slate-650 break-words">{connectionTestResult.message}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempUrl(workspaceUrl);
+                      setTempGeminiKey(geminiApiKey);
+                      setShowUrlModal(true);
+                    }}
+                    className="text-[9px] font-extrabold text-slate-500 hover:text-blue-600 flex items-center gap-1 pt-1.5 hover:underline transition-all cursor-pointer border-t border-slate-150/60 w-full text-left"
+                  >
+                    {workspaceUrl ? "Modify Connection Link" : "Configure Connection Link"}
+                  </button>
+                </div>
+
+                <div className="text-[10px] text-slate-400 space-y-0.5 border-t border-slate-100/60 pt-2 pb-0.5 font-sans font-medium">
+                  <div>Deployment Version: 1.0.4</div>
+                  <div>Status: Sys OK</div>
+                </div>
               </div>
             )}
-
-            <button
-              type="button"
-              onClick={() => {
-                setTempUrl(workspaceUrl);
-                setTempGeminiKey(geminiApiKey);
-                setShowUrlModal(true);
-              }}
-              className="text-[9px] font-extrabold text-slate-500 hover:text-blue-600 flex items-center gap-1 pt-1.5 hover:underline transition-all cursor-pointer border-t border-slate-150/60 w-full text-left"
-            >
-              {workspaceUrl ? "Modify Connection Link" : "Configure Connection Link"}
-            </button>
-          </div>
-
-          <div className="text-[10px] text-slate-400 space-y-0.5 border-t border-slate-100/60 pt-2 pb-0.5 font-sans font-medium">
-            <div>Deployment Version: 1.0.4</div>
-            <div>Status: Sys OK</div>
           </div>
         </div>
       </aside>
