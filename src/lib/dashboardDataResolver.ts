@@ -487,14 +487,14 @@ function setupMessagesFromStatuses(statuses: DashboardRegistrySourceStatus[]): s
   const messages: string[] = [];
   const byKey = Object.fromEntries(statuses.map((status) => [status.key, status]));
   if ((byKey.masterDataRegistryUrl?.rowCount || 0) === 0) {
-    messages.push("No live class/section rows found.");
-    messages.push("No teacher allocation rows found.");
+    messages.push("Master Registry has no live class section rows.");
+    messages.push("Master Registry has no live teacher allocation rows.");
   }
-  if ((byKey.dashboardDataSourceUrl?.rowCount || 0) === 0) messages.push("No dashboard KPI source rows found.");
-  if ((byKey.lessonWorkspaceRegistryUrl?.rowCount || 0) === 0) messages.push("No lesson workspace rows found.");
-  if ((byKey.qaSqaaRegistryUrl?.rowCount || 0) === 0) messages.push("No SQAA evidence rows found.");
-  if ((byKey.classroomSyncRegistryUrl?.rowCount || 0) === 0) messages.push("No Classroom sync rows found.");
-  if ((byKey.assessmentResultRegistryUrl?.rowCount || 0) === 0) messages.push("No assessment/result rows found.");
+  if ((byKey.dashboardDataSourceUrl?.rowCount || 0) === 0) messages.push("Dashboard KPI source is unavailable.");
+  if ((byKey.lessonWorkspaceRegistryUrl?.rowCount || 0) === 0) messages.push("Lesson Workspace source has no live rows.");
+  if ((byKey.qaSqaaRegistryUrl?.rowCount || 0) === 0) messages.push("Evidence mapping is unavailable from this source.");
+  if ((byKey.classroomSyncRegistryUrl?.rowCount || 0) === 0) messages.push("Google Classroom sync source is unavailable.");
+  if ((byKey.assessmentResultRegistryUrl?.rowCount || 0) === 0) messages.push("Assessment registry is not connected yet.");
   return Array.from(new Set(messages));
 }
 
@@ -513,11 +513,11 @@ function isWarningRegistryStatus(registry: DashboardRegistrySourceStatus): boole
 
 function buildRegistryIssueLabel(registry: DashboardRegistrySourceStatus): string {
   if (registry.error) return registry.error;
-  if (!registry.connected) return `${registry.label} is not connected yet.`;
+  if (!registry.connected) return `${registry.label} is unavailable.`;
   if (registry.missingTabs.length > 0) return `${registry.label} is missing ${registry.missingTabs[0]}.`;
-  if (registry.emptyTabs.length > 0) return `${registry.label} has empty tabs.`;
-  if (Object.values(registry.missingHeaders).some((items) => items.length > 0)) return `${registry.label} has missing headers.`;
-  if (Object.values(registry.placeholderRows).some((count) => count > 0)) return `${registry.label} still has setup placeholders.`;
+  if (registry.emptyTabs.length > 0) return `${registry.label} has no rows.`;
+  if (Object.values(registry.missingHeaders).some((items) => items.length > 0)) return `${registry.label} is missing mandatory fields.`;
+  if (Object.values(registry.placeholderRows).some((count) => count > 0)) return `${registry.label} still has fallback rows.`;
   if (Object.values(registry.invalidDriveReferences).some((items) => items.length > 0)) return `${registry.label} has invalid Drive references.`;
   return `${registry.label} needs review.`;
 }

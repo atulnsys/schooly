@@ -1839,6 +1839,54 @@ This follow-up refines the `/resources` page into a read-only evidence-map surfa
 
 ## Commit SHA
 
+* `98eefcd8629572e99ddf6cf9860e0994270f3184`
+
+---
+
+# Dashboard Data Quality - Alerts Counts and Source States
+
+## Scope
+
+This follow-up tightens dashboard trust signals without changing the app structure or inventing data.
+
+## What Was Adjusted
+
+* Added a small local source-state helper in `DashboardOverview.tsx` so registry-backed cards can distinguish `ready`, `empty`, `missing`, `incomplete`, `fallback`, and `unknown`.
+* Reworded alert and registry status labels to be more specific and less repetitive.
+* Replaced misleading zero-style counts with source-aware messages when the backing registry is unavailable or incomplete.
+* Kept normal numeric zeroes only where a live source exists and truly has no rows.
+* Cleaned up repetitive placeholder labels in the teacher performance and remedial panels.
+* Kept the classroom/class display order natural by using the existing class-sorting helper for the classroom announcement slice.
+
+## School at a Glance and Classroom Monitoring
+
+* Active Students, Active Staff, Active Class Sections, Google Classroom Courses, Attendance / Engagement, and classroom monitoring rows now use source-aware count labels.
+* School at a Glance and Classroom Monitoring stay visually consistent while avoiding bare zeroes when the source is missing.
+* Teacher Allocation Coverage continues to route to `REG_TEACHER_ALLOCATIONS`.
+
+## Registry Explorer KPI Source-State Alignment
+
+* Registry Explorer drill-through targets were preserved.
+* The live registry connection summary now shows clearer source-state text for missing, incomplete, and fallback registry rows.
+* The `/registries` and `/registers` surfaces remain intact, with no new canonical registry added in this pass.
+
+## Preserved Routes and Drill-Throughs
+
+* Existing dashboard drill-throughs remain intact for Students, Staff, Teachers, Courses, Assignments, and teacher allocation coverage.
+* Existing app routes remain intact, including `/`, `/search`, `/lesson-plans`, `/resources`, `/textbooks`, `/classroom`, `/students`, `/courses`, `/assignments`, `/staff`, `/teachers`, `/registries`, `/registers`, and `/settings`.
+
+## UI Smoke
+
+* Verified locally in Chrome via headless smoke: the dashboard shell loaded without runtime error, the remedial follow-up feed title rendered, the source-state labels rendered, `/registries` and `/registers` resolved correctly, and no new console errors were captured.
+
+## Files Changed
+
+* `src/components/DashboardOverview.tsx`
+* `src/lib/dashboardDataResolver.ts`
+* `docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
+
+## Commit SHA
+
 * `pending`
 
 ---

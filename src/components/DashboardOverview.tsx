@@ -1783,27 +1783,47 @@ export default function DashboardOverview({
           </div>
 
           <div className="space-y-2">
-            {summaryRows.map((registry) => (
-              <div key={registry.key} className="rounded-xl border border-white bg-white px-3 py-2.5 flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
-                <div className="min-w-0">
-                  <div className="text-xs font-extrabold text-slate-900 truncate">{registry.label}</div>
-                  <div className="text-[10px] text-slate-500 truncate">{registry.url || "No registry URL configured"}</div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-wider">
-                  <span className={`rounded-full px-2 py-1 ${registry.connected ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                    {registry.connected ? "Connected" : "Not connected"}
-                  </span>
-                  <span className="rounded-full px-2 py-1 bg-slate-50 text-slate-700 border border-slate-200">
-                    {registry.rowCount} rows
-                  </span>
-                  {registry.warning ? (
-                    <span className="rounded-full px-2 py-1 bg-amber-50 text-amber-700 border border-amber-100">
-                      {registry.warning}
+            {summaryRows.map((registry) => {
+              const registryState = getRegistrySourceState(registry.key);
+              const statusLabel = registryState === "missing"
+                ? "Source unavailable"
+                : registryState === "incomplete"
+                  ? "Check setup"
+                  : registryState === "fallback"
+                    ? "Fallback data"
+                    : registry.connected
+                      ? "Connected"
+                      : "Not connected";
+              const countLabel = registryState === "missing"
+                ? "Source unavailable"
+                : registryState === "incomplete"
+                  ? "Check setup"
+                  : registryState === "fallback"
+                    ? "Fallback data"
+                    : `${registry.rowCount} rows`;
+
+              return (
+                <div key={registry.key} className="rounded-xl border border-white bg-white px-3 py-2.5 flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="text-xs font-extrabold text-slate-900 truncate">{registry.label}</div>
+                    <div className="text-[10px] text-slate-500 truncate">{registry.url || "No registry URL configured"}</div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-wider">
+                    <span className={`rounded-full px-2 py-1 ${registryState === "ready" || registryState === "empty" ? "bg-emerald-50 text-emerald-700" : registryState === "missing" || registryState === "incomplete" ? "bg-amber-50 text-amber-700" : "bg-slate-50 text-slate-700"}`}>
+                      {statusLabel}
                     </span>
-                  ) : null}
+                    <span className="rounded-full px-2 py-1 bg-slate-50 text-slate-700 border border-slate-200">
+                      {countLabel}
+                    </span>
+                    {registry.warning ? (
+                      <span className="rounded-full px-2 py-1 bg-amber-50 text-amber-700 border border-amber-100">
+                        {registry.warning}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -2839,6 +2859,22 @@ export default function DashboardOverview({
   };
   const getRegistryUrl = (key: string) => registryByKey.get(key as any)?.url || "";
   const getRegistryRowCount = (key: string) => registryByKey.get(key as any)?.rowCount || 0;
+  type CompactSourceState = "ready" | "empty" | "missing" | "incomplete" | "fallback" | "unknown";
+  const getRegistrySourceState = (key: string): CompactSourceState => {
+    const registry = registryByKey.get(key as any);
+    if (!registry) return "unknown";
+    if (registry.error || !registry.connected || registry.missingTabs.length > 0) return "missing";
+    if (Object.values(registry.missingHeaders).some((items) => items.length > 0)) return "incomplete";
+    if (Object.values(registry.placeholderRows).some((count) => count > 0)) return "fallback";
+    if (registry.rowCount === 0 || registry.emptyTabs.length > 0) return "empty";
+    return "ready";
+  };
+  const formatSourceAwareValue = (value: string | number, state: CompactSourceState) => {
+    if (state === "missing") return "Source unavailable";
+    if (state === "incomplete") return "Check setup";
+    if (state === "fallback") return "Fallback data";
+    return value;
+  };
   const canViewRegistrySheetLinks = googleWorkspaceAuthState.connected || isPrincipalRole() || isAdminRole() || isCoordinatorRole() || isHodRole() || isManagerRole() || isHrRole() || isExamsRole() || isTeacherRole();
   const canEditRegistrySheetLinks = googleWorkspaceAuthState.connected && (isPrincipalRole() || isAdminRole() || isCoordinatorRole() || isHodRole() || isManagerRole() || isHrRole() || isExamsRole());
   const openRegistrySheetLink = (url: string, mode: "view" | "edit") => {
@@ -4936,7 +4972,14 @@ export default function DashboardOverview({
       return null;
     }
 
-    const classroomAnnouncements = courses
+    const classroomSourceState = getRegistrySourceState("classroomSyncRegistryUrl");
+    const masterSourceState = getRegistrySourceState("masterDataRegistryUrl");
+
+    const classroomAnnouncements = [...courses]
+      .sort((left, right) => compareClassLabels(
+        left.section ? `${renderClassLabel(left.name)}-${left.section}` : renderClassLabel(left.name),
+        right.section ? `${renderClassLabel(right.name)}-${right.section}` : renderClassLabel(right.name)
+      ))
       .slice(0, 5)
       .map((course) => ({
         id: course.id,
@@ -4948,13 +4991,13 @@ export default function DashboardOverview({
     const enrichmentCount = courses.filter((course) => (course.announcements || []).length > 0).length;
     const remedialCount = selectedRemedialStudent ? 1 : highRiskStudents;
     const legacyClassroomMetricRows = [
-      ["Active Class Sections", principalDashboard?.classroomMonitoring?.activeClassSections || principalDashboard?.classroomMonitoring?.totalClassrooms || 0],
-      ["Google Classroom Courses", principalDashboard?.classroomMonitoring?.googleClassroomCourseCount || courses.length],
-      ["Monitored Classrooms", principalDashboard?.classroomMonitoring?.monitoredClassroomsCount || courses.filter((course) => (course.announcements?.length || 0) > 0 || (course.materials?.length || 0) > 0).length],
-      ["Posted this week", principalDashboard?.classroomMonitoring?.postedThisWeek || 0],
-      ["Assignments created", principalDashboard?.classroomMonitoring?.assignmentsCreatedThisWeek || 0],
-      ["Submission rate", `${principalDashboard?.classroomMonitoring?.averageSubmissionRate || principalDashboard?.classroomMonitoring?.avgSubmissionRate || 0}%`],
-      ["Meet sessions", principalDashboard?.classroomMonitoring?.meetSessionsHeldThisWeek || 0]
+      ["Active Class Sections", formatSourceAwareValue(principalDashboard?.classroomMonitoring?.activeClassSections || principalDashboard?.classroomMonitoring?.totalClassrooms || 0, masterSourceState)],
+      ["Google Classroom Courses", formatSourceAwareValue(principalDashboard?.classroomMonitoring?.googleClassroomCourseCount || courses.length, classroomSourceState)],
+      ["Monitored Classrooms", formatSourceAwareValue(principalDashboard?.classroomMonitoring?.monitoredClassroomsCount || courses.filter((course) => (course.announcements?.length || 0) > 0 || (course.materials?.length || 0) > 0).length, classroomSourceState)],
+      ["Posted this week", formatSourceAwareValue(principalDashboard?.classroomMonitoring?.postedThisWeek || 0, classroomSourceState)],
+      ["Assignments created", formatSourceAwareValue(principalDashboard?.classroomMonitoring?.assignmentsCreatedThisWeek || 0, classroomSourceState)],
+      ["Submission rate", formatSourceAwareValue(`${principalDashboard?.classroomMonitoring?.averageSubmissionRate || principalDashboard?.classroomMonitoring?.avgSubmissionRate || 0}%`, classroomSourceState)],
+      ["Meet sessions", formatSourceAwareValue(principalDashboard?.classroomMonitoring?.meetSessionsHeldThisWeek || 0, classroomSourceState)]
     ];
 
     return (
@@ -5291,7 +5334,7 @@ export default function DashboardOverview({
                       <tr key={rIdx} className="hover:bg-slate-50/50 transition-colors">
                         <td className="py-3.5 pr-2 max-w-36 font-semibold text-slate-800">
                           <div className="truncate">{row.teacher}</div>
-                          <div className="text-[10px] text-slate-500 truncate">{[row.class, row.subject].filter(Boolean).join(" · ") || row.dateRange || "Live row"}</div>
+                          <div className="text-[10px] text-slate-500 truncate">{[row.class, row.subject].filter(Boolean).join(" · ") || row.dateRange || row.source || "Source unavailable"}</div>
                         </td>
                         <td className="py-3.5"><span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getBadgeStyles(row.plannerStatus)}`}>{row.plannerStatus}</span></td>
                         <td className="py-3.5"><span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getBadgeStyles(row.assessmentStatus)}`}>{row.assessmentStatus}</span></td>
@@ -5519,6 +5562,9 @@ export default function DashboardOverview({
     const liveRemedialRows = (principalDashboard?.remedialRisk || []) as Array<Record<string, any>>;
     const visibleLiveAlerts = liveAlerts.slice(0, DASHBOARD_ROW_LIMIT);
     const visibleRemedialRows = liveRemedialRows.slice(0, DASHBOARD_ROW_LIMIT);
+    const classroomSourceState = getRegistrySourceState("classroomSyncRegistryUrl");
+    const masterSourceState = getRegistrySourceState("masterDataRegistryUrl");
+    const dashboardDataSourceState = getRegistrySourceState("dashboardDataSourceUrl");
     const activeClassSections = principalDashboard?.classroomMonitoring?.activeClassSections || principalDashboard?.classroomMonitoring?.totalClassrooms || 0;
     const googleClassroomCourses = principalDashboard?.classroomMonitoring?.googleClassroomCourseCount || courses.length;
     const monitoredClassrooms = principalDashboard?.classroomMonitoring?.monitoredClassroomsCount || courses.filter((course) => (course.announcements?.length || 0) > 0 || (course.materials?.length || 0) > 0).length;
@@ -5532,20 +5578,20 @@ export default function DashboardOverview({
       actionTab?: string;
       actionRegistryId?: string;
     }> = [
-      { label: "Active Students", value: students.length, note: "Live enrollment rows", actionTab: "students" },
-      { label: "Active Staff", value: teacherPerformanceData.length, note: "Live allocation rows", actionTab: "staff" },
-      { label: "Active Class Sections", value: activeClassSections, note: "From Classes_Sections", actionTab: "courses" },
-      { label: "Teacher Allocation Coverage", value: `${teacherAllocationCoverage}%`, note: "Planner rows completed", actionRegistryId: "REG_TEACHER_ALLOCATIONS" },
-      { label: "Google Classroom Courses", value: googleClassroomCourses, note: "Live Classroom course map", actionTab: "courses" },
-      { label: "Attendance / Engagement", value: `${principalDashboard?.classroomMonitoring?.averageSubmissionRate || principalDashboard?.classroomMonitoring?.avgSubmissionRate || 0}%`, note: `${monitoredClassrooms} monitored classrooms` }
+      { label: "Active Students", value: formatSourceAwareValue(students.length, masterSourceState), note: "Live enrollment rows", actionTab: "students" },
+      { label: "Active Staff", value: formatSourceAwareValue(teacherPerformanceData.length, masterSourceState), note: "Live allocation rows", actionTab: "staff" },
+      { label: "Active Class Sections", value: formatSourceAwareValue(activeClassSections, masterSourceState), note: "From Classes_Sections", actionTab: "courses" },
+      { label: "Teacher Allocation Coverage", value: formatSourceAwareValue(`${teacherAllocationCoverage}%`, dashboardDataSourceState), note: "Planner rows completed", actionRegistryId: "REG_TEACHER_ALLOCATIONS" },
+      { label: "Google Classroom Courses", value: formatSourceAwareValue(googleClassroomCourses, classroomSourceState), note: "Live Classroom course map", actionTab: "courses" },
+      { label: "Attendance / Engagement", value: formatSourceAwareValue(`${principalDashboard?.classroomMonitoring?.averageSubmissionRate || principalDashboard?.classroomMonitoring?.avgSubmissionRate || 0}%`, classroomSourceState), note: `${monitoredClassrooms} monitored classrooms` }
     ];
     const principalClassroomMetricRows = [
-      { label: "Total Classrooms", value: principalDashboard?.classroomMonitoring?.totalClassrooms || 0, actionTab: "courses" },
-      { label: "Posted this week", value: `${principalDashboard?.classroomMonitoring?.postedThisWeek || 0} / ${principalDashboard?.classroomMonitoring?.totalClassrooms || 0}` },
-      { label: "Zero Activity", value: `${principalDashboard?.classroomMonitoring?.zeroActivityThisWeek || 0} classrooms` },
-      { label: "Assignments", value: `${principalDashboard?.classroomMonitoring?.assignmentsCreatedThisWeek || 0} this week`, actionTab: "assignments" },
-      { label: "Submission rate", value: `${principalDashboard?.classroomMonitoring?.averageSubmissionRate || principalDashboard?.classroomMonitoring?.avgSubmissionRate || 0}%` },
-      { label: "Meet sessions", value: `${principalDashboard?.classroomMonitoring?.meetSessionsHeldThisWeek || 0} held` }
+      { label: "Total Classrooms", value: formatSourceAwareValue(principalDashboard?.classroomMonitoring?.totalClassrooms || 0, classroomSourceState), actionTab: "courses" },
+      { label: "Posted this week", value: formatSourceAwareValue(`${principalDashboard?.classroomMonitoring?.postedThisWeek || 0} / ${principalDashboard?.classroomMonitoring?.totalClassrooms || 0}`, classroomSourceState) },
+      { label: "Zero Activity", value: formatSourceAwareValue(`${principalDashboard?.classroomMonitoring?.zeroActivityThisWeek || 0} classrooms`, classroomSourceState) },
+      { label: "Assignments", value: formatSourceAwareValue(`${principalDashboard?.classroomMonitoring?.assignmentsCreatedThisWeek || 0} this week`, classroomSourceState), actionTab: "assignments" },
+      { label: "Submission rate", value: formatSourceAwareValue(`${principalDashboard?.classroomMonitoring?.averageSubmissionRate || principalDashboard?.classroomMonitoring?.avgSubmissionRate || 0}%`, classroomSourceState) },
+      { label: "Meet sessions", value: formatSourceAwareValue(`${principalDashboard?.classroomMonitoring?.meetSessionsHeldThisWeek || 0} held`, classroomSourceState) }
     ];
 
     return (
@@ -6006,7 +6052,7 @@ export default function DashboardOverview({
               <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2 min-w-0">
                   <ShieldAlert size={16} className="text-rose-600 shrink-0" />
-                  <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans truncate">Live Remedial Feed</h3>
+                  <h3 className="text-sm font-bold text-slate-900 tracking-tight font-sans truncate">Remedial Follow-up Feed</h3>
                 </div>
                 {liveRemedialRows.length > 0 && (
                   <button
@@ -6032,7 +6078,7 @@ export default function DashboardOverview({
                   >
                     <div className="min-w-0">
                       <div className="text-xs font-bold text-slate-800 truncate">
-                        {String(row.student_name || row.name || row.title || row.label || [row.class, row.section, row.subject, row.risk_area].filter(Boolean).join(" · ") || "Tracked remedial row")}
+                        {String(row.student_name || row.name || row.title || row.label || [row.class, row.section, row.subject, row.risk_area].filter(Boolean).join(" · ") || row.sourceLabel || "Remedial follow-up")}
                       </div>
                       <div className="text-[11px] text-slate-500 mt-1">
                         {String(row.reason || row.notes || row.severity || row.risk || row.intervention_status || row.status || "").trim()}
@@ -6167,8 +6213,8 @@ export default function DashboardOverview({
       const remedialRows = (principalDashboard?.remedialRisk || []) as Array<Record<string, any>>;
       const detail = selectedRemedialStudent || remedialRows[0] || null;
       return shell(
-        detail ? String(detail.student_name || detail.name || detail.title || detail.label || "Live Remedial Feed") : "Live Remedial Feed",
-        detail ? String(detail.reason || detail.notes || detail.severity || detail.risk || detail.intervention_status || detail.status || "Detailed remedial row") : "No remedial row selected",
+        detail ? String(detail.student_name || detail.name || detail.title || detail.label || [detail.class, detail.section, detail.subject, detail.risk_area].filter(Boolean).join(" · ") || "Remedial follow-up feed") : "Remedial follow-up feed",
+        detail ? String(detail.reason || detail.notes || detail.severity || detail.risk || detail.intervention_status || detail.status || detail.sourceLabel || "No additional note") : "No remedial row selected",
         (
           <div className="space-y-4">
             {detail ? (
@@ -6194,7 +6240,7 @@ export default function DashboardOverview({
             <div className="space-y-3">
               {remedialRows.map((row, idx) => (
                 <div key={`remedial-detail-${idx}`} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                  <div className="font-semibold text-slate-900 text-sm truncate">{String(row.student_name || row.name || row.title || row.label || `Tracked remedial row ${idx + 1}`)}</div>
+                  <div className="font-semibold text-slate-900 text-sm truncate">{String(row.student_name || row.name || row.title || row.label || [row.class, row.section, row.subject, row.risk_area].filter(Boolean).join(" · ") || row.sourceLabel || `Remedial follow-up ${idx + 1}`)}</div>
                   <div className="text-[11px] text-slate-600 mt-1">{String(row.reason || row.notes || row.severity || row.risk || row.intervention_status || row.status || "No additional note")}</div>
                 </div>
               ))}
