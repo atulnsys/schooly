@@ -12,6 +12,7 @@ export interface RegistryExplorerRow {
   displayName: string;
   sourceKind: string;
   status: string;
+  sourceState: "Ready" | "Empty" | "Missing" | "Incomplete" | "Fallback" | "Unknown";
   sourceLabel: string;
   description: string;
   group: string;
@@ -80,17 +81,37 @@ function getPageRouteFromCatalogEntry(entry: RegistryCatalogEntry): string | und
   return `/${entry.route}`;
 }
 
+function getRegistrySourceState(row: Pick<RegistryExplorerRow, "sourceKind" | "status" | "pageRoute" | "firstClassPageEnabled">): RegistryExplorerRow["sourceState"] {
+  if (row.status === "active" || row.status === "safe_first_batch") return "Ready";
+  if (row.status === "selective_review") return "Incomplete";
+  if (row.status === "later_only") return "Missing";
+  if (row.status === "deferred" || row.status === "none") {
+    if (row.sourceKind === "Embedded surface") return "Unknown";
+    return row.firstClassPageEnabled || row.pageRoute ? "Missing" : "Unknown";
+  }
+  if (row.sourceKind === "Embedded surface") return "Unknown";
+  return "Unknown";
+}
+
 function mapCatalogEntry(entry: RegistryCatalogEntry): RegistryExplorerRow {
   const capabilityMetadata = entry.capabilityMetadata;
+  const sourceKind = capabilityMetadata?.derivedFromRegistryId
+    ? "Derived view"
+    : entry.firstClassPageEnabled
+      ? "First-class page"
+      : "Embedded surface";
+  const sourceState = getRegistrySourceState({
+    sourceKind,
+    status: entry.status,
+    pageRoute: getPageRouteFromCatalogEntry(entry),
+    firstClassPageEnabled: entry.firstClassPageEnabled,
+  });
   return {
     registryId: entry.id,
     displayName: entry.navLabel || entry.label,
-    sourceKind: capabilityMetadata?.derivedFromRegistryId
-      ? "Derived view"
-      : entry.firstClassPageEnabled
-        ? "First-class page"
-        : "Embedded surface",
+    sourceKind,
     status: entry.status,
+    sourceState,
     sourceLabel: entry.sourceLabel,
     description: entry.description,
     group: entry.group,
@@ -118,11 +139,21 @@ function mapSchemaTab(workbook: (typeof REGISTRY_SCHEMA)[number], tab: (typeof R
   const isTeacherAllocations = tab.tabName === "Teacher_Allocations";
   const registryId = isTeacherAllocations ? "REG_TEACHER_ALLOCATIONS" : `${workbook.key}__${slugifySegment(tab.tabName)}`;
   const pageRoute = resolveCatalogPageRouteFromTab(tab.tabName);
+  const sourceState: RegistryExplorerRow["sourceState"] = tab.safeBootstrapEligibility === "safe_first_batch"
+    ? "Ready"
+    : tab.safeBootstrapEligibility === "selective_review"
+      ? "Incomplete"
+      : tab.safeBootstrapEligibility === "later_only"
+        ? "Missing"
+        : tab.safeBootstrapEligibility === "none"
+          ? "Missing"
+          : "Unknown";
   return {
     registryId,
     displayName: isTeacherAllocations ? "Teacher Allocations" : `${workbook.label} · ${tab.tabName}`,
     sourceKind: isTeacherAllocations ? "Relationship registry" : "Registry tab",
     status: tab.safeBootstrapEligibility === "none" ? "deferred" : tab.safeBootstrapEligibility,
+    sourceState,
     sourceLabel: workbook.label,
     description: isTeacherAllocations
       ? `${tab.tabName} in ${workbook.label} is a relationship/allocation registry for staffing, class, section, and subject ownership.`
@@ -257,6 +288,29 @@ export function createRegistryExplorerEntityDefinition(
         if (row.status === "later_only" || row.status === "deferred") return "danger";
         return "info";
       },
+    },
+    {
+      key: "sourceState",
+      label: "Source State",
+      type: "badge",
+      listVisible: true,
+      detailVisible: true,
+      filterable: true,
+      sortable: true,
+      getBadgeVariant: (row) => {
+        if (row.sourceState === "Ready") return "success";
+        if (row.sourceState === "Empty") return "info";
+        if (row.sourceState === "Missing") return "warning";
+        if (row.sourceState === "Incomplete") return "danger";
+        if (row.sourceState === "Fallback") return "info";
+        return "info";
+      },
+      renderListValue: (row) => (
+        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+          {row.sourceState}
+        </span>
+      ),
+      renderDetailValue: (row) => row.sourceState,
     },
     {
       key: "sourceLabel",
@@ -398,7 +452,7 @@ export function createRegistryExplorerEntityDefinition(
       {
         id: "overview",
         title: "Overview",
-        fields: ["displayName", "sourceKind", "status", "group"],
+        fields: ["displayName", "sourceKind", "status", "sourceState", "group"],
       },
       {
         id: "routes",

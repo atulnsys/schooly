@@ -27,6 +27,18 @@ interface RegistryPageShellProps<T extends object> {
 
 function renderRegistryHeader(entry: RegistryCatalogEntry, rowCount: number, currentRole: string) {
   const Icon = entry.iconComponent;
+  const sourceState = entry.status === "active"
+    ? (rowCount > 0 ? "Ready" : "Empty")
+    : entry.status === "deferred"
+      ? "Source unavailable"
+      : "Unknown";
+  const sourceStateClass = sourceState === "Ready"
+    ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+    : sourceState === "Empty"
+      ? "bg-slate-50 text-slate-700 border-slate-200"
+      : sourceState === "Source unavailable"
+        ? "bg-amber-50 text-amber-700 border-amber-100"
+        : "bg-slate-50 text-slate-600 border-slate-200";
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
@@ -47,6 +59,9 @@ function renderRegistryHeader(entry: RegistryCatalogEntry, rowCount: number, cur
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[10px] font-sans font-black px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-100">
             {rowCount} {rowCount === 1 ? "record" : "records"}
+          </span>
+          <span className={`text-[10px] font-sans font-black px-2.5 py-1 rounded-lg border ${sourceStateClass}`}>
+            {sourceState}
           </span>
           <span className="text-[10px] font-sans font-black px-2.5 py-1 rounded-lg bg-slate-50 text-slate-600 border border-slate-200">
             Role: {currentRole}

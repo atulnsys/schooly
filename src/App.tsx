@@ -1047,14 +1047,34 @@ export default function App() {
     }
     return sanitizeStudentTerminology(item.name, currentRole === "Student");
   };
+  type LiveRegisterCardSourceState = "Ready" | "Empty" | "Missing" | "Incomplete" | "Fallback" | "Unknown";
+  const getRegistryCardSourceState = (count: number, sourceKind: "master" | "service"): LiveRegisterCardSourceState => {
+    if (sourceKind === "master") {
+      if (schoolRegistryLoading) return "Unknown";
+      if (!schoolRegistry) return "Missing";
+      if (schoolRegistry.mode === "error" || schoolRegistry.mode === "missing") return "Missing";
+      if (schoolRegistry.mode === "fallback") return "Fallback";
+      if (count === 0) return "Empty";
+      return "Ready";
+    }
+    if (count > 0) return "Ready";
+    return "Unknown";
+  };
+
   const liveRegisterCards = useMemo(() => {
-    const teacherCount = [...new Set((courses || []).map((course) => course.teacherName).filter(Boolean))].length;
-    const subjectCount = [...new Set((courses || []).map((course) => course.name).filter(Boolean))].length;
+    const teacherCount = [...new Set((schoolRegistry?.teacherAllocations || []).map((allocation) => allocation.teacher_name || allocation.teacher_email).filter(Boolean))].length;
+    const subjectCount = schoolRegistry?.subjects.length ?? 0;
+    const classCount = schoolRegistry?.classesSections.length ?? 0;
+    const studentCount = schoolRegistry?.studentDirectory.length ?? 0;
+    const staffCount = schoolRegistry?.staffDirectory.length ?? 0;
+    const assignmentCount = assignments.length;
+    const taskCount = tasks.length;
 
     return [
       {
         title: "Students",
-        count: students.length,
+        count: studentCount,
+        sourceState: getRegistryCardSourceState(studentCount, "master"),
         detail: "Open the live student registry",
         source: "Master Registry / Student_Directory",
         drillTarget: { kind: "page", registryId: "students" as const }
@@ -1062,20 +1082,23 @@ export default function App() {
       {
         title: "Teachers",
         count: teacherCount,
+        sourceState: getRegistryCardSourceState(teacherCount, "master"),
         detail: "Open the derived teacher view",
         source: "Master Registry / Teacher_Allocations",
         drillTarget: { kind: "page", registryId: "teachers" as const }
       },
       {
         title: "Classes & Sections",
-        count: courses.length,
+        count: classCount,
+        sourceState: getRegistryCardSourceState(classCount, "master"),
         detail: "Open the classroom course page",
         source: "Master Registry / Classes_Sections",
         drillTarget: { kind: "page", registryId: "courses" as const }
       },
       {
         title: "Staff",
-        count: schoolRegistry?.staffDirectory.length || 0,
+        count: staffCount,
+        sourceState: getRegistryCardSourceState(staffCount, "master"),
         detail: "Open the canonical staff directory",
         source: "Master Registry / Staff_Directory",
         drillTarget: { kind: "page", registryId: "staff" as const }
@@ -1083,26 +1106,29 @@ export default function App() {
       {
         title: "Subjects",
         count: subjectCount,
+        sourceState: getRegistryCardSourceState(subjectCount, "master"),
         detail: "Open the master registry subject tab",
         source: "Master Registry / Subjects",
         drillTarget: { kind: "data", registryId: "masterDataRegistryUrl__subjects" as const }
       },
       {
         title: "Assignments",
-        count: assignments.length,
+        count: assignmentCount,
+        sourceState: getRegistryCardSourceState(assignmentCount, "service"),
         detail: "Open the assignment page",
         source: "Classroom / Assignment records",
         drillTarget: { kind: "page", registryId: "assignments" as const }
       },
       {
         title: "Tasks & Follow-ups",
-        count: tasks.length,
+        count: taskCount,
+        sourceState: getRegistryCardSourceState(taskCount, "service"),
         detail: "Open dashboard alerts and follow-ups",
         source: "Dashboard Data Source / Alert_Log",
         drillTarget: { kind: "tab", tab: "dashboard-data-source" as const }
       }
     ];
-  }, [assignments.length, courses, schoolRegistry?.staffDirectory.length, students.length, tasks.length]);
+  }, [assignments.length, courses.length, schoolRegistry, schoolRegistryLoading, students.length, tasks.length]);
   const hideRolePersonaWidget = currentRole === "Principal" || currentRole === "Manager";
 
   const renderDashboardWorkspace = (dashboardView?: "overview" | "role-cards" | "registers" | "settings" | "data-source" | "setup" | "setup-registries" | "registry-detail") => (

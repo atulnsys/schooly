@@ -1891,6 +1891,60 @@ This follow-up tightens dashboard trust signals without changing the app structu
 
 ---
 
+# Registry Explorer - Source State Badges and KPI Clarity
+
+## Selected Object Group
+
+Registry Explorer summary cards and registry explorer row metadata.
+
+## Why This Group
+
+This is a narrow presentation pass on an already metadata-driven surface. It improves source-state clarity without changing registry routing, drill-throughs, or the underlying data model.
+
+## Files Changed
+
+* `src/App.tsx`
+* `src/components/RegistryExplorerPage.tsx`
+* `src/components/RegistryPageShell.tsx`
+* `src/lib/registryExplorerEntityDefinition.tsx`
+* `docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
+
+## Behavior Preserved
+
+* Existing `/registries` and `/registers` routes
+* Existing registry explorer drill-throughs
+* Existing registry catalog and generic registry data pages
+* Existing first-class pages for Students, Teachers, Staff, Courses, Assignments, Classroom, Search, Lesson Plans, and Textbooks
+
+## What Changed
+
+* Registry Explorer KPI cards now show explicit source-state badges for ready, empty, missing, fallback, incomplete, and unknown states.
+* Card counts now avoid implying healthy data when the underlying source is unavailable.
+* Registry explorer row metadata now exposes a source-state badge in the generic surface.
+* Registry page headers now show a compact source-state chip alongside the existing row-count and role chips.
+
+## Verification Result
+
+* `npx tsc --noEmit --pretty false` succeeded after one type fix in the source-state badge variant mapping.
+* `npm run build` succeeded with the existing Vite chunk-size warning only.
+
+## UI Smoke Result
+
+* Browser runtime smoke was blocked because the in-app browser bridge reported `privileged native pipe bridge is not available; browser-client is not trusted`.
+* I did confirm the code path and the route wiring locally, but I could not complete a live browser interaction pass in this session.
+
+## Deferred
+
+* No registry data model or backend changes were made.
+* No new registry routes or canonical registries were added.
+* No drill-through targets were changed.
+
+## Commit SHA
+
+* `691922b`
+
+---
+
 # Dashboard and Registry Drill-Through - Align Cards to Live Registry Views
 
 ## Scope

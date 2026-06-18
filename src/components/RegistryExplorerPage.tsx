@@ -7,6 +7,8 @@ import {
   type RegistryExplorerRow,
 } from "../lib/registryExplorerEntityDefinition";
 
+type LiveRegisterCardSourceState = "Ready" | "Empty" | "Missing" | "Incomplete" | "Fallback" | "Unknown";
+
 interface RegistryExplorerPageProps {
   currentRole: string;
   onOpenPageRoute: (registryId: string) => void;
@@ -15,6 +17,7 @@ interface RegistryExplorerPageProps {
   liveRegisterCards?: Array<{
     title: string;
     count: number;
+    sourceState?: LiveRegisterCardSourceState;
     detail: string;
     source: string;
     drillTarget:
@@ -54,6 +57,39 @@ export default function RegistryExplorerPage({
     ),
     [onOpenDataRoute, onOpenPageRoute],
   );
+
+  const sourceStateBadgeClass: Record<LiveRegisterCardSourceState, string> = {
+    Ready: "bg-emerald-50 text-emerald-700 border-emerald-100",
+    Empty: "bg-slate-50 text-slate-700 border-slate-200",
+    Missing: "bg-amber-50 text-amber-700 border-amber-100",
+    Incomplete: "bg-orange-50 text-orange-700 border-orange-100",
+    Fallback: "bg-violet-50 text-violet-700 border-violet-100",
+    Unknown: "bg-slate-50 text-slate-600 border-slate-200",
+  };
+
+  const sourceStateLabel: Record<LiveRegisterCardSourceState, string> = {
+    Ready: "Ready",
+    Empty: "Empty",
+    Missing: "Source unavailable",
+    Incomplete: "Check setup",
+    Fallback: "Fallback data",
+    Unknown: "State unknown",
+  };
+
+  const countLabel = (count: number, state?: LiveRegisterCardSourceState) => {
+    switch (state) {
+      case "Missing":
+        return "Source unavailable";
+      case "Incomplete":
+        return "Check setup";
+      case "Fallback":
+        return "Fallback data";
+      case "Unknown":
+        return "State unknown";
+      default:
+        return `${count.toLocaleString()} rows`;
+    }
+  };
 
   return (
     <div id="registries-registry-page" data-testid="registries-registry-page">
@@ -127,12 +163,17 @@ export default function RegistryExplorerPage({
                   }
                 >
                   <h4 className="text-sm font-extrabold text-slate-900">{card.title}</h4>
-                  <span className="text-[10px] font-sans font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
-                    {card.count > 0 ? `${card.count.toLocaleString()} rows` : "No live rows"}
+                  <span className={`text-[10px] font-sans font-bold px-2 py-0.5 rounded-full border ${sourceStateBadgeClass[card.sourceState || "Unknown"]}`}>
+                    {sourceStateLabel[card.sourceState || "Unknown"]}
                   </span>
                 </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-slate-50 text-slate-600 border border-slate-200">
+                    {countLabel(card.count, card.sourceState)}
+                  </span>
+                  <span className="text-[10px] font-semibold text-slate-500">{card.source}</span>
+                </div>
                 <div className="text-xs font-semibold text-slate-600">{card.detail}</div>
-                <div className="text-[10px] font-mono font-bold text-blue-700">Source: {card.source}</div>
               </div>
             ))}
           </div>
