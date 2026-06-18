@@ -19,18 +19,156 @@ interface AcademicResourceLibraryPageProps {
 
 type ResourceStatusFilter = "all" | "linked" | "metadata" | "sourceUnavailable" | "evidenceMapped";
 type ResourceSourceFilter = "all" | AcademicResourceSourceFamily;
+type ResourceLinkFilter = "all" | "linked" | "missing";
 
-function getResourceFilterPresetFromLocation(): {
+interface ResourceFilterPreset {
   sourceFilter: ResourceSourceFilter;
   statusFilter: ResourceStatusFilter;
-} {
+  resourceTypeFilter: string;
+  categoryFilter: string;
+  audienceFilter: string;
+  classFilter: string;
+  sectionFilter: string;
+  subjectFilter: string;
+  bookFilter: string;
+  chapterFilter: string;
+  lessonPlanIdFilter: string;
+  sourceRegistryIdFilter: string;
+  evidenceStatusFilter: string;
+  sourceConfidenceFilter: string;
+  driveLinkFilter: ResourceLinkFilter;
+  classroomLinkFilter: ResourceLinkFilter;
+}
+
+interface FilterOption {
+  value: string;
+  label: string;
+}
+
+function normalizeFilterValue(value: string | undefined | null): string {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function matchesFilterValue(candidate: string | undefined, selected: string): boolean {
+  const normalizedSelected = normalizeFilterValue(selected);
+  if (!normalizedSelected) return true;
+
+  const normalizedCandidate = normalizeFilterValue(candidate);
+  if (!normalizedCandidate) return false;
+
+  return (
+    normalizedCandidate.includes(normalizedSelected) ||
+    normalizedSelected.includes(normalizedCandidate)
+  );
+}
+
+function uniqueFilterOptions(rows: AcademicResourceRow[], getValue: (row: AcademicResourceRow) => string | undefined, labelResolver?: (value: string) => string): FilterOption[] {
+  const values = new Set<string>();
+  const collected: FilterOption[] = [];
+
+  rows.forEach((row) => {
+    const value = String(getValue(row) || "").trim();
+    if (!value) return;
+    const normalized = normalizeFilterValue(value);
+    if (values.has(normalized)) return;
+    values.add(normalized);
+    collected.push({ value, label: labelResolver?.(value) ?? value });
+  });
+
+  return collected.sort((left, right) => left.label.localeCompare(right.label));
+}
+
+function CompactSelectFilter({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: FilterOption[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="space-y-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
+      <span>{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10.5px] font-semibold text-slate-700 shadow-sm focus:outline-hidden focus:border-blue-500"
+      >
+        <option value="all">{label}: All</option>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function CompactTextFilter({
+  label,
+  value,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="space-y-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
+      <span>{label}</span>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10.5px] font-semibold text-slate-700 shadow-sm placeholder:text-slate-400 focus:outline-hidden focus:border-blue-500"
+      />
+    </label>
+  );
+}
+
+function getResourceFilterPresetFromLocation(): ResourceFilterPreset {
   if (typeof window === "undefined") {
-    return { sourceFilter: "all", statusFilter: "all" };
+    return {
+      sourceFilter: "all",
+      statusFilter: "all",
+      resourceTypeFilter: "all",
+      categoryFilter: "all",
+      audienceFilter: "all",
+      classFilter: "all",
+      sectionFilter: "all",
+      subjectFilter: "all",
+      bookFilter: "all",
+      chapterFilter: "all",
+      lessonPlanIdFilter: "",
+      sourceRegistryIdFilter: "",
+      evidenceStatusFilter: "all",
+      sourceConfidenceFilter: "all",
+      driveLinkFilter: "all",
+      classroomLinkFilter: "all",
+    };
   }
 
   const params = new URLSearchParams(window.location.search);
   const sourceParam = params.get("source");
   const statusParam = params.get("status");
+  const resourceTypeParam = params.get("resourceType") || params.get("type");
+  const categoryParam = params.get("category");
+  const audienceParam = params.get("audience");
+  const classParam = params.get("class");
+  const sectionParam = params.get("section");
+  const subjectParam = params.get("subject");
+  const bookParam = params.get("book");
+  const chapterParam = params.get("chapter");
+  const lessonPlanIdParam = params.get("lessonPlanId");
+  const sourceRegistryIdParam = params.get("sourceRegistryId");
+  const evidenceStatusParam = params.get("evidenceStatus");
+  const sourceConfidenceParam = params.get("sourceConfidence");
 
   const sourceFilterMap: Record<string, AcademicResourceSourceFamily> = {
     "lesson-plans": "LessonPlanner",
@@ -53,7 +191,24 @@ function getResourceFilterPresetFromLocation(): {
       ? (statusParam as ResourceStatusFilter)
       : "all";
 
-  return { sourceFilter, statusFilter };
+  return {
+    sourceFilter,
+    statusFilter,
+    resourceTypeFilter: resourceTypeParam || "all",
+    categoryFilter: categoryParam || "all",
+    audienceFilter: audienceParam || "all",
+    classFilter: classParam || "all",
+    sectionFilter: sectionParam || "all",
+    subjectFilter: subjectParam || "all",
+    bookFilter: bookParam || "all",
+    chapterFilter: chapterParam || "all",
+    lessonPlanIdFilter: lessonPlanIdParam || "",
+    sourceRegistryIdFilter: sourceRegistryIdParam || "",
+    evidenceStatusFilter: evidenceStatusParam || "all",
+    sourceConfidenceFilter: sourceConfidenceParam || "all",
+    driveLinkFilter: "all",
+    classroomLinkFilter: "all",
+  };
 }
 
 const SOURCE_FAMILY_LABELS: Record<AcademicResourceSourceFamily, string> = {
@@ -153,10 +308,10 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
       .filter(Boolean)
       .join(" / "),
   getSummary: (row) => row.description,
-  searchPlaceholder: "Search resources, tags, evidence codes, or source notes...",
+  searchPlaceholder: "Search resources, types, class, subject, tags, evidence codes, or source notes...",
   emptyTitle: "No academic resources matched the current filters.",
   emptyDescription:
-    "This read-only library only surfaces existing workspace files and saved lesson-plan archive rows. Clear filters to broaden the view.",
+    "This read-only library only surfaces existing workspace files and saved lesson-plan archive rows. Clear filters or broaden the query context to widen the view.",
   defaultDisplayMode: "table",
   defaultPageSize: 10,
   defaultSort: { fieldKey: "updatedAt", direction: "desc" },
@@ -204,6 +359,17 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
       type: "badge",
       listVisible: true,
       detailVisible: true,
+      searchable: true,
+      filterable: true,
+      sortable: true,
+    },
+    {
+      key: "audience",
+      label: "Audience",
+      type: "badge",
+      listVisible: false,
+      detailVisible: true,
+      searchable: true,
       filterable: true,
       sortable: true,
     },
@@ -228,6 +394,7 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
       type: "badge",
       listVisible: true,
       detailVisible: true,
+      searchable: true,
       filterable: true,
       sortable: true,
       getBadgeVariant: (row) => {
@@ -256,6 +423,7 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
       type: "badge",
       listVisible: true,
       detailVisible: true,
+      searchable: true,
       sortable: true,
       renderListValue: (row) => row.sourceLabel,
       renderDetailValue: (row) => row.sourceLabel,
@@ -271,10 +439,30 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
       sortable: true,
     },
     {
+      key: "section",
+      label: "Section",
+      type: "text",
+      listVisible: false,
+      detailVisible: true,
+      searchable: true,
+      filterable: true,
+      sortable: true,
+    },
+    {
       key: "subject",
       label: "Subject",
       type: "text",
       listVisible: true,
+      detailVisible: true,
+      searchable: true,
+      filterable: true,
+      sortable: true,
+    },
+    {
+      key: "bookName",
+      label: "Book",
+      type: "text",
+      listVisible: false,
       detailVisible: true,
       searchable: true,
       filterable: true,
@@ -332,6 +520,7 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
       listVisible: false,
       detailVisible: true,
       searchable: true,
+      filterable: true,
     },
     {
       key: "sourceRecordId",
@@ -340,6 +529,7 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
       listVisible: false,
       detailVisible: true,
       searchable: true,
+      filterable: true,
     },
     {
       key: "sourceAvailable",
@@ -347,6 +537,7 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
       type: "boolean",
       listVisible: false,
       detailVisible: true,
+      filterable: true,
     },
     {
       key: "sourceConfidence",
@@ -354,6 +545,8 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
       type: "badge",
       listVisible: false,
       detailVisible: true,
+      searchable: true,
+      filterable: true,
       renderDetailValue: (row) => row.sourceConfidence,
       getBadgeVariant: (row) => {
         if (row.sourceConfidence === "high") return "success";
@@ -367,6 +560,7 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
       type: "longText",
       listVisible: false,
       detailVisible: true,
+      searchable: true,
     },
     {
       key: "lessonPlanTitle",
@@ -375,6 +569,16 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
       listVisible: false,
       detailVisible: true,
       searchable: true,
+      filterable: true,
+    },
+    {
+      key: "lessonPlanId",
+      label: "Lesson Plan ID",
+      type: "text",
+      listVisible: false,
+      detailVisible: true,
+      searchable: true,
+      filterable: true,
     },
     {
       key: "tags",
@@ -430,6 +634,8 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
       type: "badge",
       listVisible: false,
       detailVisible: true,
+      searchable: true,
+      filterable: true,
       renderDetailValue: (row) => row.evidenceStatus,
       getBadgeVariant: (row) => {
         if (row.evidenceStatus === "mapped") return "success";
@@ -460,6 +666,7 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
       type: "longText",
       listVisible: false,
       detailVisible: true,
+      searchable: true,
     },
     {
       key: "driveUrl",
@@ -487,7 +694,7 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
       id: "lesson-context",
       title: "Academic Context",
       description: "Class, subject, chapter, and source linkage from the academic workspace.",
-      fields: ["className", "subject", "chapter", "lessonPlanTitle", "updatedAt"],
+      fields: ["className", "section", "subject", "bookName", "chapter", "lessonPlanTitle", "lessonPlanId", "updatedAt"],
     },
     {
       id: "source-notes",
@@ -550,27 +757,120 @@ export default function AcademicResourceLibraryPage({
 
   const [sourceFilter, setSourceFilter] = useState<ResourceSourceFilter>(initialFilterPreset.sourceFilter);
   const [statusFilter, setStatusFilter] = useState<ResourceStatusFilter>(initialFilterPreset.statusFilter);
+  const [resourceTypeFilter, setResourceTypeFilter] = useState(initialFilterPreset.resourceTypeFilter);
+  const [categoryFilter, setCategoryFilter] = useState(initialFilterPreset.categoryFilter);
+  const [audienceFilter, setAudienceFilter] = useState(initialFilterPreset.audienceFilter);
+  const [classFilter, setClassFilter] = useState(initialFilterPreset.classFilter);
+  const [sectionFilter, setSectionFilter] = useState(initialFilterPreset.sectionFilter);
+  const [subjectFilter, setSubjectFilter] = useState(initialFilterPreset.subjectFilter);
+  const [bookFilter, setBookFilter] = useState(initialFilterPreset.bookFilter);
+  const [chapterFilter, setChapterFilter] = useState(initialFilterPreset.chapterFilter);
+  const [lessonPlanIdFilter, setLessonPlanIdFilter] = useState(initialFilterPreset.lessonPlanIdFilter);
+  const [sourceRegistryIdFilter, setSourceRegistryIdFilter] = useState(initialFilterPreset.sourceRegistryIdFilter);
+  const [evidenceStatusFilter, setEvidenceStatusFilter] = useState(initialFilterPreset.evidenceStatusFilter);
+  const [sourceConfidenceFilter, setSourceConfidenceFilter] = useState(initialFilterPreset.sourceConfidenceFilter);
+  const [driveLinkFilter, setDriveLinkFilter] = useState<ResourceLinkFilter>(initialFilterPreset.driveLinkFilter);
+  const [classroomLinkFilter, setClassroomLinkFilter] = useState<ResourceLinkFilter>(initialFilterPreset.classroomLinkFilter);
 
   const rowsAfterSourceFilter = useMemo(() => {
-    return resourceRows.filter((row) => {
-      if (sourceFilter !== "all" && row.sourceFamily !== sourceFilter) {
-        return false;
-      }
-
-      return true;
-    });
+    return resourceRows.filter((row) => sourceFilter === "all" || row.sourceFamily === sourceFilter);
   }, [resourceRows, sourceFilter]);
 
-  const filteredRows = useMemo(() => {
+  const rowsAfterStatusFilter = useMemo(() => {
     return rowsAfterSourceFilter.filter((row) => {
       if (statusFilter === "all") {
         return true;
       }
 
-      const rowStatusFilters = buildResourceStatusFilter(row);
-      return rowStatusFilters.includes(statusFilter);
+      return buildResourceStatusFilter(row).includes(statusFilter);
     });
   }, [rowsAfterSourceFilter, statusFilter]);
+
+  const filteredRows = useMemo(() => {
+    return rowsAfterStatusFilter.filter((row) => {
+      if (resourceTypeFilter !== "all" && !matchesFilterValue(row.resourceTypeId, resourceTypeFilter) && !matchesFilterValue(row.resourceTypeLabel, resourceTypeFilter)) {
+        return false;
+      }
+
+      if (categoryFilter !== "all" && !matchesFilterValue(row.category, categoryFilter)) {
+        return false;
+      }
+
+      if (audienceFilter !== "all" && !matchesFilterValue(row.audience, audienceFilter)) {
+        return false;
+      }
+
+      if (classFilter !== "all" && !matchesFilterValue(row.className, classFilter)) {
+        return false;
+      }
+
+      if (sectionFilter !== "all" && !matchesFilterValue(row.section, sectionFilter)) {
+        return false;
+      }
+
+      if (subjectFilter !== "all" && !matchesFilterValue(row.subject, subjectFilter)) {
+        return false;
+      }
+
+      if (bookFilter !== "all" && !matchesFilterValue(row.bookName, bookFilter)) {
+        return false;
+      }
+
+      if (chapterFilter !== "all" && !matchesFilterValue(row.chapter, chapterFilter)) {
+        return false;
+      }
+
+      if (lessonPlanIdFilter && !matchesFilterValue(row.lessonPlanId, lessonPlanIdFilter)) {
+        return false;
+      }
+
+      if (sourceRegistryIdFilter && !matchesFilterValue(row.sourceRegistryId, sourceRegistryIdFilter)) {
+        return false;
+      }
+
+      if (evidenceStatusFilter !== "all" && !matchesFilterValue(row.evidenceStatus, evidenceStatusFilter)) {
+        return false;
+      }
+
+      if (sourceConfidenceFilter !== "all" && !matchesFilterValue(row.sourceConfidence, sourceConfidenceFilter)) {
+        return false;
+      }
+
+      if (driveLinkFilter === "linked" && !row.driveUrl) {
+        return false;
+      }
+
+      if (driveLinkFilter === "missing" && row.driveUrl) {
+        return false;
+      }
+
+      if (classroomLinkFilter === "linked" && !row.classroomUrl) {
+        return false;
+      }
+
+      if (classroomLinkFilter === "missing" && row.classroomUrl) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [
+    rowsAfterStatusFilter,
+    resourceTypeFilter,
+    categoryFilter,
+    audienceFilter,
+    classFilter,
+    sectionFilter,
+    subjectFilter,
+    bookFilter,
+    chapterFilter,
+    lessonPlanIdFilter,
+    sourceRegistryIdFilter,
+    evidenceStatusFilter,
+    sourceConfidenceFilter,
+    driveLinkFilter,
+    classroomLinkFilter,
+  ]);
 
   const summary = useMemo(() => summarizeAcademicResourceRows(resourceRows), [resourceRows]);
   const filteredSummary = useMemo(() => summarizeAcademicResourceRows(filteredRows), [filteredRows]);
@@ -579,6 +879,22 @@ export default function AcademicResourceLibraryPage({
     () => ({ currentRole }),
     [currentRole],
   );
+
+  const resourceTypeOptions = useMemo(
+    () => uniqueFilterOptions(resourceRows, (row) => row.resourceTypeId, (value) => {
+      const match = resourceRows.find((row) => row.resourceTypeId === value);
+      return match?.resourceTypeLabel || value;
+    }),
+    [resourceRows],
+  );
+  const categoryOptions = useMemo(() => uniqueFilterOptions(resourceRows, (row) => row.category), [resourceRows]);
+  const audienceOptions = useMemo(() => uniqueFilterOptions(resourceRows, (row) => row.audience), [resourceRows]);
+  const classOptions = useMemo(() => uniqueFilterOptions(resourceRows, (row) => row.className), [resourceRows]);
+  const sectionOptions = useMemo(() => uniqueFilterOptions(resourceRows, (row) => row.section), [resourceRows]);
+  const subjectOptions = useMemo(() => uniqueFilterOptions(resourceRows, (row) => row.subject), [resourceRows]);
+  const bookOptions = useMemo(() => uniqueFilterOptions(resourceRows, (row) => row.bookName), [resourceRows]);
+  const chapterOptions = useMemo(() => uniqueFilterOptions(resourceRows, (row) => row.chapter), [resourceRows]);
+  const sourceRegistryIdOptions = useMemo(() => uniqueFilterOptions(resourceRows, (row) => row.sourceRegistryId), [resourceRows]);
 
   const sourceFamilyCounts = useMemo(() => {
     const counts: Record<ResourceSourceFilter, number> = {
@@ -616,7 +932,64 @@ export default function AcademicResourceLibraryPage({
     return counts;
   }, [rowsAfterSourceFilter]);
 
-  const hasActiveFilters = sourceFilter !== "all" || statusFilter !== "all";
+  const hasActiveFilters =
+    sourceFilter !== "all" ||
+    statusFilter !== "all" ||
+    resourceTypeFilter !== "all" ||
+    categoryFilter !== "all" ||
+    audienceFilter !== "all" ||
+    classFilter !== "all" ||
+    sectionFilter !== "all" ||
+    subjectFilter !== "all" ||
+    bookFilter !== "all" ||
+    chapterFilter !== "all" ||
+    Boolean(lessonPlanIdFilter.trim()) ||
+    Boolean(sourceRegistryIdFilter.trim()) ||
+    evidenceStatusFilter !== "all" ||
+    sourceConfidenceFilter !== "all" ||
+    driveLinkFilter !== "all" ||
+    classroomLinkFilter !== "all";
+
+  const resetResourceFilters = () => {
+    setSourceFilter("all");
+    setStatusFilter("all");
+    setResourceTypeFilter("all");
+    setCategoryFilter("all");
+    setAudienceFilter("all");
+    setClassFilter("all");
+    setSectionFilter("all");
+    setSubjectFilter("all");
+    setBookFilter("all");
+    setChapterFilter("all");
+    setLessonPlanIdFilter("");
+    setSourceRegistryIdFilter("");
+    setEvidenceStatusFilter("all");
+    setSourceConfidenceFilter("all");
+    setDriveLinkFilter("all");
+    setClassroomLinkFilter("all");
+  };
+
+  const activeContextItems = [
+    sourceFilter !== "all" ? { label: "Source", value: SOURCE_FAMILY_LABELS[sourceFilter] } : null,
+    statusFilter !== "all" ? { label: "Status", value: STATUS_FILTER_LABELS[statusFilter] } : null,
+    resourceTypeFilter !== "all"
+      ? { label: "Resource type", value: resourceTypeOptions.find((option) => option.value === resourceTypeFilter)?.label || resourceTypeFilter }
+      : null,
+    categoryFilter !== "all" ? { label: "Category", value: categoryFilter } : null,
+    audienceFilter !== "all" ? { label: "Audience", value: audienceFilter } : null,
+    classFilter !== "all" ? { label: "Class", value: classFilter } : null,
+    sectionFilter !== "all" ? { label: "Section", value: sectionFilter } : null,
+    subjectFilter !== "all" ? { label: "Subject", value: subjectFilter } : null,
+    bookFilter !== "all" ? { label: "Book", value: bookFilter } : null,
+    chapterFilter !== "all" ? { label: "Chapter", value: chapterFilter } : null,
+    lessonPlanIdFilter ? { label: "Lesson plan ID", value: lessonPlanIdFilter } : null,
+    sourceRegistryIdFilter ? { label: "Source registry ID", value: sourceRegistryIdFilter } : null,
+    evidenceStatusFilter !== "all" ? { label: "Evidence status", value: evidenceStatusFilter } : null,
+    sourceConfidenceFilter !== "all" ? { label: "Confidence", value: sourceConfidenceFilter } : null,
+    driveLinkFilter !== "all" ? { label: "Drive link", value: driveLinkFilter } : null,
+    classroomLinkFilter !== "all" ? { label: "Classroom link", value: classroomLinkFilter } : null,
+  ].filter(Boolean) as Array<{ label: string; value: string }>;
+
   const renderDetailBeforeSections = (row: AcademicResourceRow) => (
     <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-[10.5px] leading-relaxed text-slate-600 space-y-2">
       <div className="font-bold text-slate-900">Source note</div>
@@ -734,23 +1107,38 @@ export default function AcademicResourceLibraryPage({
             description={`Showing ${filteredSummary.totalResources} of ${summary.totalResources} workspace-backed items.`}
           />
           <StatCard
+            label="Resource types represented"
+            value={filteredSummary.resourceTypesRepresented}
+            description="Distinct lesson, assessment, communication, and evidence types currently visible."
+          />
+          <StatCard
             label="Drive linked"
             value={filteredSummary.driveLinkedResources}
             description="Resources with a live Workspace or Drive link available."
           />
           <StatCard
+            label="Classroom linked"
+            value={filteredSummary.classroomLinkedResources}
+            description="Resources that still point at a Classroom-backed copy or surface."
+          />
+          <StatCard
             label="Evidence mapped"
-            value={filteredSummary.sqaaEvidenceLinkedResources}
+            value={filteredSummary.evidenceMappedResources}
             description="Rows with SQAA, CBSE, NCERT, or mapping tags detected."
           />
           <StatCard
-            label="Metadata only / unavailable"
-            value={filteredSummary.sourceUnavailableOrMetadataOnly}
-            description="Rows that are surfaced from metadata without a live file link."
+            label="Source unavailable"
+            value={filteredSummary.sourceUnavailableResources}
+            description="Rows without a live Drive or Classroom link."
+          />
+          <StatCard
+            label="Low-confidence / inferred"
+            value={filteredSummary.lowConfidenceMappings}
+            description="Rows inferred from metadata rather than live source links."
           />
         </div>
 
-        <div className="mt-4 space-y-3 rounded-2xl border border-slate-100 bg-white/70 p-4">
+        <div className="mt-4 space-y-4 rounded-2xl border border-slate-100 bg-white/70 p-4">
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
             <Filter size={12} />
             Compact filters
@@ -785,26 +1173,148 @@ export default function AcademicResourceLibraryPage({
                 </React.Fragment>
               ))}
             </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <CompactSelectFilter
+              label="Resource type"
+              value={resourceTypeFilter}
+              options={resourceTypeOptions}
+              onChange={setResourceTypeFilter}
+            />
+            <CompactSelectFilter
+              label="Category"
+              value={categoryFilter}
+              options={categoryOptions}
+              onChange={setCategoryFilter}
+            />
+            <CompactSelectFilter
+              label="Audience"
+              value={audienceFilter}
+              options={audienceOptions}
+              onChange={setAudienceFilter}
+            />
+            <CompactSelectFilter
+              label="Class"
+              value={classFilter}
+              options={classOptions}
+              onChange={setClassFilter}
+            />
+            <CompactSelectFilter
+              label="Section"
+              value={sectionFilter}
+              options={sectionOptions}
+              onChange={setSectionFilter}
+            />
+            <CompactSelectFilter
+              label="Subject"
+              value={subjectFilter}
+              options={subjectOptions}
+              onChange={setSubjectFilter}
+            />
+            <CompactSelectFilter
+              label="Book"
+              value={bookFilter}
+              options={bookOptions}
+              onChange={setBookFilter}
+            />
+            <CompactSelectFilter
+              label="Chapter"
+              value={chapterFilter}
+              options={chapterOptions}
+              onChange={setChapterFilter}
+            />
+            <CompactSelectFilter
+              label="Source registry ID"
+              value={sourceRegistryIdFilter || "all"}
+              options={sourceRegistryIdOptions}
+              onChange={(value) => setSourceRegistryIdFilter(value === "all" ? "" : value)}
+            />
+            <CompactTextFilter
+              label="Lesson plan ID"
+              value={lessonPlanIdFilter}
+              placeholder="Filter by lessonPlanId"
+              onChange={setLessonPlanIdFilter}
+            />
+            <CompactSelectFilter
+              label="Evidence status"
+              value={evidenceStatusFilter}
+              options={[
+                { value: "mapped", label: "Mapped" },
+                { value: "review only", label: "Review only" },
+                { value: "unavailable", label: "Unavailable" },
+              ]}
+              onChange={setEvidenceStatusFilter}
+            />
+            <CompactSelectFilter
+              label="Source confidence"
+              value={sourceConfidenceFilter}
+              options={[
+                { value: "high", label: "High" },
+                { value: "medium", label: "Medium" },
+                { value: "low", label: "Low" },
+              ]}
+              onChange={setSourceConfidenceFilter}
+            />
+            <CompactSelectFilter
+              label="Drive link"
+              value={driveLinkFilter}
+              options={[
+                { value: "linked", label: "Linked" },
+                { value: "missing", label: "Missing" },
+              ]}
+              onChange={(value) => setDriveLinkFilter(value as ResourceLinkFilter)}
+            />
+            <CompactSelectFilter
+              label="Classroom link"
+              value={classroomLinkFilter}
+              options={[
+                { value: "linked", label: "Linked" },
+                { value: "missing", label: "Missing" },
+              ]}
+              onChange={(value) => setClassroomLinkFilter(value as ResourceLinkFilter)}
+            />
+          </div>
+
+          {activeContextItems.length > 0 && (
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Active query context</div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {activeContextItems.map((item) => (
+                  <span
+                    key={`${item.label}:${item.value}`}
+                    className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600"
+                  >
+                    {item.label}: {item.value}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div className="text-[10.5px] leading-relaxed text-slate-500">
+              Source note: this page is derived from existing Workspace files and lesson-plan archive rows. It does not write back to Drive, Classroom, Sheets, or the registry catalog. Evidence tags are inferred from current metadata and shown only for review.
+            </div>
 
             {hasActiveFilters && (
               <button
                 type="button"
-                onClick={() => {
-                  setSourceFilter("all");
-                  setStatusFilter("all");
-                }}
-                className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-[10.5px] font-bold text-blue-700 cursor-pointer hover:bg-blue-100"
+                onClick={resetResourceFilters}
+                className="inline-flex items-center justify-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-[10.5px] font-bold text-blue-700 cursor-pointer hover:bg-blue-100 shrink-0"
               >
                 Reset filters
               </button>
             )}
           </div>
-
-          <div className="text-[10.5px] leading-relaxed text-slate-500">
-            Source note: this page is derived from existing Workspace files and lesson-plan archive rows. It does not write back to Drive, Classroom, Sheets, or the registry catalog. Evidence tags are inferred from current metadata and shown only for review.
-          </div>
         </div>
       </div>
+
+      {resourceRows.length > 0 && filteredRows.length === 0 && (
+        <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-[11px] leading-relaxed text-amber-900 shadow-sm">
+          No academic resources matched the current filters or query context. Clear the filters above or search with a broader term to widen the view.
+        </div>
+      )}
 
       <GenericEntityPage
         definition={ACADEMIC_RESOURCE_DEFINITION}

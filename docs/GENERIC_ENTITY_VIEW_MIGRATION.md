@@ -1519,7 +1519,54 @@ This cycle strengthens the `/resources` read-only surface with richer source map
 
 ## Commit SHA
 
-* `pending`
+* `560ac71`
+
+---
+
+# Academic Resources - Filters Summary and Query Context Completion
+
+## Scope
+
+This cycle finishes the `/resources` completion pass by broadening filter/query-context handling, summary cards, and source-handoff behavior while leaving the existing source-mapping and SQAA evidence work in place.
+
+The source-mapping baseline from `560ac71` remains the foundation for this phase.
+
+## What Was Completed
+
+* `/resources` now accepts and applies query context for `source`, `class`, `section`, `subject`, `book`, `chapter`, `lessonPlanId`, `sourceRegistryId`, `resourceType`, `evidenceStatus`, and `sourceConfidence`.
+* The resource page now exposes richer filters for resource type, category, audience, class, section, subject, book, chapter, source registry ID, lesson plan ID, evidence status, source confidence, Drive link availability, and Classroom link availability.
+* Summary cards now include total resources, resource types represented, Drive-linked resources, Classroom-linked resources, evidence-mapped resources, source-unavailable resources, and low-confidence/inferred mappings.
+* The generic detail view now has fuller academic context coverage, including section, book, and lesson-plan identifiers where they exist.
+* Lesson Plans and Textbook Ingestor now pass richer resource-library context through the `/resources` handoff URL.
+* The resource page now shows an explicit active query-context banner and a clearer empty-state hint when filters remove all rows.
+
+## Behavior Preserved
+
+* The resource library stays read-only.
+* Lesson Plans remains a custom planning workspace.
+* Textbook Ingestor remains a custom NCERT/import workspace.
+* The generic list/detail framework remains limited to the `/resources` surface.
+* Existing source/evidence mapping behavior is unchanged.
+
+## Tracker Notes
+
+* `/resources` direct route: still works.
+* Filter controls: visible and responsive in local smoke.
+* Reset filters: clears the custom resource filters.
+* Lesson Plans handoff: returns to `/resources?source=lesson-plans&lessonPlanId=...&resourceType=lesson_plan` in local smoke.
+* Textbooks handoff: returns to `/resources?source=textbooks` in local smoke.
+* Browser smoke: completed locally on `/resources`, `/lesson-plans`, and `/textbooks`; the page loaded, filters changed the row set, reset restored the list, and the handoff buttons preserved the expected resource route.
+* Browser smoke note: the environment still blocks some external fetches such as Google Fonts and Google Sheets JSON reads, so the console showed network-access-denied noise unrelated to this change.
+
+## Verification Result
+
+* `npx tsc --noEmit --pretty false` succeeded.
+* `npm run build` succeeded with the existing Vite chunk-size warning only.
+* Browser smoke completed locally with the environment-specific external fetch noise noted above.
+
+## Commit SHA
+
+* `8524fcb`
 
 ---
 

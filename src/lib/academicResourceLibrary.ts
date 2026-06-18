@@ -28,6 +28,7 @@ export interface AcademicResourceRow {
   className?: string;
   section?: string;
   subject?: string;
+  bookName?: string;
   chapter?: string;
   lessonPlanId?: string;
   lessonPlanTitle?: string;
@@ -63,8 +64,11 @@ export interface AcademicResourceSummary {
   resourceTypesRepresented: number;
   driveLinkedResources: number;
   classroomLinkedResources: number;
+  evidenceMappedResources: number;
   sqaaEvidenceLinkedResources: number;
+  sourceUnavailableResources: number;
   sourceUnavailableOrMetadataOnly: number;
+  lowConfidenceMappings: number;
 }
 
 const TAG_REGEX = {
@@ -391,7 +395,9 @@ function normalizeWorkspaceFile(file: WorkspaceFile): AcademicResourceRow | null
     evidenceOriented: resourceType.evidenceOriented,
     defaultStatusLabel: resourceType.defaultStatusLabel,
     className: file.className,
+    section: (file as WorkspaceFile & { section?: string }).section,
     subject: file.subjectName,
+    bookName: file.bookName,
     chapter: file.topicName || (file.chapterNumber ? `Chapter ${file.chapterNumber}` : undefined),
     source: file.source,
     sourceRegistryId,
@@ -503,7 +509,9 @@ function normalizeSavedLessonPlanRow(plan: Record<string, unknown>): AcademicRes
     evidenceOriented: inferredType.evidenceOriented,
     defaultStatusLabel: inferredType.defaultStatusLabel,
     className: String(plan.className || ""),
+    section: String(plan.section || plan.sectionName || "").trim() || undefined,
     subject: String(plan.subjectName || ""),
+    bookName: String(plan.bookName || "").trim() || undefined,
     chapter: topicName || undefined,
     lessonPlanId: String(plan.id || topicName || ""),
     lessonPlanTitle: topicName || undefined,
@@ -576,12 +584,18 @@ export function buildAcademicResourceRows(
 }
 
 export function summarizeAcademicResourceRows(rows: AcademicResourceRow[] = []): AcademicResourceSummary {
+  const evidenceMappedResources = rows.filter((row) => row.sqaaTags.length > 0 || row.cbseTags.length > 0 || row.ncertTags.length > 0 || row.evidenceTags.length > 0).length;
+  const sourceUnavailableResources = rows.filter((row) => row.sourceUnavailable).length;
+
   return {
     totalResources: rows.length,
     resourceTypesRepresented: new Set(rows.map((row) => row.resourceTypeId)).size,
     driveLinkedResources: rows.filter((row) => Boolean(row.driveUrl)).length,
     classroomLinkedResources: rows.filter((row) => Boolean(row.classroomUrl)).length,
-    sqaaEvidenceLinkedResources: rows.filter((row) => row.sqaaTags.length > 0 || row.evidenceTags.length > 0).length,
+    evidenceMappedResources,
+    sqaaEvidenceLinkedResources: evidenceMappedResources,
+    sourceUnavailableResources,
     sourceUnavailableOrMetadataOnly: rows.filter((row) => row.sourceUnavailable || row.isMetadataOnly).length,
+    lowConfidenceMappings: rows.filter((row) => row.sourceConfidence === "low").length,
   };
 }

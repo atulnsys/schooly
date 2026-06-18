@@ -185,7 +185,12 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const openResourceLibrary = () => {
     if (typeof window !== "undefined") {
-      window.history.replaceState({}, "", "/resources?source=textbooks");
+      const params = new URLSearchParams();
+      params.set("source", "textbooks");
+      if (classId) params.set("class", classId);
+      if (subjectId) params.set("subject", subjectId);
+      if (bookName) params.set("book", bookName);
+      window.history.replaceState({}, "", `/resources?${params.toString()}`);
     }
 
     setActiveTab?.("resources");

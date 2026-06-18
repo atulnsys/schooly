@@ -740,7 +740,14 @@ export default function LessonPlanner({
   const [searchQuery, setSearchQuery] = useState("");
   const openResourceLibrary = () => {
     if (typeof window !== "undefined") {
-      window.history.replaceState({}, "", "/resources?source=lesson-plans");
+      const params = new URLSearchParams();
+      params.set("source", "lesson-plans");
+      if (selectedClass) params.set("class", selectedClass);
+      if (selectedSubject) params.set("subject", selectedSubject);
+      if (selectedTopic) params.set("chapter", selectedTopic);
+      if (selectedPlanId) params.set("lessonPlanId", selectedPlanId);
+      params.set("resourceType", "lesson_plan");
+      window.history.replaceState({}, "", `/resources?${params.toString()}`);
     }
 
     setActiveTab?.("resources");
