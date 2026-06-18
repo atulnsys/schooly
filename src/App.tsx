@@ -1052,13 +1052,55 @@ export default function App() {
     const subjectCount = [...new Set((courses || []).map((course) => course.name).filter(Boolean))].length;
 
     return [
-      { title: "Students", count: students.length, detail: "Live student records", source: "Master Registry / Student_Directory", drillTab: "students" },
-      { title: "Teachers", count: teacherCount, detail: "Active teaching staff", source: "Master Registry / Teacher_Allocations", drillTab: "teachers" },
-      { title: "Classes & Sections", count: courses.length, detail: "Live classroom sections", source: "Master Registry / Classes_Sections", drillTab: "courses" },
-      { title: "Staff", count: schoolRegistry?.staffDirectory.length || 0, detail: "Administrative and support staff", source: "Master Registry / Staff_Directory", drillTab: "staff" },
-      { title: "Subjects", count: subjectCount, detail: "Unique subject or course names", source: "Master Registry / Subjects", drillTab: "registries" },
-      { title: "Assignments", count: assignments.length, detail: "Current assignment rows", source: "Classroom / Assignment records", drillTab: "assignments" },
-      { title: "Tasks & Follow-ups", count: tasks.length, detail: "Open work items and follow-ups", source: "Dashboard Data Source / Alert_Log", drillTab: "tasks" }
+      {
+        title: "Students",
+        count: students.length,
+        detail: "Open the live student registry",
+        source: "Master Registry / Student_Directory",
+        drillTarget: { kind: "page", registryId: "students" as const }
+      },
+      {
+        title: "Teachers",
+        count: teacherCount,
+        detail: "Open the derived teacher view",
+        source: "Master Registry / Teacher_Allocations",
+        drillTarget: { kind: "page", registryId: "teachers" as const }
+      },
+      {
+        title: "Classes & Sections",
+        count: courses.length,
+        detail: "Open the classroom course page",
+        source: "Master Registry / Classes_Sections",
+        drillTarget: { kind: "page", registryId: "courses" as const }
+      },
+      {
+        title: "Staff",
+        count: schoolRegistry?.staffDirectory.length || 0,
+        detail: "Open the canonical staff directory",
+        source: "Master Registry / Staff_Directory",
+        drillTarget: { kind: "page", registryId: "staff" as const }
+      },
+      {
+        title: "Subjects",
+        count: subjectCount,
+        detail: "Open the master registry subject tab",
+        source: "Master Registry / Subjects",
+        drillTarget: { kind: "data", registryId: "masterDataRegistryUrl__subjects" as const }
+      },
+      {
+        title: "Assignments",
+        count: assignments.length,
+        detail: "Open the assignment page",
+        source: "Classroom / Assignment records",
+        drillTarget: { kind: "page", registryId: "assignments" as const }
+      },
+      {
+        title: "Tasks & Follow-ups",
+        count: tasks.length,
+        detail: "Open dashboard alerts and follow-ups",
+        source: "Dashboard Data Source / Alert_Log",
+        drillTarget: { kind: "tab", tab: "dashboard-data-source" as const }
+      }
     ];
   }, [assignments.length, courses, schoolRegistry?.staffDirectory.length, students.length, tasks.length]);
   const hideRolePersonaWidget = currentRole === "Principal" || currentRole === "Manager";

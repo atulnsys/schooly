@@ -2866,7 +2866,8 @@ export default function DashboardOverview({
       sourceUrl: getRegistryUrl("masterDataRegistryUrl"),
       rows: getTabRowCount("masterDataRegistryUrl", "Classes_Sections"),
       empty: "No live class/section rows found in Master Registry / Classes_Sections.",
-      registryKey: "masterDataRegistryUrl"
+      registryKey: "masterDataRegistryUrl",
+      actionTab: "courses"
     },
     {
       title: "Teacher Allocations",
@@ -2874,7 +2875,8 @@ export default function DashboardOverview({
       sourceUrl: getRegistryUrl("masterDataRegistryUrl"),
       rows: getTabRowCount("masterDataRegistryUrl", "Teacher_Allocations"),
       empty: "No live teacher allocation rows found in Master Registry / Teacher_Allocations.",
-      registryKey: "masterDataRegistryUrl"
+      registryKey: "masterDataRegistryUrl",
+      actionRegistryId: "REG_TEACHER_ALLOCATIONS"
     },
     {
       title: "Lesson Workspace",
@@ -2882,7 +2884,8 @@ export default function DashboardOverview({
       sourceUrl: getRegistryUrl("lessonWorkspaceRegistryUrl"),
       rows: getTabRowCount("lessonWorkspaceRegistryUrl", "Lesson_Workspace_Registry"),
       empty: "No live lesson workspace rows found in Lesson Workspace Registry / Lesson_Workspace_Registry.",
-      registryKey: "lessonWorkspaceRegistryUrl"
+      registryKey: "lessonWorkspaceRegistryUrl",
+      actionRegistryId: "lessonWorkspaceRegistryUrl__lesson-workspace-registry"
     },
     {
       title: "Alerts",
@@ -2890,7 +2893,8 @@ export default function DashboardOverview({
       sourceUrl: getRegistryUrl("dashboardDataSourceUrl"),
       rows: getTabRowCount("dashboardDataSourceUrl", "Alert_Log"),
       empty: "No live alert rows found in Dashboard Data Source / Alert_Log.",
-      registryKey: "dashboardDataSourceUrl"
+      registryKey: "dashboardDataSourceUrl",
+      actionRegistryId: "dashboardDataSourceUrl__alert-log"
     },
     {
       title: "SQAA Evidence",
@@ -2898,7 +2902,8 @@ export default function DashboardOverview({
       sourceUrl: getRegistryUrl("qaSqaaRegistryUrl"),
       rows: getTabRowCount("qaSqaaRegistryUrl", "SQAA_Evidence_Map"),
       empty: "No live compliance evidence rows found in QA/SQAA Registry / SQAA_Evidence_Map.",
-      registryKey: "qaSqaaRegistryUrl"
+      registryKey: "qaSqaaRegistryUrl",
+      actionRegistryId: "qaSqaaRegistryUrl__sqaa-evidence-map"
     },
     {
       title: "Assessments",
@@ -2906,7 +2911,8 @@ export default function DashboardOverview({
       sourceUrl: getRegistryUrl("assessmentResultRegistryUrl"),
       rows: registryByKey.get("assessmentResultRegistryUrl" as any)?.rowCount || 0,
       empty: "No live assessment rows found in Assessment/Result Registry.",
-      registryKey: "assessmentResultRegistryUrl"
+      registryKey: "assessmentResultRegistryUrl",
+      actionRegistryId: "assessmentResultRegistryUrl__result-processing"
     },
     {
       title: "Classroom Sync",
@@ -3096,14 +3102,14 @@ export default function DashboardOverview({
   const renderRegistersHub = () => {
     const teacherCount = [...new Set((courses || []).map((course) => course.teacherName).filter(Boolean))].length;
     const registerCards = [
-      { title: "Students", count: students.length, detail: "Live student records", source: "Master Registry / Student_Directory", drillTab: "students" },
-      { title: "Teachers", count: teacherCount, detail: "Active teaching staff", source: "Master Registry / Teacher_Allocations", drillTab: "teachers" },
-      { title: "Classes & Sections", count: courses.length, detail: "Live classroom sections", source: "Master Registry / Classes_Sections", drillTab: "courses" },
-      { title: "Staff", count: getTabRowCount("masterDataRegistryUrl", "Staff_Directory"), detail: "Administrative and support staff", source: "Master Registry / Staff_Directory", drillTab: "staff" },
-      { title: "Subjects", count: [...new Set((courses || []).map((course) => course.name).filter(Boolean))].length, detail: "Unique subject or course names", source: "Master Registry / Subjects", drillTab: "admin-registry-detail" },
-      { title: "Attendance", count: dashboardSourceState.registries?.find((registry) => /attendance/i.test(registry.label || registry.url || registry.key || ""))?.rowCount || 0, detail: "Attendance records when connected", source: "Attendance Registry / Attendance_Summary", drillTab: "admin-registry-detail" },
-      { title: "Assessments", count: dashboardSourceState.registries?.find((registry) => /assessment/i.test(registry.label || registry.url || registry.key || ""))?.rowCount || 0, detail: "Assessment and result rows", source: "Assessment/Result Registry", drillTab: "assignments" },
-      { title: "Tasks & Follow-ups", count: tasks.length, detail: "Open work items and follow-ups", source: "Dashboard Data Source / Alert_Log", drillTab: "role-cards" }
+      { title: "Students", count: students.length, detail: "Open the live student registry", source: "Master Registry / Student_Directory", drillTab: "students" },
+      { title: "Teachers", count: teacherCount, detail: "Open the derived teacher view", source: "Master Registry / Teacher_Allocations", drillTab: "teachers" },
+      { title: "Classes & Sections", count: courses.length, detail: "Open the classroom course page", source: "Master Registry / Classes_Sections", drillTab: "courses" },
+      { title: "Staff", count: getTabRowCount("masterDataRegistryUrl", "Staff_Directory"), detail: "Open the canonical staff directory", source: "Master Registry / Staff_Directory", drillTab: "staff" },
+      { title: "Subjects", count: [...new Set((courses || []).map((course) => course.name).filter(Boolean))].length, detail: "Open the master registry subject tab", source: "Master Registry / Subjects", actionRegistryId: "masterDataRegistryUrl__subjects" },
+      { title: "Attendance", count: dashboardSourceState.registries?.find((registry) => /attendance/i.test(registry.label || registry.url || registry.key || ""))?.rowCount || 0, detail: "Open the attendance summary registry", source: "Attendance Registry / Attendance_Summary", actionRegistryId: "dashboardDataSourceUrl__attendance_summary" },
+      { title: "Assessments", count: dashboardSourceState.registries?.find((registry) => /assessment/i.test(registry.label || registry.url || registry.key || ""))?.rowCount || 0, detail: "Open the assessment/result registry", source: "Assessment/Result Registry", actionRegistryId: "assessmentResultRegistryUrl__result-processing" },
+      { title: "Tasks & Follow-ups", count: tasks.length, detail: "Open dashboard alerts and follow-ups", source: "Dashboard Data Source / Alert_Log", drillTab: "dashboard-data-source" }
     ];
 
     return (
@@ -3116,10 +3122,10 @@ export default function DashboardOverview({
               Keep live records here instead of mock summaries. Common practice is to centralize students, teachers, classes & sections, staff, subjects, attendance, assessments, and timetables in one register area.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-sans font-black px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700">
-              {students.length + teacherCount + courses.length + tasks.length} live rows
-            </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-sans font-black px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700">
+            {students.length + teacherCount + courses.length + tasks.length} live rows
+          </span>
             <button
               type="button"
               onClick={openRegistryExplorer}
@@ -3134,10 +3140,15 @@ export default function DashboardOverview({
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
           {registerCards.map((card) => (
             <div key={card.title} className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
-              <button type="button" onClick={() => onToggleTab(card.drillTab)} className="w-full text-left flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => card.actionRegistryId ? openRegistryDataRoute(card.actionRegistryId) : onToggleTab(card.drillTab)}
+                className="w-full text-left flex items-center justify-between gap-2 cursor-pointer"
+                title={card.actionRegistryId ? `Open ${card.title} registry detail` : `Open ${card.title} page`}
+              >
                 <h3 className="text-sm font-extrabold text-slate-900">{card.title}</h3>
                 <span className={`text-[10px] font-sans font-bold px-2 py-0.5 rounded-full ${card.count > 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                  {card.count > 0 ? `${card.count} rows` : "Setup required"}
+                  {card.count > 0 ? `${card.count} rows` : "No live rows"}
                 </span>
               </button>
               <div className="text-xs font-semibold text-slate-600">{card.detail}</div>
@@ -3145,10 +3156,10 @@ export default function DashboardOverview({
               <div className="flex flex-wrap gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => onToggleTab(card.drillTab)}
+                  onClick={() => card.actionRegistryId ? openRegistryDataRoute(card.actionRegistryId) : onToggleTab(card.drillTab)}
                   className="px-2.5 py-1.5 rounded-lg border border-blue-200 bg-white text-[10px] font-extrabold text-blue-700 hover:bg-blue-50"
                 >
-                  Drill Through
+                  {card.actionRegistryId ? "Open Registry" : "Open Page"}
                 </button>
               </div>
             </div>
@@ -4860,7 +4871,10 @@ export default function DashboardOverview({
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-mono bg-blue-50 text-blue-700 px-2 py-1 rounded-md font-bold uppercase">
-                  {(dashboardSourceState.registries || []).reduce((sum, registry) => sum + registry.rowCount, 0)} live rows
+                  {(() => {
+                    const totalRows = (dashboardSourceState.registries || []).reduce((sum, registry) => sum + registry.rowCount, 0);
+                    return totalRows > 0 ? `${totalRows} live rows` : "Source unavailable";
+                  })()}
                 </span>
                 <button
                   type="button"
@@ -4879,7 +4893,7 @@ export default function DashboardOverview({
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-sm font-extrabold text-slate-900">{card.title}</h3>
               <span className={`text-[10px] font-sans font-bold px-2 py-0.5 rounded-full ${card.rows > 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                {card.rows > 0 ? `${card.rows} rows` : "Setup required"}
+                {card.rows > 0 ? `${card.rows} rows` : "No live rows"}
               </span>
             </div>
             <div className="text-[10px] text-blue-700 font-mono font-bold">Source: {card.source}</div>
@@ -4887,10 +4901,10 @@ export default function DashboardOverview({
             <div className="flex flex-wrap gap-2 pt-1">
               <button
                 type="button"
-                onClick={() => onToggleTab("admin-registry-detail")}
+                onClick={() => card.actionRegistryId ? openRegistryDataRoute(card.actionRegistryId) : onToggleTab(card.actionTab || "admin-registry-detail")}
                 className="px-2.5 py-1.5 rounded-lg border border-blue-200 bg-white text-[10px] font-extrabold text-blue-700 hover:bg-blue-50"
               >
-                Drill Through
+                {card.actionRegistryId ? "Open Registry" : card.actionTab ? "Open Page" : "Drill Through"}
               </button>
               {card.sourceUrl && canViewRegistrySheetLinks && (
                 <button

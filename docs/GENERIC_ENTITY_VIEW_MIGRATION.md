@@ -1843,6 +1843,54 @@ This follow-up refines the `/resources` page into a read-only evidence-map surfa
 
 ---
 
+# Dashboard and Registry Drill-Through - Align Cards to Live Registry Views
+
+## Scope
+
+This follow-up aligns dashboard KPIs, registry summary cards, and registry explorer summary cards to the live first-class page or registry detail surface they already map to, without adding mock data or a new navigation architecture.
+
+## What Was Adjusted
+
+* Dashboard summary cards now prefer explicit live destinations instead of generic tab-only drill-through where a registry detail surface already exists.
+* Registry hub cards for Subjects, Attendance, and Assessments now route to live registry detail surfaces instead of a generic fallback.
+* Registry explorer summary cards now distinguish between first-class pages, registry detail routes, and dashboard tabs.
+* Zero-row registry cards now show a clearer unavailable/no-live-rows message instead of a misleading silent count.
+
+## Alert and Availability Notes
+
+* Existing registry health messaging already distinguishes missing tabs, empty tabs, and header problems.
+* This pass keeps that logic intact and makes the card-level drill-through destinations more explicit.
+* Missing or incomplete registry rows continue to show a visible warning state instead of a fake row.
+
+## School at a Glance
+
+* Active Students still opens the students surface.
+* Active Staff still opens the staff surface.
+* Active Class Sections still opens the classroom courses surface.
+* Teacher Allocation Coverage still opens the teacher allocations registry detail route.
+
+## UI Smoke
+
+* Verified locally in Chrome against `http://127.0.0.1:3001`.
+* Dashboard loaded without runtime error.
+* Teacher Allocation Coverage opened the live teacher allocations registry detail route.
+* Registry Explorer loaded and the Subjects card opened the live registry detail route.
+* Registry Explorer Students card opened the students page.
+* Console output contained existing environment noise from blocked external requests, but no page errors were introduced by this change.
+
+## Files Changed
+
+* `src/App.tsx`
+* `src/components/DashboardOverview.tsx`
+* `src/components/RegistryExplorerPage.tsx`
+* `docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
+
+## Commit SHA
+
+* `pending`
+
+---
+
 # Feature Readiness â€” Registry Count and Drill-Through Closure
 
 ## Count Reconciliation

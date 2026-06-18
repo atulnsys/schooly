@@ -17,7 +17,10 @@ interface RegistryExplorerPageProps {
     count: number;
     detail: string;
     source: string;
-    drillTab: string;
+    drillTarget:
+      | { kind: "page"; registryId: string }
+      | { kind: "data"; registryId: string }
+      | { kind: "tab"; tab: string };
   }>;
 }
 
@@ -31,6 +34,18 @@ export default function RegistryExplorerPage({
   const rows = useMemo(() => getRegistryExplorerRows(), []);
   const summary = useMemo(() => getRegistryExplorerSummary(rows), [rows]);
   const [selectedRow, setSelectedRow] = useState<RegistryExplorerRow | null>(null);
+
+  const openLiveRegisterCard = (target: NonNullable<RegistryExplorerPageProps["liveRegisterCards"]>[number]["drillTarget"]) => {
+    if (target.kind === "page") {
+      onOpenPageRoute(target.registryId);
+      return;
+    }
+    if (target.kind === "data") {
+      onOpenDataRoute(target.registryId);
+      return;
+    }
+    onNavigateTab?.(target.tab);
+  };
 
   const definition = useMemo(
     () => createRegistryExplorerEntityDefinition(
@@ -101,12 +116,19 @@ export default function RegistryExplorerPage({
               <div key={card.title} className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
                 <button
                   type="button"
-                  onClick={() => onNavigateTab?.(card.drillTab)}
+                  onClick={() => openLiveRegisterCard(card.drillTarget)}
                   className="w-full text-left flex items-center justify-between gap-2 cursor-pointer"
+                  title={
+                    card.drillTarget.kind === "page"
+                      ? `Open ${card.title} page`
+                      : card.drillTarget.kind === "data"
+                        ? `Open ${card.title} registry detail`
+                        : `Open ${card.title} dashboard tab`
+                  }
                 >
                   <h4 className="text-sm font-extrabold text-slate-900">{card.title}</h4>
                   <span className="text-[10px] font-sans font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
-                    {card.count.toLocaleString()} rows
+                    {card.count > 0 ? `${card.count.toLocaleString()} rows` : "No live rows"}
                   </span>
                 </button>
                 <div className="text-xs font-semibold text-slate-600">{card.detail}</div>
