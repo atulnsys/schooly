@@ -958,7 +958,7 @@ export default function App() {
     // Resolve proper Lucide React component structures dynamically to maintain 100% type-safety & backwards compatibility
     const items = compiled
       .map(item => {
-        if (item.id === "teachers" || item.id === "registers" || item.id === "settings") return null;
+        if (item.id === "teachers" || item.id === "registers") return null;
 
         const normalizedParentGroup =
           item.id === "ai-assistant" || item.id === "role-cards"
@@ -1016,7 +1016,7 @@ export default function App() {
     { id: "search", name: "Search", icon: Search, parentGroup: "Primary" }
   ];
   const settingsNavItem = navigationItems.find((item) => item.id === "settings");
-  const visibleNavigationItems = navigationItems.filter((item) => item.id !== "settings");
+  const visibleNavigationItems = navigationItems.filter((item) => item.id !== "settings" && item.id !== "role-cards");
   const workspaceNavItems = [
     { id: "ai-assistant", name: "My AI Assistant", icon: Sparkles, parentGroup: "My Workspace" },
     ...visibleNavigationItems.filter((item) => !["overview", "search", "ai-assistant"].includes(item.id))

@@ -1520,7 +1520,7 @@ This follow-up cleanup removes the separate `Registers` sidebar section, keeps `
 
 ---
 
-# Sidebar Navigation - Complete Final IA Correction
+# Sidebar Navigation - Remove Role Dashboards and Restore Settings
 
 ## Final Sidebar Structure
 
@@ -1528,7 +1528,6 @@ This follow-up cleanup removes the separate `Registers` sidebar section, keeps `
 * `Search`
 * `My Workspace`
   * `My AI Assistant`
-  * `Role Dashboards`
   * `Tasks`
 * `Teaching & Learning`
   * `Lessons Workspace`
@@ -1546,12 +1545,12 @@ This follow-up cleanup removes the separate `Registers` sidebar section, keeps `
 
 ## What Changed
 
-* `Settings` now renders as a standalone sidebar action instead of appearing inside `Teaching & Learning`.
-* `Registers` was removed from the visible sidebar.
+* `Role Dashboards` is preserved as a route but no longer appears in the main sidebar.
+* `Settings` is restored as a standalone sidebar action.
+* `Registers` remains removed from the visible sidebar.
 * `/registers` remains a compatibility alias that resolves to `/registries`.
 * `Registry Explorer` now lives under `System & Data`.
 * `Resources` was added under `Teaching & Learning`.
-* `Role Cards` was renamed to `Role Dashboards` where retained.
 * `Teachers` stays hidden from the main sidebar while the `/teachers` route remains available.
 * Old saved schema metadata is reconciled on load so stale `Registers`, `Role Cards`, `AI Assistant`, or `Academic Resources` labels do not require manual local-storage cleanup.
 
@@ -1581,7 +1580,7 @@ This follow-up cleanup removes the separate `Registers` sidebar section, keeps `
 
 ## UI Smoke Notes
 
-* I verified the code path that removes `Registers` from the sidebar and moves `Registry Explorer`, `Resources`, and `Settings` into the requested IA.
+* I verified the code path that removes `Role Dashboards` from the sidebar and restores the standalone `Settings` action while keeping `Registry Explorer` under `System & Data`.
 * I could not complete a live browser render check in this environment because Chromium was unavailable.
 
 ## Files Changed
