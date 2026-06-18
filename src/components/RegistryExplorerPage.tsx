@@ -78,6 +78,8 @@ export default function RegistryExplorerPage({
 
   const countLabel = (count: number, state?: LiveRegisterCardSourceState) => {
     switch (state) {
+      case "Empty":
+        return "No rows available";
       case "Missing":
         return "Source unavailable";
       case "Incomplete":

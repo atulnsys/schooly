@@ -1,25 +1,220 @@
 import React, { useMemo } from "react";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ArrowLeft, ExternalLink, Info } from "lucide-react";
 import GenericEntityDetailView from "./generic/GenericEntityDetailView";
 import { getRegistryCatalogEntry } from "../lib/registryCatalog";
 import {
   createRegistryExplorerEntityDefinition,
   getRegistryExplorerRow,
+  type RegistryExplorerRow,
 } from "../lib/registryExplorerEntityDefinition";
+import type { SchoolRegistryState } from "../lib/schoolRegistry";
 
 interface GenericRegistryDataPageProps {
   registryId: string;
   currentRole: string;
   onBackToExplorer: () => void;
+  schoolRegistry?: SchoolRegistryState | null;
+}
+
+type RegistryReadinessState = "Ready" | "Empty" | "Missing" | "Incomplete" | "Fallback" | "Unknown";
+
+interface RegistryDetailSummary {
+  sourceState: RegistryReadinessState;
+  rowCountLabel: string;
+  mandatoryFieldLabel: string;
+  validationLabel: string;
+  requiredCount: number;
+  presentFields: string[];
+  missingFields: string[];
+  unknownFields: string[];
+  validationMessages: string[];
+  guidance?: string;
+}
+
+function normalizeKey(value: string): string {
+  return String(value || "").trim().toLowerCase();
+}
+
+function getLiveRowsForRegistry(
+  row: RegistryExplorerRow,
+  schoolRegistry?: SchoolRegistryState | null,
+): Array<Record<string, unknown>> {
+  if (!schoolRegistry) return [];
+
+  switch (row.tabName) {
+    case "School_Profile":
+      return schoolRegistry.schoolProfile as unknown as Array<Record<string, unknown>>;
+    case "Academic_Years":
+      return schoolRegistry.academicYears as unknown as Array<Record<string, unknown>>;
+    case "Classes_Sections":
+      return schoolRegistry.classesSections as unknown as Array<Record<string, unknown>>;
+    case "Subjects":
+      return schoolRegistry.subjects as unknown as Array<Record<string, unknown>>;
+    case "Staff_Directory":
+      return schoolRegistry.staffDirectory as unknown as Array<Record<string, unknown>>;
+    case "Teacher_Allocations":
+      return schoolRegistry.teacherAllocations as unknown as Array<Record<string, unknown>>;
+    case "Timetable":
+      return schoolRegistry.timetable as unknown as Array<Record<string, unknown>>;
+    case "Student_Directory":
+      return schoolRegistry.studentDirectory as unknown as Array<Record<string, unknown>>;
+    case "Student_Enrollment":
+      return schoolRegistry.studentEnrollment as unknown as Array<Record<string, unknown>>;
+    case "Books_Registry":
+      return schoolRegistry.booksRegistry as unknown as Array<Record<string, unknown>>;
+    case "Book_TOC_Registry":
+      return schoolRegistry.bookTocRegistry as unknown as Array<Record<string, unknown>>;
+    case "Registry_Bootstrap_Log":
+      return schoolRegistry.registryBootstrapLog as unknown as Array<Record<string, unknown>>;
+    case "Registry_Summary":
+      return schoolRegistry.registrySummary as unknown as Array<Record<string, unknown>>;
+    default:
+      return [];
+  }
+}
+
+function getRegistryReadiness(
+  row: RegistryExplorerRow,
+  liveRows: Array<Record<string, unknown>>,
+  schoolRegistry?: SchoolRegistryState | null,
+): RegistryReadinessState {
+  if (schoolRegistry?.mode === "fallback") return "Fallback";
+  if (schoolRegistry?.mode === "missing" || schoolRegistry?.mode === "error") {
+    return liveRows.length > 0 ? "Ready" : "Missing";
+  }
+
+  if (liveRows.length === 0) {
+    if (row.sourceState === "Missing") return "Missing";
+    if (row.sourceState === "Incomplete") return "Incomplete";
+    if (row.sourceState === "Fallback") return "Fallback";
+    return row.sourceState === "Empty" ? "Empty" : "Unknown";
+  }
+
+  const requiredHeaders = row.requiredHeaders || [];
+  if (requiredHeaders.length > 0) {
+    const availableKeys = new Set(liveRows.flatMap((liveRow) => Object.keys(liveRow)).map(normalizeKey));
+    const missing = requiredHeaders.filter((header) => !availableKeys.has(normalizeKey(header)));
+    if (missing.length > 0) return "Incomplete";
+  }
+
+  return "Ready";
+}
+
+function buildRegistryDetailSummary(
+  row: RegistryExplorerRow,
+  liveRows: Array<Record<string, unknown>>,
+  schoolRegistry?: SchoolRegistryState | null,
+): RegistryDetailSummary {
+  const requiredHeaders = row.requiredHeaders || [];
+  const readiness = getRegistryReadiness(row, liveRows, schoolRegistry);
+  const validationMessages: string[] = [];
+
+  if (readiness === "Missing") {
+    validationMessages.push("Validation metadata not available from this source yet.");
+  } else if (requiredHeaders.length === 0) {
+    validationMessages.push("Validation metadata not available from this source yet.");
+  }
+
+  const availableKeys = new Set(liveRows.flatMap((liveRow) => Object.keys(liveRow)).map(normalizeKey));
+  const presentFields = requiredHeaders.filter((header) => availableKeys.has(normalizeKey(header)));
+  const missingFields = requiredHeaders.filter((header) => !availableKeys.has(normalizeKey(header)));
+  const unknownFields = readiness === "Empty" || readiness === "Unknown" ? requiredHeaders : [];
+
+  const mandatoryFieldLabel =
+    requiredHeaders.length === 0
+      ? "Mandatory field metadata unavailable"
+      : readiness === "Ready" && missingFields.length === 0
+        ? "All mandatory fields available"
+        : readiness === "Ready" && missingFields.length > 0
+          ? "Missing mandatory fields"
+          : readiness === "Incomplete"
+            ? "Missing mandatory fields"
+            : "Mandatory field metadata unavailable";
+
+  const validationLabel =
+    readiness === "Ready" || readiness === "Incomplete"
+      ? requiredHeaders.length > 0
+        ? "Validation metadata available"
+        : "Validation metadata not available from this source yet"
+      : "Validation metadata not available from this source yet";
+
+  const rowCount = liveRows.length;
+  const rowCountLabel =
+    readiness === "Ready"
+      ? `${rowCount} ${rowCount === 1 ? "row" : "rows"}`
+      : readiness === "Empty"
+        ? "No rows available"
+        : readiness === "Missing"
+          ? "Source unavailable"
+          : readiness === "Fallback"
+            ? "Fallback data"
+            : readiness === "Incomplete"
+              ? "Check setup"
+              : "State unknown";
+
+  if (readiness === "Incomplete" && missingFields.length > 0) {
+    validationMessages.push(`Validation rules need review: ${missingFields.slice(0, 3).join(", ")}.`);
+  } else if (readiness === "Ready" && requiredHeaders.length > 0 && missingFields.length === 0) {
+    validationMessages.push("No validation errors detected from available metadata.");
+  }
+
+  let guidance: string | undefined;
+  if (readiness === "Missing") {
+    guidance = `Connect or upload the ${row.displayName} registry to use this page.`;
+  } else if (readiness === "Empty") {
+    guidance = `${row.displayName} exists but has no rows.`;
+  } else if (readiness === "Incomplete") {
+    guidance = "This registry is missing mandatory fields needed for reliable dashboard use.";
+  } else if (readiness === "Fallback") {
+    guidance = "This registry is showing fallback/static data. Reconnect the live source before relying on it.";
+  } else if (readiness === "Unknown") {
+    guidance = "Registry source state is unknown for this entry.";
+  }
+
+  return {
+    sourceState: readiness,
+    rowCountLabel,
+    mandatoryFieldLabel,
+    validationLabel,
+    requiredCount: requiredHeaders.length,
+    presentFields,
+    missingFields,
+    unknownFields,
+    validationMessages,
+    guidance,
+  };
+}
+
+function SummaryPill({ label, value, tone = "slate" }: { label: string; value: string; tone?: "slate" | "emerald" | "amber" | "orange" | "violet" | "blue" }) {
+  const toneClass = tone === "emerald"
+    ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+    : tone === "amber"
+      ? "bg-amber-50 text-amber-700 border-amber-100"
+      : tone === "orange"
+        ? "bg-orange-50 text-orange-700 border-orange-100"
+        : tone === "violet"
+          ? "bg-violet-50 text-violet-700 border-violet-100"
+          : tone === "blue"
+            ? "bg-blue-50 text-blue-700 border-blue-100"
+            : "bg-slate-50 text-slate-600 border-slate-200";
+
+  return (
+    <div className={`rounded-xl border px-3 py-2 ${toneClass}`}>
+      <div className="text-[9px] uppercase tracking-wider font-mono font-bold opacity-80">{label}</div>
+      <div className="mt-0.5 text-[11px] font-semibold break-words">{value}</div>
+    </div>
+  );
 }
 
 function RegistryDetailFallback({
   row,
   currentRole,
+  schoolRegistry,
   onBackToExplorer,
 }: {
   row: NonNullable<ReturnType<typeof getRegistryExplorerRow>>;
   currentRole: string;
+  schoolRegistry?: SchoolRegistryState | null;
   onBackToExplorer: () => void;
 }) {
   const definition = useMemo(() => {
@@ -29,6 +224,9 @@ function RegistryDetailFallback({
       actions: [],
     };
   }, []);
+
+  const liveRows = useMemo(() => getLiveRowsForRegistry(row, schoolRegistry), [row, schoolRegistry]);
+  const detailSummary = useMemo(() => buildRegistryDetailSummary(row, liveRows, schoolRegistry), [liveRows, row, schoolRegistry]);
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -53,6 +251,105 @@ function RegistryDetailFallback({
         )}
       </div>
 
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <SummaryPill label="Rows" value={detailSummary.rowCountLabel} tone={detailSummary.sourceState === "Ready" ? "blue" : detailSummary.sourceState === "Empty" ? "slate" : detailSummary.sourceState === "Missing" ? "amber" : detailSummary.sourceState === "Incomplete" ? "orange" : detailSummary.sourceState === "Fallback" ? "violet" : "slate"} />
+          <SummaryPill label="Source state" value={detailSummary.sourceState} tone={detailSummary.sourceState === "Ready" ? "emerald" : detailSummary.sourceState === "Empty" ? "slate" : detailSummary.sourceState === "Missing" ? "amber" : detailSummary.sourceState === "Incomplete" ? "orange" : detailSummary.sourceState === "Fallback" ? "violet" : "slate"} />
+          <SummaryPill label="Mandatory fields" value={detailSummary.mandatoryFieldLabel} tone={detailSummary.mandatoryFieldLabel === "All mandatory fields available" ? "emerald" : detailSummary.mandatoryFieldLabel === "Missing mandatory fields" ? "amber" : "slate"} />
+          <SummaryPill label="Validation" value={detailSummary.validationLabel} tone={detailSummary.validationLabel === "Validation metadata available" ? "blue" : "slate"} />
+        </div>
+
+        <div className="flex items-start gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+          <Info size={14} className="text-blue-600 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p>
+              This route exposes the registry metadata directly. Live row rendering stays on the existing first-class page when one is already available.
+            </p>
+            {detailSummary.guidance && <p>{detailSummary.guidance}</p>}
+          </div>
+        </div>
+
+        <div className="grid gap-2 md:grid-cols-2">
+          <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-[11px] text-slate-600 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Mandatory Fields</span>
+              <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${
+                detailSummary.mandatoryFieldLabel === "All mandatory fields available"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                  : detailSummary.mandatoryFieldLabel === "Missing mandatory fields"
+                    ? "bg-amber-50 text-amber-700 border-amber-100"
+                    : "bg-slate-50 text-slate-600 border-slate-200"
+              }`}>
+                {detailSummary.mandatoryFieldLabel}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-white border border-slate-200 text-slate-600">
+                Required {detailSummary.requiredCount}
+              </span>
+              <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-white border border-emerald-100 text-emerald-700">
+                Present {detailSummary.presentFields.length}
+              </span>
+              <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-white border border-amber-100 text-amber-700">
+                Missing {detailSummary.missingFields.length}
+              </span>
+              <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-white border border-slate-200 text-slate-500">
+                Unknown {detailSummary.unknownFields.length}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {detailSummary.presentFields.map((field) => (
+                <span key={`present-${field}`} className="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                  {field}
+                </span>
+              ))}
+              {detailSummary.missingFields.map((field) => (
+                <span key={`missing-${field}`} className="text-[10px] font-bold px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
+                  {field}
+                </span>
+              ))}
+              {detailSummary.unknownFields.map((field) => (
+                <span key={`unknown-${field}`} className="text-[10px] font-bold px-2 py-1 rounded-full bg-slate-50 text-slate-500 border border-slate-200">
+                  {field}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-[11px] text-slate-600 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Validation</span>
+              <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${
+                detailSummary.validationLabel === "Validation metadata available"
+                  ? "bg-blue-50 text-blue-700 border-blue-100"
+                  : "bg-slate-50 text-slate-600 border-slate-200"
+              }`}>
+                {detailSummary.validationLabel}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-white border border-slate-200 text-slate-600">
+                Rules {detailSummary.requiredCount}
+              </span>
+              <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-white border border-slate-200 text-slate-600">
+                Warnings {detailSummary.validationMessages.length}
+              </span>
+            </div>
+            {detailSummary.validationMessages.length > 0 ? (
+              <div className="space-y-1">
+                {detailSummary.validationMessages.map((message) => (
+                  <div key={message} className="rounded-lg border border-amber-100 bg-amber-50 px-2.5 py-2 text-[10.5px] font-semibold text-amber-800">
+                    {message}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p>No validation errors detected from available metadata.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
       <GenericEntityDetailView
         definition={definition}
         row={row}
@@ -74,6 +371,7 @@ export default function GenericRegistryDataPage({
   registryId,
   currentRole,
   onBackToExplorer,
+  schoolRegistry,
 }: GenericRegistryDataPageProps) {
   const row = useMemo(() => getRegistryExplorerRow(registryId), [registryId]);
   const catalogEntry = useMemo(() => getRegistryCatalogEntry(registryId), [registryId]);
@@ -96,5 +394,5 @@ export default function GenericRegistryDataPage({
     );
   }
 
-  return <RegistryDetailFallback row={row} currentRole={currentRole} onBackToExplorer={onBackToExplorer} />;
+  return <RegistryDetailFallback row={row} currentRole={currentRole} schoolRegistry={schoolRegistry} onBackToExplorer={onBackToExplorer} />;
 }

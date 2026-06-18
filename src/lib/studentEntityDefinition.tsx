@@ -36,6 +36,7 @@ export function createStudentEntityDefinition(): GenericEntityDefinition<Student
         label: "Email",
         type: "text",
         searchable: true,
+        required: true,
       },
       {
         key: "gradeLevel",
@@ -44,6 +45,7 @@ export function createStudentEntityDefinition(): GenericEntityDefinition<Student
         searchable: true,
         filterable: true,
         sortable: true,
+        required: true,
       },
       {
         key: "enrollmentStatus",
@@ -52,6 +54,7 @@ export function createStudentEntityDefinition(): GenericEntityDefinition<Student
         searchable: true,
         filterable: true,
         sortable: true,
+        required: true,
         getBadgeVariant: (student) => getEnrollmentBadgeVariant(student.enrollmentStatus),
       },
       {

@@ -1198,6 +1198,7 @@ export default function App() {
           <GenericRegistryDataPage
             registryId={registryId}
             currentRole={currentRole}
+            schoolRegistry={schoolRegistry}
             onBackToExplorer={() => setSelectedRegistryId(null)}
           />
         );

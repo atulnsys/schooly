@@ -143,6 +143,7 @@ export function createStaffEntityDefinition(): GenericEntityDefinition<StaffDire
         label: "Email",
         type: "text",
         searchable: true,
+        required: true,
       },
       {
         key: "role",
@@ -151,6 +152,7 @@ export function createStaffEntityDefinition(): GenericEntityDefinition<StaffDire
         searchable: true,
         filterable: true,
         sortable: true,
+        required: true,
       },
       {
         key: "department",
@@ -159,6 +161,7 @@ export function createStaffEntityDefinition(): GenericEntityDefinition<StaffDire
         searchable: true,
         filterable: true,
         sortable: true,
+        required: true,
       },
       {
         key: "status",
@@ -167,6 +170,7 @@ export function createStaffEntityDefinition(): GenericEntityDefinition<StaffDire
         searchable: true,
         filterable: true,
         sortable: true,
+        required: true,
         getBadgeVariant: (staff) => getStatusBadgeVariant(staff.status),
       },
     ],

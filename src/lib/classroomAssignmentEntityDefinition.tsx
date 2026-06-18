@@ -45,6 +45,7 @@ export function createClassroomAssignmentEntityDefinition({
         searchable: true,
         filterable: true,
         sortable: true,
+        required: true,
         getBadgeVariant: (assignment) => {
           if (assignment.status === "graded") return "success";
           if (assignment.status === "submitted") return "info";
@@ -56,12 +57,14 @@ export function createClassroomAssignmentEntityDefinition({
         label: "Due Date",
         type: "date",
         sortable: true,
+        required: true,
       },
       {
         key: "submissionCount",
         label: "Submissions",
         type: "number",
         sortable: true,
+        required: true,
         renderListValue: (assignment) =>
           `${assignment.submissionCount}${studentCount ? ` / ${studentCount}` : ""}`,
       },

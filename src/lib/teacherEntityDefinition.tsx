@@ -23,6 +23,7 @@ export function createTeacherEntityDefinition(): GenericEntityDefinition<Teacher
         label: "Email",
         type: "text",
         searchable: true,
+        required: true,
       },
       {
         key: "department",
@@ -31,6 +32,7 @@ export function createTeacherEntityDefinition(): GenericEntityDefinition<Teacher
         searchable: true,
         filterable: true,
         sortable: true,
+        required: true,
       },
       {
         key: "currentCourses",

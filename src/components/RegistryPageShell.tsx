@@ -2,6 +2,11 @@ import React, { useMemo } from "react";
 import GenericEntityPage from "./generic/GenericEntityPage";
 import type { GenericEntityDefinition, GenericEntityPermissionContext } from "../lib/genericEntityView";
 import {
+  getAllGenericRowIssues,
+  getGenericFieldValue,
+  isGenericValueEmpty,
+} from "../lib/genericEntityView";
+import {
   getRegistryCatalogEntry,
   type RegistryCapabilityMetadata,
   type RegistryCatalogEntry,
@@ -25,31 +30,52 @@ interface RegistryPageShellProps<T extends object> {
   errorMessage?: string | null;
 }
 
-function renderRegistryHeader(entry: RegistryCatalogEntry, rowCount: number, currentRole: string) {
+type RegistrySourceState = "Ready" | "Empty" | "Missing" | "Incomplete" | "Fallback" | "Unknown";
+
+interface RegistryHeaderSummary {
+  sourceState: RegistrySourceState;
+  rowCountLabel: string;
+  mandatoryFieldLabel: string;
+  validationLabel: string;
+  guidance?: string;
+}
+
+function renderRegistryHeader(entry: RegistryCatalogEntry, currentRole: string, summary: RegistryHeaderSummary) {
   const Icon = entry.iconComponent;
-  const sourceState = entry.status === "active"
-    ? (rowCount > 0 ? "Ready" : "Empty")
-    : entry.status === "deferred"
-      ? "Source unavailable"
-      : "Unknown";
-  const sourceStateClass = sourceState === "Ready"
+  const sourceStateClass = summary.sourceState === "Ready"
     ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-    : sourceState === "Empty"
+    : summary.sourceState === "Empty"
       ? "bg-slate-50 text-slate-700 border-slate-200"
-      : sourceState === "Source unavailable"
+      : summary.sourceState === "Missing"
         ? "bg-amber-50 text-amber-700 border-amber-100"
-        : "bg-slate-50 text-slate-600 border-slate-200";
+        : summary.sourceState === "Incomplete"
+          ? "bg-orange-50 text-orange-700 border-orange-100"
+          : summary.sourceState === "Fallback"
+            ? "bg-violet-50 text-violet-700 border-violet-100"
+            : summary.sourceState === "Unknown"
+              ? "bg-slate-50 text-slate-600 border-slate-200"
+              : "bg-slate-50 text-slate-600 border-slate-200";
+  const mandatoryStateClass = summary.mandatoryFieldLabel === "Mandatory field metadata unavailable"
+    ? "bg-slate-50 text-slate-600 border-slate-200"
+    : summary.mandatoryFieldLabel === "Missing mandatory fields"
+      ? "bg-amber-50 text-amber-700 border-amber-100"
+      : "bg-emerald-50 text-emerald-700 border-emerald-100";
+  const validationStateClass = summary.validationLabel === "Validation metadata unavailable"
+    ? "bg-slate-50 text-slate-600 border-slate-200"
+    : summary.validationLabel === "Validation metadata available"
+      ? "bg-blue-50 text-blue-700 border-blue-100"
+      : "bg-amber-50 text-amber-700 border-amber-100";
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 min-w-0">
           <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">
             {entry.navLabel}
           </div>
-          <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
-            <Icon size={18} className="text-blue-600" />
-            {entry.label}
+          <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2 min-w-0">
+            <Icon size={18} className="text-blue-600 shrink-0" />
+            <span className="break-words">{entry.label}</span>
           </h2>
           <p className="text-xs text-slate-600 max-w-3xl">
             {entry.description}
@@ -58,10 +84,10 @@ function renderRegistryHeader(entry: RegistryCatalogEntry, rowCount: number, cur
 
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[10px] font-sans font-black px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-100">
-            {rowCount} {rowCount === 1 ? "record" : "records"}
+            {summary.rowCountLabel}
           </span>
           <span className={`text-[10px] font-sans font-black px-2.5 py-1 rounded-lg border ${sourceStateClass}`}>
-            {sourceState}
+            {summary.sourceState}
           </span>
           <span className="text-[10px] font-sans font-black px-2.5 py-1 rounded-lg bg-slate-50 text-slate-600 border border-slate-200">
             Role: {currentRole}
@@ -69,13 +95,26 @@ function renderRegistryHeader(entry: RegistryCatalogEntry, rowCount: number, cur
         </div>
       </div>
 
-      <div className="flex items-start gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+      <div className="flex flex-wrap items-start gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
         <Info size={14} className="text-blue-600 shrink-0 mt-0.5" />
-        <div className="space-y-1">
-          <p>
+        <div className="space-y-2 min-w-0">
+          <p className="break-words">
             Data source: <span className="font-mono font-bold text-slate-700">{entry.sourceLabel}</span>.
             {entry.status === "deferred" ? ` ${entry.statusReason || entry.emptyStateDescription}` : " If this feed is empty, the registry will show the generic empty state instead of synthetic rows."}
           </p>
+          <div className="flex flex-wrap gap-2">
+            <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${mandatoryStateClass}`}>
+              {summary.mandatoryFieldLabel}
+            </span>
+            <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${validationStateClass}`}>
+              {summary.validationLabel}
+            </span>
+          </div>
+          {summary.guidance && (
+            <p className="text-[10px] text-slate-500 break-words">
+              {summary.guidance}
+            </p>
+          )}
           {entry.capabilityMetadata && (
             <p className="text-[10px] text-slate-500">
               {entry.capabilityMetadata.derivedFromRegistryId
@@ -150,6 +189,123 @@ function CapabilityMetadataStrip({ metadata }: { metadata: RegistryCapabilityMet
   );
 }
 
+function getRegistrySourceState(entry: RegistryCatalogEntry, rowCount: number, isLoading: boolean, errorMessage: string | null): RegistrySourceState {
+  if (isLoading) return "Unknown";
+  if (errorMessage) return entry.status === "deferred" ? "Missing" : "Unknown";
+  if (entry.status === "deferred") return "Missing";
+  if (entry.status === "active") return rowCount > 0 ? "Ready" : "Empty";
+  return "Unknown";
+}
+
+function renderRegistryDetailSummary<T extends object>(row: T, definition: GenericEntityDefinition<T>) {
+  const requiredFields = definition.fields.filter((field) => field.required);
+
+  if (requiredFields.length === 0) {
+    return (
+      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-[11px] text-slate-600 space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Mandatory Fields</span>
+          <span className="text-[10px] font-black px-2 py-1 rounded-lg border bg-slate-50 text-slate-600 border-slate-200">
+            Mandatory field metadata unavailable
+          </span>
+        </div>
+        <p>Mark core fields as required in the entity definition to surface mandatory-field guidance here.</p>
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200">
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Validation</span>
+          <span className="text-[10px] font-black px-2 py-1 rounded-lg border bg-slate-50 text-slate-600 border-slate-200">
+            Validation metadata unavailable
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  const presentFields = requiredFields.filter((field) => !isGenericValueEmpty(getGenericFieldValue(row, field)));
+  const missingFields = requiredFields.filter((field) => isGenericValueEmpty(getGenericFieldValue(row, field)));
+  const validationIssues = getAllGenericRowIssues(row, definition);
+  const validationRuleCount = requiredFields.length + (definition.getRowIssues ? 1 : 0);
+  const mandatoryLabel = missingFields.length === 0 ? "All mandatory fields available" : "Missing mandatory fields";
+  const validationLabel = validationIssues.length === 0
+    ? "No validation errors detected from available metadata"
+    : "Validation rules need review";
+
+  return (
+    <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-[11px] text-slate-600 space-y-3">
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Mandatory Fields</span>
+          <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${
+            missingFields.length === 0
+              ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+              : "bg-amber-50 text-amber-700 border-amber-100"
+          }`}>
+            {mandatoryLabel}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-white border border-slate-200 text-slate-600">
+            Required {requiredFields.length}
+          </span>
+          <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-white border border-emerald-100 text-emerald-700">
+            Present {presentFields.length}
+          </span>
+          <span className={`text-[10px] font-mono px-2 py-1 rounded-full border ${
+            missingFields.length > 0
+              ? "bg-amber-50 border-amber-100 text-amber-700"
+              : "bg-slate-50 border-slate-200 text-slate-500"
+          }`}>
+            Missing {missingFields.length}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {presentFields.map((field) => (
+            <span key={String(field.key)} className="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+              {field.label}
+            </span>
+          ))}
+          {missingFields.map((field) => (
+            <span key={String(field.key)} className="text-[10px] font-bold px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
+              {field.label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-2 pt-2 border-t border-slate-200">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Validation</span>
+          <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${
+            validationIssues.length === 0
+              ? "bg-blue-50 text-blue-700 border-blue-100"
+              : "bg-amber-50 text-amber-700 border-amber-100"
+          }`}>
+            {validationLabel}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-white border border-slate-200 text-slate-600">
+            Rules {validationRuleCount}
+          </span>
+          <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-white border border-slate-200 text-slate-600">
+            Issues {validationIssues.length}
+          </span>
+        </div>
+        {validationIssues.length > 0 ? (
+          <div className="space-y-1">
+            {validationIssues.slice(0, 3).map((issue) => (
+              <div key={issue.id} className="rounded-lg border border-amber-100 bg-amber-50 px-2.5 py-2 text-[10.5px] font-semibold text-amber-800">
+                {issue.message}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p>No validation errors detected from available metadata.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function RegistryPageShell<T extends object>({
   registryId,
   rows,
@@ -171,7 +327,6 @@ export default function RegistryPageShell<T extends object>({
     () => entry?.createEntityDefinition?.() as GenericEntityDefinition<T> | undefined,
     [entry],
   );
-
   if (!entry || !definition) {
     return (
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
@@ -179,6 +334,42 @@ export default function RegistryPageShell<T extends object>({
       </div>
     );
   }
+
+  const requiredFieldCount = definition.fields.filter((field) => field.required).length;
+  const sourceState = getRegistrySourceState(entry, rows.length, isLoading, errorMessage);
+  const summary: RegistryHeaderSummary = {
+    sourceState,
+    rowCountLabel:
+      sourceState === "Ready"
+        ? `${rows.length} ${rows.length === 1 ? "record" : "records"}`
+        : sourceState === "Empty"
+          ? "No rows available"
+          : sourceState === "Missing"
+            ? "Source unavailable"
+            : sourceState === "Fallback"
+              ? "Fallback data"
+              : sourceState === "Incomplete"
+                ? "Check setup"
+                : "State unknown",
+    mandatoryFieldLabel:
+      requiredFieldCount > 0
+        ? "Mandatory metadata available"
+        : "Mandatory field metadata unavailable",
+    validationLabel:
+      requiredFieldCount > 0 || Boolean(definition.getRowIssues)
+        ? "Validation metadata available"
+        : "Validation metadata unavailable",
+    guidance:
+      sourceState === "Empty"
+        ? `${entry.label} exists but has no rows yet.`
+        : sourceState === "Missing"
+          ? `Connect or upload the ${entry.label} registry to use this page.`
+          : sourceState === "Fallback"
+            ? `This registry is showing fallback data. Reconnect the live source when ready.`
+            : sourceState === "Incomplete"
+              ? `This registry is missing mandatory fields needed for reliable dashboard use.`
+              : undefined,
+  };
 
   const controls = {
     showSearch: showSearch ?? entry.controlDefaults.showSearch,
@@ -190,7 +381,7 @@ export default function RegistryPageShell<T extends object>({
 
   return (
     <div className="space-y-6 animate-fade-in" id={`${registryId}-registry-page`} data-testid={`${registryId}-registry-page`}>
-      {renderRegistryHeader(entry, rows.length, currentRole)}
+      {renderRegistryHeader(entry, currentRole, summary)}
 
       {errorMessage && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
@@ -214,6 +405,7 @@ export default function RegistryPageShell<T extends object>({
           showSort={controls.showSort}
           showDisplayModeToggle={controls.showDisplayModeToggle}
           showPagination={controls.showPagination}
+          renderDetailBeforeSections={selectedRow ? (row) => renderRegistryDetailSummary(row, definition) : undefined}
           className={className}
         />
       )}

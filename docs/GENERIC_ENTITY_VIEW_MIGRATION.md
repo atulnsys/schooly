@@ -1891,6 +1891,89 @@ This follow-up tightens dashboard trust signals without changing the app structu
 
 ---
 
+# Registry Detail Pages - Mandatory Fields and Validation Visibility
+
+## Scope
+
+This cycle makes the registry detail pages more actionable without rewriting the app or adding any new backend or mock data path.
+
+## What Changed
+
+* Added a small registry readiness model for detail pages with `Ready`, `Empty`, `Missing`, `Incomplete`, `Fallback`, and `Unknown` states.
+* Added mandatory-field visibility on the generic registry detail route when live or schema metadata is available.
+* Added validation metadata visibility on the generic registry detail route and first-class registry shells.
+* Added compact header chips for source state, row count or source-unavailable state, mandatory-field state, and validation metadata state.
+* Added setup guidance for empty, missing, incomplete, fallback, and unknown registry states.
+* Kept Registry Explorer to detail continuity intact so source labels and source states stay aligned.
+
+## Mandatory Field Behavior
+
+* First-class registry pages now mark core fields as required in the existing entity definitions.
+* The selected-row detail panels surface required fields, present fields, missing fields, and validation warnings using existing metadata only.
+* The generic registry detail route surfaces required headers and live row metadata for the mapped registry tab when available.
+* Unknown or unavailable metadata is shown as unavailable instead of being treated as a failure.
+
+## Validation Behavior
+
+* Validation metadata is shown only when the registry already exposes useful metadata.
+* Missing mandatory fields and row-level warnings are surfaced from the existing model instead of a new validator.
+* No fake validation results were added.
+* No expensive validation pass was added.
+
+## Setup Guidance
+
+* Missing or incomplete registries now show short action-oriented guidance instead of a blank or ambiguous detail pane.
+* Empty registries now say that the registry exists but has no rows instead of looking like a healthy zero-row success state.
+* Source-unavailable registries now stay clearly labeled as unavailable.
+
+## Routes Preserved
+
+* `/`
+* `/search`
+* `/lesson-plans`
+* `/resources`
+* `/textbooks`
+* `/classroom`
+* `/students`
+* `/courses`
+* `/assignments`
+* `/staff`
+* `/teachers`
+* `/registries`
+* `/registers`
+* `/registries/REG_STAFF_DIRECTORY`
+* `/registries/REG_TEACHER_ALLOCATIONS`
+* `/settings`
+
+## Verification Result
+
+* `npx tsc --noEmit --pretty false` was run after the code changes.
+* `npm run build` was run once for this registry-detail UI work.
+* Existing Vite chunk-size warnings remain acceptable if the build succeeds.
+
+## UI Smoke Notes
+
+* Browser smoke should be re-run against `/registries`, `/registers`, `/registries/REG_STAFF_DIRECTORY`, and `/registries/REG_TEACHER_ALLOCATIONS` after the final compile check.
+* The page-level chips and mandatory-field sections are designed to stay compact and read-only.
+
+## Files Changed
+
+* `src/App.tsx`
+* `src/components/GenericRegistryDataPage.tsx`
+* `src/components/RegistryExplorerPage.tsx`
+* `src/components/RegistryPageShell.tsx`
+* `src/lib/classroomAssignmentEntityDefinition.tsx`
+* `src/lib/classroomCourseEntityDefinition.tsx`
+* `src/lib/staffEntityDefinition.tsx`
+* `src/lib/studentEntityDefinition.tsx`
+* `src/lib/teacherEntityDefinition.tsx`
+
+## Commit SHA
+
+* `pending`
+
+---
+
 # Registry Explorer - Source State Badges and KPI Clarity
 
 ## Selected Object Group

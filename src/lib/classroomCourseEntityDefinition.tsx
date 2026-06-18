@@ -20,12 +20,14 @@ export function createClassroomCourseEntityDefinition(): GenericEntityDefinition
         label: "Teacher",
         type: "text",
         sortable: true,
+        required: true,
       },
       {
         key: "studentCount",
         label: "Students",
         type: "number",
         sortable: true,
+        required: true,
       },
     ],
     sections: [
