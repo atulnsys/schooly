@@ -1,6 +1,6 @@
-import { parseGoogleSheetUrl } from "./dataSourceEngine";
 import { compareClassLabels, formatClassLabel, getClassSortValue } from "./classSort";
 import { getConfiguredDashboardSheetUrl, getDashboardSourceHealthWarnings, isGoogleSheetsUrl } from "./dashboardConfig";
+import { readGoogleSheetTabRows } from "./googleSheetRead";
 import {
   DEFAULT_SEEDED_REGISTRY_CONFIG,
   getSavedSeededRegistryOverrides,
@@ -300,13 +300,6 @@ function parseGvizTable(text: string): { headers: string[]; rows: SheetRow[] } {
   return { headers, rows };
 }
 
-async function fetchSheetTabRows(sheetId: string, tabName: string): Promise<{ headers: string[]; rows: SheetRow[] }> {
-  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(tabName)}`;
-  const response = await fetch(url, { headers: { Accept: "text/plain, */*" } });
-  if (!response.ok) throw new Error(`Tab '${tabName}' returned ${response.status}.`);
-  return parseGvizTable(await response.text());
-}
-
 function pickFirst(row: SheetRow, keys: string[], defaultValue = ""): string {
   for (const key of keys) {
     const normalized = normalizeKey(key);
@@ -415,7 +408,6 @@ function findInvalidDriveReferences(rows: SheetRow[]): string[] {
 }
 
 async function readRegistry(definition: RegistryDefinition, url: string): Promise<{ tabs: SheetTabMap; status: DashboardRegistrySourceStatus; }> {
-  const parsed = parseGoogleSheetUrl(url);
   const status: DashboardRegistrySourceStatus = {
     key: definition.key,
     label: definition.label,
@@ -439,14 +431,14 @@ async function readRegistry(definition: RegistryDefinition, url: string): Promis
     status.missingTabs = definition.tabs;
     return { tabs, status };
   }
-  if (!parsed) {
+  if (!url.trim().toLowerCase().startsWith("https://docs.google.com/spreadsheets/d/")) {
     status.error = "Registry URL is not a Google Sheets link.";
     status.missingTabs = definition.tabs;
     return { tabs, status };
   }
 
   const settled = await Promise.allSettled(
-    definition.tabs.map(async (tabName) => [tabName, await fetchSheetTabRows(parsed.sheetId, tabName)] as const)
+    definition.tabs.map(async (tabName) => [tabName, await readGoogleSheetTabRows(url, tabName)] as const)
   );
 
   settled.forEach((result, index) => {

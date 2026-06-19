@@ -68,6 +68,7 @@ import { resetSavedRegistryUrlsToDefaults } from "../lib/seededRegistryConfig";
 import { BootstrapDestinationPreview, BootstrapProposedRow, bootstrapPreviewToCsv, buildRegistryBootstrapPreview } from "../lib/registryBootstrapPreview";
 import { applyRegistryBootstrapWriteback, BootstrapWritebackProgress, BootstrapWritebackResult } from "../lib/registryBootstrapWriteback";
 import { isSafeFirstBatchTab, normalizeHeaderForComparison } from "../lib/registrySchema";
+import { clearGoogleSheetReadCache } from "../lib/googleSheetRead";
 import {
   connectGoogleWorkspaceWriteAccess,
   disconnectGoogleWorkspaceAccess,
@@ -724,7 +725,10 @@ export default function DashboardOverview({
   const [expandedTechnicalRows, setExpandedTechnicalRows] = useState<Record<string, boolean>>({});
   const [googleWorkspaceAuthState, setGoogleWorkspaceAuthState] = useState(() => getGoogleWorkspaceAuthState());
   useEffect(() => {
-    const syncAuthState = () => setGoogleWorkspaceAuthState(getGoogleWorkspaceAuthState());
+    const syncAuthState = () => {
+      clearGoogleSheetReadCache();
+      setGoogleWorkspaceAuthState(getGoogleWorkspaceAuthState());
+    };
     window.addEventListener(GOOGLE_WORKSPACE_AUTH_STATE_CHANGED_EVENT, syncAuthState);
     syncAuthState();
     return () => window.removeEventListener(GOOGLE_WORKSPACE_AUTH_STATE_CHANGED_EVENT, syncAuthState);
@@ -799,7 +803,7 @@ export default function DashboardOverview({
     return () => {
       cancelled = true;
     };
-  }, [workspaceUrl, currentUser, currentRole]);
+  }, [workspaceUrl, currentUser, currentRole, googleWorkspaceAuthState.connected, googleWorkspaceAuthState.errorMessage]);
 
   // --- Shadow static state properties with dynamic computed values inside the component scope ---
   const teacherPerformanceData = React.useMemo<TeacherPerformanceIndicator[]>(() => {

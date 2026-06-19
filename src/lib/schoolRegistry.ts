@@ -1,6 +1,6 @@
-import { parseGoogleSheetUrl } from "./dataSourceEngine";
 import { compareClassLabels } from "./classSort";
 import { loadSeededRegistryConfig, saveSeededRegistryConfig } from "./seededRegistryConfig";
+import { readGoogleSheetTabRows } from "./googleSheetRead";
 
 export type SchoolRegistryMode = "missing" | "live" | "error" | "fallback";
 
@@ -273,30 +273,17 @@ function parseGvizTable(text: string): Record<string, string>[] {
     .filter((row: Record<string, string>) => Object.values(row).some((value) => value.trim() !== ""));
 }
 
-async function fetchSheetTabRows(sheetUrl: string, tabName: string): Promise<Record<string, string>[]> {
-  const parsed = parseGoogleSheetUrl(sheetUrl);
-  if (!parsed) {
-    throw new Error("Master data registry URL is not a Google Sheets link.");
-  }
-  const url = `https://docs.google.com/spreadsheets/d/${parsed.sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(tabName)}`;
-  const response = await fetch(url, { headers: { Accept: "text/plain, */*" } });
-  if (!response.ok) {
-    throw new Error(`Tab '${tabName}' returned ${response.status}.`);
-  }
-  return parseGvizTable(await response.text());
-}
-
 async function fetchTabs(sheetUrl: string, tabNames: string[]) {
   const warnings: string[] = [];
   const tabs: Record<string, Record<string, string>[]> = {};
   const settled = await Promise.allSettled(
-    tabNames.map(async (tabName) => [tabName, await fetchSheetTabRows(sheetUrl, tabName)] as const)
+    tabNames.map(async (tabName) => [tabName, await readGoogleSheetTabRows(sheetUrl, tabName)] as const)
   );
 
   settled.forEach((result, index) => {
     const tabName = tabNames[index];
     if (result.status === "fulfilled") {
-      tabs[tabName] = result.value[1];
+      tabs[tabName] = result.value[1].rows;
     } else {
       tabs[tabName] = [];
       warnings.push(result.reason instanceof Error ? result.reason.message : String(result.reason));
