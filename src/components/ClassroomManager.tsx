@@ -27,23 +27,40 @@ export default function ClassroomManager({
   teachers,
   onOpenStudents
 }: ClassroomManagerProps) {
-  const [activeCourseId, setActiveCourseId] = useState<string>("course-sci-8");
-  const selectedCourse = courses.find(c => c.id === activeCourseId) || courses[0];
+  const [activeCourseId, setActiveCourseId] = useState<string | null>(courses[0]?.id || null);
+  useEffect(() => {
+    if (courses.length === 0) {
+      setActiveCourseId(null);
+      return;
+    }
+    if (!activeCourseId || !courses.some((course) => course.id === activeCourseId)) {
+      setActiveCourseId(courses[0].id);
+    }
+  }, [courses, activeCourseId]);
+  const selectedCourse = activeCourseId ? courses.find(c => c.id === activeCourseId) || null : null;
   const courseDefinition = createClassroomCourseEntityDefinition();
   const studentDefinition = createClassroomStudentEntityDefinition();
 
   // Filters assignments for the active course
-  const courseAssignments = assignments.filter(a => a.courseId === activeCourseId);
+  const courseAssignments = selectedCourse ? assignments.filter(a => a.courseId === selectedCourse.id) : [];
   const assignmentDefinition = createClassroomAssignmentEntityDefinition({
     courseName: selectedCourse?.name,
     studentCount: selectedCourse?.studentCount,
   });
 
-  // Filters students associated with the specific course grade level
-  // Let's assume all Grade 8 students belong to Grade 8 Science course-sci-8
-  const activeStudents = selectedCourse?.id === "course-sci-8" 
-    ? students.filter(s => s.gradeLevel.includes("Grade 8") || s.gradeLevel.includes("Grade 9"))
-    : students.slice(0, 4); // otherwise show basic slice
+  const activeStudents = selectedCourse
+    ? students.filter((student) => {
+        const courseClassLabel = String(selectedCourse.name || "")
+          .split("|")[0]
+          .trim()
+          .replace(/\s+/g, " ");
+        const studentGradeLabel = String(student.gradeLevel || "").trim().replace(/\s+/g, " ");
+        if (!courseClassLabel || !studentGradeLabel) return false;
+        const normalizedCourse = courseClassLabel.toLowerCase();
+        const normalizedStudent = studentGradeLabel.toLowerCase();
+        return normalizedStudent === normalizedCourse || normalizedStudent.includes(normalizedCourse) || normalizedCourse.includes(normalizedStudent);
+      })
+    : [];
 
   const classroomConfig = loadConnectionConfig("google_classroom");
   const isClassroomMock = classroomConfig.mode === "mock";
@@ -87,19 +104,25 @@ export default function ClassroomManager({
 
       {/* Course Selector */}
       <div id="courses-tabs-bar">
-        <GenericEntityListView
-          definition={courseDefinition}
-          rows={courses}
-          selectedRow={selectedCourse}
-          onSelectRow={(course) => setActiveCourseId(course.id)}
-          displayMode="table"
-          showSearch={false}
-          showFilters={false}
-          showSort={false}
-          showDisplayModeToggle={false}
-          showPagination={false}
-          className="bg-transparent border-0 shadow-none"
-        />
+        {courses.length > 0 ? (
+          <GenericEntityListView
+            definition={courseDefinition}
+            rows={courses}
+            selectedRow={selectedCourse}
+            onSelectRow={(course) => setActiveCourseId(course.id)}
+            displayMode="table"
+            showSearch={false}
+            showFilters={false}
+            showSort={false}
+            showDisplayModeToggle={false}
+            showPagination={false}
+            className="bg-transparent border-0 shadow-none"
+          />
+        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 text-sm text-slate-600 shadow-sm">
+            Live data source not connected. Connect Google Classroom or the Classroom Sync registry to load course rows.
+          </div>
+        )}
       </div>
 
       {/* Main Grid */}

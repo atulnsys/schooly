@@ -55,6 +55,34 @@ Notes:
 * `/resources` and all existing routes remain in place.
 * This cleanup is copy-first only; the next sprint should focus on the remaining dashboard presentation polish rather than new data wiring.
 
+## Registry Source Discovery - Load SchoolyTestDrive Data and Remove Classroom Demo Rows
+
+Scope:
+
+* Replaced the special-case SchoolyTestDrive fallback path with live Drive-folder discovery so registry files are discovered from the connected folder tree instead of being synthesized.
+* Added registry source mapping so discovered Google Sheets can hydrate the seeded registry URLs and trigger a fresh registry read.
+* Removed Classroom demo rows and the classroom mock hydration path so the Classroom surface now shows truthful empty or connected states.
+* Updated the dashboard summary copy so Drive Sync and registry readiness reflect the live source count instead of implying fallback success.
+
+Files touched:
+
+* `server.ts`
+* `src/App.tsx`
+* `src/components/ClassroomManager.tsx`
+* `src/components/DashboardOverview.tsx`
+* `src/lib/registrySourceDiscovery.ts`
+
+Verification:
+
+* `npx tsc --noEmit --pretty false`
+* `npm run build`
+* A second live endpoint smoke pass was attempted after rebuild, but the background server command was blocked by the environment approval gate, so the stale pre-build response was discarded.
+
+Notes:
+
+* The registry flow now prefers discovered live sheet URLs and only preserves truthful empty or missing states when the Drive folder does not expose a usable source.
+* Classroom runtime data is no longer seeded from mock startup rows; the UI should now depend on the live Classroom or registry-backed data path.
+
 ## Existing Generic Framework Files
 
 * `src/lib/genericEntityView.ts`

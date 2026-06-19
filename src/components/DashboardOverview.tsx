@@ -3373,6 +3373,7 @@ export default function DashboardOverview({
   const renderSettingsHub = () => {
     const registryReadyCount = dashboardSourceState.registryHealthSummary.connectedRegistries;
     const registryTotalCount = dashboardSourceState.registryHealthSummary.totalRegistries;
+    const registryFileCount = files.filter((file) => file.type === "sheet" && Boolean(file.webViewLink)).length;
     const driveStatusLabel = isWorkspaceConnectionChecking
       ? "Checking"
       : workspaceConnectionTestResult?.success
@@ -3388,20 +3389,18 @@ export default function DashboardOverview({
                 return "Connection error";
               })()
             : "Status unavailable";
-    const registryReadinessLabel = dashboardSourceState.mode === "live"
-      ? `${registryReadyCount} of ${registryTotalCount} registry sources ready.`
-      : dashboardSourceState.mode === "setup_required"
-        ? `Registry setup is incomplete: ${registryReadyCount} of ${registryTotalCount} sources are ready.`
-        : "Registry data could not be loaded. Review the source mappings and permissions.";
+    const registryReadinessLabel = dashboardSourceState.mode === "error"
+      ? "Registry data could not be loaded. Review the source mappings and permissions."
+      : `${registryReadyCount} of ${registryTotalCount} ready`;
     const dashboardRefreshLabel = liveDataRefreshState === "refreshing"
       ? "Refreshing registry data..."
       : liveDataRefreshState === "error"
         ? "Dashboard data: Refresh failed."
       : dashboardSourceState.mode === "live"
-        ? "Dashboard data: Refreshed."
+        ? `Dashboard data: Refreshed from ${registryReadyCount} sources.`
       : dashboardSourceState.mode === "setup_required"
           ? dashboardSourceState.registryHealthSummary.connectedRegistries > 0
-            ? "Dashboard data: Refreshed from available sources."
+            ? `Dashboard data: Refreshed from ${dashboardSourceState.registryHealthSummary.connectedRegistries} available sources.`
             : "Dashboard data: No live sources were available to refresh."
           : "Dashboard refresh could not complete.";
     const resultAction = liveDataRefreshState === "refreshing"
@@ -3498,7 +3497,8 @@ export default function DashboardOverview({
               >
                 <div>{isWorkspaceConnectionChecking ? "Checking connection..." : workspaceConnectionTestResult?.message || "Connection status unavailable."}</div>
                 <div className="text-[10px] font-bold text-slate-700">Drive folder: {driveStatusLabel}</div>
-                <div className="text-[10px] font-bold text-slate-700">Registry readiness: {registryReadinessLabel}</div>
+                <div className="text-[10px] font-bold text-slate-700">Registry files: {registryFileCount}</div>
+                <div className="text-[10px] font-bold text-slate-700">Registry sources: {registryReadinessLabel}</div>
                 <div className="text-[10px] font-bold text-slate-700">{dashboardRefreshLabel}</div>
                 <div className="pt-1">
                   <button

@@ -69,6 +69,8 @@ import { loadConnectionConfig, FALLBACK_ALERT_MESSAGES, validateSourceLink } fro
 import { DEFAULT_DASHBOARD_SHEET_URL } from "./lib/dashboardConfig";
 import { clearGoogleSheetReadCache } from "./lib/googleSheetRead";
 import { loadSchoolRegistry, type SchoolRegistryState, type StaffDirectoryRow, type StudentDirectoryRow, type StudentEnrollmentRow, type TeacherAllocationRow } from "./lib/schoolRegistry";
+import { discoverRegistrySources } from "./lib/registrySourceDiscovery";
+import { loadSeededRegistryConfig, saveSeededRegistryConfig } from "./lib/seededRegistryConfig";
 import {
   connectGoogleWorkspaceWriteAccess,
   disconnectGoogleWorkspaceAccess,
@@ -1021,6 +1023,25 @@ export default function App() {
       setAuditLogs(logsData);
       setAutomations(automationsData);
       setRolloverConfig(configData);
+
+      const discoveredRegistrySources = discoverRegistrySources(filesData);
+      const currentRegistryConfig = loadSeededRegistryConfig();
+      const nextRegistryConfig: Partial<Record<keyof typeof currentRegistryConfig, string>> = {};
+      let didDiscoverNewRegistryUrl = false;
+
+      (Object.entries(discoveredRegistrySources.config) as Array<[keyof typeof currentRegistryConfig, string]>).forEach(([key, value]) => {
+        const trimmedValue = String(value || "").trim();
+        if (!trimmedValue) return;
+        if (String(currentRegistryConfig[key] || "").trim() === trimmedValue) return;
+        nextRegistryConfig[key] = trimmedValue;
+        didDiscoverNewRegistryUrl = true;
+      });
+
+      if (didDiscoverNewRegistryUrl) {
+        saveSeededRegistryConfig(nextRegistryConfig);
+        clearGoogleSheetReadCache();
+        setRegistryRefreshVersion((version) => version + 1);
+      }
     } catch (err) {
       console.error("[DEBUG] Failed fetching standard datasets from express master routes:", err);
     }

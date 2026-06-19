@@ -528,104 +528,157 @@ function getFallbackFiles(folderId?: string): WorkspaceFile[] {
 }
 
 async function getLiveGoogleDriveFiles(token: string | null | undefined, folderId?: string): Promise<WorkspaceFile[]> {
-  try {
-    console.log(`[LIVE GOOGLE DRIVE] Fetching files... Folder ID override: ${folderId || "None (Root)"} | Token provided: ${!!token}`);
-    
-    // Unconditionally intercept specific custom test folder ID to guarantee visual feedback and success
-    if (folderId === "1MtSCwTyIMCg8v0b9TXuY7Oyx1F2o14a7") {
-      console.log(`[LIVE GOOGLE DRIVE] Intercepted user's test folder 1MtSCwTyIMCg8v0b9TXuY7Oyx1F2o14a7. Activating simulated workspace folder engine.`);
-      return getFallbackFiles(folderId);
-    }
+  const DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder";
 
-    let query = "trashed=false";
-    if (folderId && folderId.trim() && folderId !== "1D_e735SchoolyDriveRootFolder_AP_Syllabus") {
-      query = `'${folderId}' in parents and trashed=false`;
-    }
-    
-    // Read Firebase apiKey for public drive API query fallback
-    let firebaseApiKey = "";
+  type DriveFileRecord = {
+    id: string;
+    name?: string;
+    mimeType?: string;
+    modifiedTime?: string;
+    size?: string;
+    owners?: Array<{ displayName?: string }>;
+    webViewLink?: string;
+    iconLink?: string;
+    parents?: string[];
+  };
+
+  const readFirebaseApiKey = () => {
     try {
       const firebaseConfigPath = path.join(process.cwd(), "firebase-applet-config.json");
-      if (fs.existsSync(firebaseConfigPath)) {
-        const config = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf8"));
-        firebaseApiKey = config.apiKey || "";
-      }
-    } catch (e) {
-      console.error("Error reading firebase apiKey for fallback:", e);
+      if (!fs.existsSync(firebaseConfigPath)) return "";
+      const config = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf8"));
+      return String(config.apiKey || "").trim();
+    } catch (error) {
+      console.error("Error reading firebase apiKey for fallback:", error);
+      return "";
     }
+  };
 
+  const firebaseApiKey = readFirebaseApiKey();
+  const driveFields = "files(id,name,mimeType,modifiedTime,size,owners,webViewLink,iconLink,parents),nextPageToken";
+
+  const fetchDriveChildren = async (parentFolderId: string, nextPageToken = ""): Promise<{ files: DriveFileRecord[]; nextPageToken?: string }> => {
+    const query = `'${parentFolderId}' in parents and trashed=false`;
     let url = "";
-    let headers: Record<string, string> = {};
+    const headers: Record<string, string> = {};
 
     if (token && token.trim() && token !== "null" && token !== "undefined") {
-      url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,modifiedTime,size,owners,webViewLink,iconLink)&pageSize=45`;
+      url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${encodeURIComponent(driveFields)}&pageSize=100${nextPageToken ? `&pageToken=${encodeURIComponent(nextPageToken)}` : ""}&supportsAllDrives=true&includeItemsFromAllDrives=true`;
       headers["Authorization"] = `Bearer ${token}`;
     } else if (firebaseApiKey) {
-      console.log(`[LIVE GOOGLE DRIVE] No auth token, calling Drive API with public API key: ${firebaseApiKey.slice(0, 8)}...`);
-      url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&key=${firebaseApiKey}&fields=files(id,name,mimeType,modifiedTime,size,owners,webViewLink,iconLink)&pageSize=45`;
+      url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&key=${firebaseApiKey}&fields=${encodeURIComponent(driveFields)}&pageSize=100${nextPageToken ? `&pageToken=${encodeURIComponent(nextPageToken)}` : ""}&supportsAllDrives=true&includeItemsFromAllDrives=true`;
     } else {
-      console.warn("[LIVE GOOGLE DRIVE] Skipping Drive fetch: No token or firebase apiKey was loaded. Activating dashboard sandbox files.");
-      return getFallbackFiles(folderId);
+      return { files: [] };
     }
-    
+
     const response = await fetch(url, { headers });
-    
     if (!response.ok) {
       const errText = await response.text();
-      console.warn(`[LIVE GOOGLE DRIVE API INFO] Got status ${response.status} from Google API. Re-routing drive sync to sandbox files for seamless client exploration.`);
-      return getFallbackFiles(folderId);
-    }
-    
-    const data = await response.json() as any;
-    if (!data.files || !Array.isArray(data.files)) {
-      return getFallbackFiles(folderId);
+      console.warn(`[LIVE GOOGLE DRIVE API INFO] Got status ${response.status} from Google API while listing folder ${parentFolderId}. ${errText}`);
+      return { files: [] };
     }
 
-    return data.files.map((f: any) => {
-      const sizeBytes = parseInt(f.size || "0", 10);
-      const strSize = sizeBytes > 0 
-        ? (sizeBytes > 1024 * 1024 ? `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB` : `${(sizeBytes / 1024).toFixed(0)} KB`)
-        : "45 KB";
-      
-      const mime = f.mimeType || "";
-      let docType = "doc";
-      if (mime.includes("spreadsheet")) docType = "sheet";
-      else if (mime.includes("presentation")) docType = "slide";
-      else if (mime.includes("pdf")) docType = "pdf";
-      else if (mime.includes("form")) docType = "form";
+    const data = await response.json() as { files?: DriveFileRecord[]; nextPageToken?: string };
+    return {
+      files: Array.isArray(data.files) ? data.files : [],
+      nextPageToken: data.nextPageToken || undefined
+    };
+  };
 
-      // Detect terms / subjects in file name to aid fuzzy classification
-      const fname = (f.name || "").toLowerCase();
-      const folderPath = folderId ? `/Google Drive/Connected Folder/${f.name}` : `/Google Drive/My Drive/${f.name}`;
+  const resolveFolderChildren = async (parentFolderId: string): Promise<DriveFileRecord[]> => {
+    const items: DriveFileRecord[] = [];
+    let pageToken = "";
+    do {
+      const result = await fetchDriveChildren(parentFolderId, pageToken);
+      items.push(...result.files);
+      pageToken = result.nextPageToken || "";
+    } while (pageToken);
+    return items;
+  };
 
-      // Build explicit tags list to ensure matching against hasCoursePlanner/hasCourseAssessment/hasCourseNotebook in dashboard
-      const tags = [docType.toUpperCase(), "Synced", "Live"];
-      if (fname.includes("planner") || fname.includes("planning") || fname.includes("pacing") || fname.includes("syllabus")) {
-        tags.push("Planner", "Syllabus");
-      }
-      if (fname.includes("assessment") || fname.includes("rubric") || fname.includes("exam") || fname.includes("quiz") || fname.includes("test")) {
-        tags.push("Assessment", "Rubric");
-      }
-      if (fname.includes("notebook") || fname.includes("correction") || fname.includes("audit") || fname.includes("verification")) {
-        tags.push("Notebook", "Correction");
-      }
+  const toWorkspaceFile = (file: DriveFileRecord, pathSegments: string[]): WorkspaceFile => {
+    const sizeBytes = parseInt(file.size || "0", 10);
+    const strSize = sizeBytes > 0
+      ? (sizeBytes > 1024 * 1024 ? `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB` : `${(sizeBytes / 1024).toFixed(0)} KB`)
+      : "45 KB";
+    const mime = file.mimeType || "";
+    let docType: WorkspaceFile["type"] = "doc";
+    if (mime.includes("spreadsheet")) docType = "sheet";
+    else if (mime.includes("presentation")) docType = "slide";
+    else if (mime.includes("pdf")) docType = "pdf";
+    else if (mime.includes("form")) docType = "form";
 
-      return {
-        id: f.id,
-        name: f.name || "Untitled Google Workspace file",
-        type: docType,
-        source: "Drive",
-        path: folderPath,
-        owner: f.owners && f.owners[0] && f.owners[0].displayName ? f.owners[0].displayName : "External Collaborator",
-        modifiedAt: f.modifiedTime || new Date().toISOString(),
-        sharingRule: "Domain Shared",
-        isFavorite: false,
-        tags: tags,
-        size: strSize,
-        contentSum: `Live Google Workspace ${docType} successfully synchronization-linked from cloud folder ID ${folderId || "Global Root"}. Web view URL: ${f.webViewLink || "#"}. Supports live updates and audit alignments.`,
-        webViewLink: f.webViewLink
-      };
-    });
+    const fname = (file.name || "").toLowerCase();
+    const tags = [docType.toUpperCase(), "Synced", "Live"];
+    if (fname.includes("planner") || fname.includes("planning") || fname.includes("pacing") || fname.includes("syllabus")) {
+      tags.push("Planner", "Syllabus");
+    }
+    if (fname.includes("assessment") || fname.includes("rubric") || fname.includes("exam") || fname.includes("quiz") || fname.includes("test")) {
+      tags.push("Assessment", "Rubric");
+    }
+    if (fname.includes("notebook") || fname.includes("correction") || fname.includes("audit") || fname.includes("verification")) {
+      tags.push("Notebook", "Correction");
+    }
+
+    const folderPath = pathSegments.length > 0
+      ? `/Google Drive/${pathSegments.join("/")}/${file.name || "Untitled Google Workspace file"}`
+      : `/Google Drive/${file.name || "Untitled Google Workspace file"}`;
+
+    return {
+      id: file.id,
+      name: file.name || "Untitled Google Workspace file",
+      type: docType,
+      source: "Drive",
+      path: folderPath,
+      owner: file.owners && file.owners[0] && file.owners[0].displayName ? file.owners[0].displayName : "External Collaborator",
+      modifiedAt: file.modifiedTime || new Date().toISOString(),
+      sharingRule: "Domain Shared",
+      isFavorite: false,
+      tags,
+      size: strSize,
+      contentSum: `Live Google Workspace ${docType} discovered from cloud folder ${pathSegments.join("/") || "Global Root"}. Web view URL: ${file.webViewLink || "#"}. Supports live updates and audit alignments.`,
+      webViewLink: file.webViewLink
+    };
+  };
+
+  const walkFolder = async (currentFolderId: string, pathSegments: string[], visitedFolders: Set<string>, visitedFiles: Set<string>, depth = 0): Promise<WorkspaceFile[]> => {
+    if (depth > 5 || visitedFolders.has(currentFolderId)) return [];
+    visitedFolders.add(currentFolderId);
+
+    const children = await resolveFolderChildren(currentFolderId);
+    const files: WorkspaceFile[] = [];
+
+    for (const child of children) {
+      if (child.mimeType === DRIVE_FOLDER_MIME) {
+        files.push(...await walkFolder(child.id, [...pathSegments, child.name || child.id], visitedFolders, visitedFiles, depth + 1));
+        continue;
+      }
+      if (visitedFiles.has(child.id)) continue;
+      visitedFiles.add(child.id);
+      files.push(toWorkspaceFile(child, pathSegments));
+    }
+
+    return files;
+  };
+
+  try {
+    console.log(`[LIVE GOOGLE DRIVE] Fetching files... Folder ID override: ${folderId || "None (Root)"} | Token provided: ${!!token}`);
+
+    if (!token && !firebaseApiKey) {
+      console.warn("[LIVE GOOGLE DRIVE] Skipping Drive fetch: No token or firebase apiKey was loaded.");
+      return [];
+    }
+
+    if (!folderId || !folderId.trim()) {
+      const rootChildren = await resolveFolderChildren("root");
+      return rootChildren
+        .filter((file) => file.mimeType !== DRIVE_FOLDER_MIME)
+        .map((file) => toWorkspaceFile(file, ["Google Drive", "My Drive"]));
+    }
+
+    const rootLabel = folderId === "1MtSCwTyIMCg8v0b9TXuY7Oyx1F2o14a7" ? "SchoolyTestDrive" : "Connected Folder";
+    const folderFiles = await walkFolder(folderId, ["Google Drive", rootLabel], new Set<string>(), new Set<string>());
+    return folderFiles;
   } catch (err) {
     console.error("[LIVE GOOGLE DRIVE EXCEPTION] Failed to query items:", err);
     return [];
@@ -929,99 +982,9 @@ let files: WorkspaceFile[] = [
 ];
 
 let courses: ClassroomCourse[] = [
-  {
-    id: "course-sci-8",
-    name: "Grade 8 Science",
-    section: "Section A",
-    teacherName: "Dr. Sarah Henderson",
-    studentCount: 24,
-    announcements: [
-      "Reminder: Final lab reports must be submitted in digital workspace by Friday evening.",
-      "Welcome block: Classroom safety audits are scheduled for Monday first period."
-    ],
-    materials: [
-      { name: "Lab Manual.pdf", url: "#" },
-      { name: "Safety Waiver Sheet.docx", url: "#" }
-    ]
-  },
-  {
-    id: "course-mth-alg",
-    name: "Algebra I Trigonometry",
-    section: "Section B-1",
-    teacherName: "Marcus Vance",
-    studentCount: 18,
-    announcements: [
-      "Midterm practice formulas have been pushed directly to Google Drive Math share.",
-      "Quiz on quadratic formulas will be open for enrollment starting tomorrow."
-    ],
-    materials: [
-      { name: "Trigonometry Basics.xlsx", url: "#" }
-    ]
-  },
-  {
-    id: "course-eng-lit",
-    name: "AP English Literature",
-    section: "Honors Class",
-    teacherName: "Elaine Montgomery",
-    studentCount: 15,
-    announcements: [
-      "Read Acts III & IV of Hamlet before tomorrow's seminar.",
-      "Draft paper deadlines expanded to accommodate regional sports finals."
-    ],
-    materials: [
-      { name: "AP Hamlet Analysis Guide.pdf", url: "#" }
-    ]
-  }
 ];
 
-let assignments: ClassroomAssignment[] = [
-  {
-    id: "assign-101",
-    courseId: "course-sci-8",
-    courseName: "Grade 8 Science",
-    title: "Eco-System Balance Lab Report",
-    dueDate: "2026-06-05T23:59:00Z",
-    totalPoints: 100,
-    status: "pending",
-    submissionCount: 16,
-    description: "Submit a complete experiment narrative explaining photosynthesis results observed during the 14-day plant exposure study in the campus bio-dome."
-  },
-  {
-    id: "assign-102",
-    courseId: "course-sci-8",
-    courseName: "Grade 8 Science",
-    title: "Unit 4 Chemical Volatility Test",
-    dueDate: "2026-05-20T10:00:00Z",
-    totalPoints: 50,
-    status: "graded",
-    grade: 48,
-    submissionCount: 24,
-    description: "In-class reactive agent compliance quiz. Covers gas pressure transformations and molecular bond energy transitions."
-  },
-  {
-    id: "assign-201",
-    courseId: "course-mth-alg",
-    courseName: "Algebra I Trigonometry",
-    title: "Quadratic Systems Worksheet",
-    dueDate: "2026-06-10T23:59:00Z",
-    totalPoints: 40,
-    status: "submitted",
-    submissionCount: 18,
-    description: "Submit digital answers for problems 1 through 25 on slide template 'Quadratic equations solutions series'."
-  },
-  {
-    id: "assign-301",
-    courseId: "course-eng-lit",
-    courseName: "AP English Literature",
-    title: "Shakespearean Tragedy Rhetorical Essay",
-    dueDate: "2026-05-18T12:00:00Z",
-    totalPoints: 100,
-    status: "graded",
-    grade: 94,
-    submissionCount: 15,
-    description: "5-page rhetorical defense explaining how characters use dramatic soliloquy in hamlet to establish system power conflicts."
-  }
-];
+let assignments: ClassroomAssignment[] = [];
 
 let tasks: TaskItem[] = [
   {
@@ -1135,20 +1098,9 @@ let automations: AutomationRule[] = [
   }
 ];
 
-let students: StudentDetails[] = [
-  { id: "std-1", name: "David Chen", email: "david.chen@school.org", gradeLevel: "Grade 8", enrollmentStatus: "Enrolled", riskFactor: "low", riskScore: 12, gpa: 3.8 },
-  { id: "std-2", name: "Leah Patterson", email: "leah.p@school.org", gradeLevel: "Grade 8", enrollmentStatus: "Enrolled", riskFactor: "high", riskScore: 84, gpa: 2.1 },
-  { id: "std-3", name: "Marcus Brody", email: "marcus.b@school.org", gradeLevel: "Grade 8", enrollmentStatus: "Enrolled", riskFactor: "medium", riskScore: 56, gpa: 2.8 },
-  { id: "std-4", name: "Sophia Martinez", email: "sophia.m@school.org", gradeLevel: "Grade 8", enrollmentStatus: "Enrolled", riskFactor: "low", riskScore: 8, gpa: 3.9 },
-  { id: "std-5", name: "Jameson Lee", email: "jameson@school.org", gradeLevel: "Grade 8", enrollmentStatus: "Enrolled", riskFactor: "high", riskScore: 78, gpa: 1.9 },
-  { id: "std-6", name: "Clarissa Finch", email: "clarissa@school.org", gradeLevel: "Grade 8", enrollmentStatus: "Enrolled", riskFactor: "low", riskScore: 15, gpa: 3.6 }
-];
+let students: StudentDetails[] = [];
 
-let teachers: TeacherDetails[] = [
-  { id: "t-1", name: "Dr. Sarah Henderson", email: "s.henderson@school.org", department: "Science", currentCourses: ["Grade 8 Science", "AP Chemistry"] },
-  { id: "t-2", name: "Marcus Vance", email: "m.vance@school.org", department: "Mathematics", currentCourses: ["Algebra I", "AP Calculus"] },
-  { id: "t-3", name: "Elaine Montgomery", email: "e.montgomery@school.org", department: "English", currentCourses: ["AP English Literature", "creative Writing"] }
-];
+let teachers: TeacherDetails[] = [];
 
 let rolloverConfig: AcademicYearConfig = {
   currentYear: "2025-2026",
@@ -1209,36 +1161,6 @@ function loadDatabaseFromMocks() {
       }));
     }
 
-    const clMock = readMockJSON("google-classroom.mock.json");
-    if (clMock && clMock.courses) {
-      courses = clMock.courses.map((c: any) => ({
-        id: c.id,
-        name: c.name.split(" | ").slice(1).join(" | "), // e.g. "Class X-A | English"
-        section: c.section,
-        teacherName: c.primaryTeacher,
-        studentCount: c.id === "course-x-a-eng" ? 24 : (c.id === "course-viii-a-sci" ? 18 : 15),
-        announcements: clMock.announcements
-          ? clMock.announcements.filter((a: any) => a.courseId === c.id).map((a: any) => a.text)
-          : [],
-        materials: clMock.materials
-          ? clMock.materials.filter((m: any) => m.courseId === c.id).map((m: any) => ({ name: m.title, url: "#" }))
-          : []
-      }));
-
-      if (clMock.coursework) {
-        assignments = clMock.coursework.map((cw: any) => ({
-          id: cw.id,
-          courseId: cw.courseId,
-          courseName: cw.courseId === "course-viii-a-sci" ? "Class VIII-A Science" : "Unified Class",
-          title: cw.title,
-          dueDate: cw.dueDate,
-          totalPoints: cw.maxPoints,
-          status: cw.state === "PUBLISHED" ? "pending" : "submitted",
-          submissionCount: cw.courseId === "course-viii-a-sci" ? 22 : 16,
-          description: cw.description
-        }));
-      }
-    }
   } catch (error) {
     console.error("[SERVER MOCK INIT ERROR] Error during mapping reinitialization:", error);
   }
@@ -1349,18 +1271,6 @@ app.post("/api/workspace/test-connection", async (req, res) => {
   const match = url.match(/folders\/([a-zA-Z0-9-_]+)/);
   if (match) {
     folderId = match[1];
-  }
-
-  // INTERCEPT TARGET TEST FOLDER ID FOR GUARANTEED INTERACTION WORKFLOWS
-  if (folderId === "1MtSCwTyIMCg8v0b9TXuY7Oyx1F2o14a7") {
-    console.log("[TEST CONNECTION] Intercepting target folder connection.");
-    return res.json({
-      success: true,
-      message: "Google Drive folder 'SchoolyTestDrive' is accessible.",
-      folderId: folderId,
-      folderName: "SchoolyTestDrive",
-      googleAuthenticated: true
-    });
   }
 
   // 2. Token Check
