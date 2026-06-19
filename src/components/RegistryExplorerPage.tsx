@@ -69,11 +69,11 @@ export default function RegistryExplorerPage({
 
   const sourceStateLabel: Record<LiveRegisterCardSourceState, string> = {
     Ready: "Ready",
-    Empty: "Empty",
+    Empty: "No rows",
     Missing: "Source unavailable",
-    Incomplete: "Check setup",
+    Incomplete: "Setup incomplete",
     Fallback: "Fallback data",
-    Unknown: "State unknown",
+    Unknown: "Metadata only",
   };
 
   const countLabel = (count: number, state?: LiveRegisterCardSourceState) => {
@@ -83,11 +83,11 @@ export default function RegistryExplorerPage({
       case "Missing":
         return "Source unavailable";
       case "Incomplete":
-        return "Check setup";
+        return "Setup incomplete";
       case "Fallback":
         return "Fallback data";
       case "Unknown":
-        return "State unknown";
+        return "Metadata only";
       default:
         return `${count.toLocaleString()} rows`;
     }

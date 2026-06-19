@@ -82,7 +82,7 @@ const EMPTY_REGISTRY_HEALTH_SUMMARY = {
   connectedRegistries: 0,
   warningRegistries: 0,
   criticalRegistries: 0,
-  onboardingStatus: "Setup required",
+  onboardingStatus: "Setup incomplete",
   lastSyncAt: null,
   nextRequiredAction: "Open Setup Centre",
   primaryIssue: "No live data rows were found.",
@@ -173,13 +173,13 @@ const EMPTY_TEACHER_DASHBOARD: TeacherDashboardData = {
     configured: false,
     title: "My renewal status",
     message: "Teacher CPD renewal registry is not configured.",
-    statusLabel: "Setup required"
+    statusLabel: "Setup incomplete"
   },
   announcements: [],
   sourceHealth: [],
   setupState: {
     status: "setup_required",
-    title: "Teacher dashboard setup required",
+    title: "Teacher dashboard setup incomplete",
     message: "Teacher could not be resolved from live data.",
     messages: []
   }
@@ -209,18 +209,18 @@ const EMPTY_COORDINATOR_DASHBOARD: CoordinatorDashboardData = {
     configured: false,
     title: "Invigilation & olympiads",
     message: "Invigilation/Olympiad duty registry not configured.",
-    statusLabel: "Setup required"
+    statusLabel: "Setup incomplete"
   },
   renewalStatus: {
     configured: false,
     title: "Renewal / compliance status",
     message: "Teacher CPD renewal registry is not configured.",
-    statusLabel: "Setup required"
+    statusLabel: "Setup incomplete"
   },
   sourceHealth: [],
   setupState: {
     status: "setup_required",
-    title: "Coordinator dashboard setup required",
+    title: "Coordinator dashboard setup incomplete",
     message: "Coordinator could not be resolved from live data.",
     messages: []
   }
@@ -245,7 +245,7 @@ const EMPTY_HOD_DASHBOARD: HodDashboardData = {
     configured: false,
     title: "Enrichment and Olympiads",
     message: "Schooly_Enrichment_Olympiad_Registry is not configured.",
-    statusLabel: "Setup required"
+    statusLabel: "Setup incomplete"
   },
   remedialStatus: [],
   announcements: [],
@@ -253,7 +253,7 @@ const EMPTY_HOD_DASHBOARD: HodDashboardData = {
   sourceHealth: [],
   setupState: {
     status: "setup_required",
-    title: "HOD dashboard setup required",
+    title: "HOD dashboard setup incomplete",
     message: "HOD could not be resolved from live data.",
     messages: []
   }
@@ -378,7 +378,7 @@ function formatTeacherDashboardDateTime(value: string): string {
 
 function formatTeacherDashboardSource(source?: TeacherDashboardSourceReference | null): string {
   if (!source) return "Registry pending";
-  return `${source.workbook} / ${source.tab}`;
+  return `From ${source.tab}`;
 }
 
 interface DashboardOverviewProps {
@@ -700,7 +700,7 @@ export default function DashboardOverview({
   const [liveDashboardBlueprints, setLiveDashboardBlueprints] = useState<Record<string, { cards: DashboardBlueprintCard[]; rows: any[] }> | null>(null);
   const [dashboardSourceState, setDashboardSourceState] = useState<DashboardSourceState>({
     mode: "setup_required",
-    sourceLabel: "Setup required - no live data found",
+    sourceLabel: "Setup incomplete - no live data found",
     sourceUrl: DEFAULT_DASHBOARD_SHEET_URL,
     lastSyncedAt: null,
     warnings: [],
@@ -1788,7 +1788,7 @@ export default function DashboardOverview({
               const statusLabel = registryState === "missing"
                 ? "Source unavailable"
                 : registryState === "incomplete"
-                  ? "Check setup"
+                  ? "Setup incomplete"
                   : registryState === "fallback"
                     ? "Fallback data"
                     : registry.connected
@@ -1797,7 +1797,7 @@ export default function DashboardOverview({
               const countLabel = registryState === "missing"
                 ? "Source unavailable"
                 : registryState === "incomplete"
-                  ? "Check setup"
+                  ? "Setup incomplete"
                   : registryState === "fallback"
                     ? "Fallback data"
                     : `${registry.rowCount} rows`;
@@ -2919,8 +2919,9 @@ export default function DashboardOverview({
   };
   const formatSourceAwareValue = (value: string | number, state: CompactSourceState) => {
     if (state === "missing") return "Source unavailable";
-    if (state === "incomplete") return "Check setup";
+    if (state === "incomplete") return "Setup incomplete";
     if (state === "fallback") return "Fallback data";
+    if (state === "unknown") return "Metadata only";
     return value;
   };
   const canViewRegistrySheetLinks = googleWorkspaceAuthState.connected || isPrincipalRole() || isAdminRole() || isCoordinatorRole() || isHodRole() || isManagerRole() || isHrRole() || isExamsRole() || isTeacherRole();
@@ -2949,7 +2950,7 @@ export default function DashboardOverview({
       source: "Master Registry / Classes_Sections",
       sourceUrl: getRegistryUrl("masterDataRegistryUrl"),
       rows: getTabRowCount("masterDataRegistryUrl", "Classes_Sections"),
-      empty: "No live class/section rows found in Master Registry / Classes_Sections.",
+      empty: "No rows available from Classes_Sections yet.",
       registryKey: "masterDataRegistryUrl",
       actionTab: "courses"
     },
@@ -2958,7 +2959,7 @@ export default function DashboardOverview({
       source: "Master Registry / Teacher_Allocations",
       sourceUrl: getRegistryUrl("masterDataRegistryUrl"),
       rows: getTabRowCount("masterDataRegistryUrl", "Teacher_Allocations"),
-      empty: "No live teacher allocation rows found in Master Registry / Teacher_Allocations.",
+      empty: "No rows available from Teacher_Allocations yet.",
       registryKey: "masterDataRegistryUrl",
       actionRegistryId: "REG_TEACHER_ALLOCATIONS"
     },
@@ -2967,7 +2968,7 @@ export default function DashboardOverview({
       source: "Lesson Workspace Registry / Lesson_Workspace_Registry",
       sourceUrl: getRegistryUrl("lessonWorkspaceRegistryUrl"),
       rows: getTabRowCount("lessonWorkspaceRegistryUrl", "Lesson_Workspace_Registry"),
-      empty: "No live lesson workspace rows found in Lesson Workspace Registry / Lesson_Workspace_Registry.",
+      empty: "No rows available from Lesson_Workspace_Registry yet.",
       registryKey: "lessonWorkspaceRegistryUrl",
       actionRegistryId: "lessonWorkspaceRegistryUrl__lesson-workspace-registry"
     },
@@ -2976,7 +2977,7 @@ export default function DashboardOverview({
       source: "Dashboard Data Source / Alert_Log",
       sourceUrl: getRegistryUrl("dashboardDataSourceUrl"),
       rows: getTabRowCount("dashboardDataSourceUrl", "Alert_Log"),
-      empty: "No live alert rows found in Dashboard Data Source / Alert_Log.",
+      empty: "No rows available from Alert_Log yet.",
       registryKey: "dashboardDataSourceUrl",
       actionRegistryId: "dashboardDataSourceUrl__alert-log"
     },
@@ -2985,7 +2986,7 @@ export default function DashboardOverview({
       source: "QA/SQAA Registry / SQAA_Evidence_Map",
       sourceUrl: getRegistryUrl("qaSqaaRegistryUrl"),
       rows: getTabRowCount("qaSqaaRegistryUrl", "SQAA_Evidence_Map"),
-      empty: "No live compliance evidence rows found in QA/SQAA Registry / SQAA_Evidence_Map.",
+      empty: "No rows available from SQAA_Evidence_Map yet.",
       registryKey: "qaSqaaRegistryUrl",
       actionRegistryId: "qaSqaaRegistryUrl__sqaa-evidence-map"
     },
@@ -2994,7 +2995,7 @@ export default function DashboardOverview({
       source: "Assessment/Result Registry",
       sourceUrl: getRegistryUrl("assessmentResultRegistryUrl"),
       rows: registryByKey.get("assessmentResultRegistryUrl" as any)?.rowCount || 0,
-      empty: "No live assessment rows found in Assessment/Result Registry.",
+      empty: "No rows available from the assessment source yet.",
       registryKey: "assessmentResultRegistryUrl",
       actionRegistryId: "assessmentResultRegistryUrl__result-processing"
     },
@@ -3003,7 +3004,7 @@ export default function DashboardOverview({
       source: "Google Classroom Sync Registry",
       sourceUrl: getRegistryUrl("classroomSyncRegistryUrl"),
       rows: registryByKey.get("classroomSyncRegistryUrl" as any)?.rowCount || 0,
-      empty: "No live Classroom sync rows found in Google Classroom Sync Registry.",
+      empty: "No rows available from Classroom sync yet.",
       registryKey: "classroomSyncRegistryUrl"
     }
   ];
@@ -3103,7 +3104,7 @@ export default function DashboardOverview({
           </p>
         </div>
         <span className={`text-[10px] font-sans font-black px-2 py-1 rounded-lg ${roleDashboardSourceRows > 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-          {roleDashboardSourceRows > 0 ? `${roleDashboardSourceRows} live source rows` : "Setup required"}
+          {roleDashboardSourceRows > 0 ? `${roleDashboardSourceRows} source rows` : "Setup incomplete"}
         </span>
       </div>
 
@@ -3126,7 +3127,7 @@ export default function DashboardOverview({
                 </div>
               </div>
               <span className={`text-[10px] font-sans font-bold px-2 py-0.5 rounded-full shrink-0 ${card.rows > 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                {card.rows > 0 ? `${card.rows} rows` : "Setup"}
+                {card.rows > 0 ? `${card.rows} rows` : "No rows"}
               </span>
             </div>
             <div className="flex items-center justify-between gap-2 text-[10px] font-mono font-bold">
@@ -3232,7 +3233,7 @@ export default function DashboardOverview({
               >
                 <h3 className="text-sm font-extrabold text-slate-900">{card.title}</h3>
                 <span className={`text-[10px] font-sans font-bold px-2 py-0.5 rounded-full ${card.count > 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                  {card.count > 0 ? `${card.count} rows` : "No live rows"}
+                  {card.count > 0 ? `${card.count} rows` : "No rows"}
                 </span>
               </button>
               <div className="text-xs font-semibold text-slate-600">{card.detail}</div>
@@ -3243,7 +3244,7 @@ export default function DashboardOverview({
                   onClick={() => card.actionRegistryId ? openRegistryDataRoute(card.actionRegistryId) : onToggleTab(card.drillTab)}
                   className="px-2.5 py-1.5 rounded-lg border border-blue-200 bg-white text-[10px] font-extrabold text-blue-700 hover:bg-blue-50"
                 >
-                  {card.actionRegistryId ? "Open Registry" : "Open Page"}
+                  {card.actionRegistryId ? "Open Registry Detail" : "Open Tab"}
                 </button>
               </div>
             </div>
@@ -3398,7 +3399,7 @@ export default function DashboardOverview({
                     Teacher Dashboard
                   </span>
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${isSetupState ? "border border-amber-200 bg-amber-50 text-amber-700" : "border border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-                    {isSetupState ? "Setup required" : "Live data"}
+                    {isSetupState ? "Setup incomplete" : "Live data"}
                   </span>
                 </div>
                 <h2 className="mt-1 text-xl sm:text-2xl font-black text-slate-900 truncate">{header.name || "Teacher dashboard setup required"}</h2>
@@ -3686,7 +3687,7 @@ export default function DashboardOverview({
                 <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Invigilation & Olympiads</div>
                 <h3 className="text-sm font-extrabold text-slate-900">My invigilation & olympiads</h3>
               </div>
-              <span className="text-[10px] font-sans font-black rounded-full bg-slate-100 text-slate-700 px-2 py-1">{teacherDashboard.invigilationDuty ? "1 live duty" : "Setup required"}</span>
+              <span className="text-[10px] font-sans font-black rounded-full bg-slate-100 text-slate-700 px-2 py-1">{teacherDashboard.invigilationDuty ? "1 live duty" : "Setup incomplete"}</span>
             </div>
             <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
               {teacherDashboard.invigilationDuty ? (
@@ -3710,7 +3711,7 @@ export default function DashboardOverview({
                 <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Renewal Status</div>
                 <h3 className="text-sm font-extrabold text-slate-900">My renewal status</h3>
               </div>
-              <span className="text-[10px] font-sans font-black rounded-full bg-slate-100 text-slate-700 px-2 py-1">{teacherDashboard.renewalStatus.statusLabel || "Setup required"}</span>
+              <span className="text-[10px] font-sans font-black rounded-full bg-slate-100 text-slate-700 px-2 py-1">{teacherDashboard.renewalStatus.statusLabel || "Setup incomplete"}</span>
             </div>
             <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
               <div className="font-semibold text-slate-900">{teacherDashboard.renewalStatus.title}</div>
@@ -3789,7 +3790,7 @@ export default function DashboardOverview({
                     {profile.roleLabel || "School Manager"}
                   </span>
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${isSetupState ? "border border-amber-200 bg-amber-50 text-amber-700" : "border border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-                    {isSetupState ? "Setup required" : "Live data"}
+                    {isSetupState ? "Setup incomplete" : "Live data"}
                   </span>
                 </div>
                 <h2 className="mt-1 text-xl sm:text-2xl font-black text-slate-900 truncate">
@@ -3870,7 +3871,7 @@ export default function DashboardOverview({
                   </div>
                   <div className="mt-2 flex items-center justify-between gap-2 text-[10px] font-mono font-bold text-slate-500">
                     <span>Source: {formatTeacherDashboardSource(metric.source)}</span>
-                    <span>{metric.percent > 0 ? `${metric.percent}%` : "Setup required"}</span>
+                    <span>{metric.percent > 0 ? `${metric.percent}%` : "Setup incomplete"}</span>
                   </div>
                 </div>
               )) : (
@@ -3954,7 +3955,7 @@ export default function DashboardOverview({
                       onClick={() => window.open(announcement.url, "_blank", "noopener,noreferrer")}
                       className="text-[10px] font-black text-blue-700 hover:underline bg-transparent border-none cursor-pointer p-0"
                     >
-                      View
+                      Open announcement
                     </button>
                   ) : (
                     <span>Update details pending</span>
@@ -4016,7 +4017,7 @@ export default function DashboardOverview({
                     {profile.label || "Student Portal"}
                   </span>
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${isSetupState ? "border border-amber-200 bg-amber-50 text-amber-700" : "border border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-                    {isSetupState ? "Setup required" : "Live data"}
+                    {isSetupState ? "Setup incomplete" : "Live data"}
                   </span>
                 </div>
                 <h2 className="mt-1 text-xl sm:text-2xl font-black text-slate-900 truncate">
@@ -4120,7 +4121,7 @@ export default function DashboardOverview({
                 <div className="text-[10px] uppercase tracking-wider font-mono font-black text-blue-600">Active Timetable</div>
                 <h3 className="text-sm font-extrabold text-slate-900">My Grade timetable and daily schedule</h3>
               </div>
-              <span className="text-[10px] font-sans font-black rounded-full bg-emerald-50 text-emerald-700 px-2 py-1">{visibleTimetable.length > 0 ? `${visibleTimetable.length} periods` : "Setup required"}</span>
+              <span className="text-[10px] font-sans font-black rounded-full bg-emerald-50 text-emerald-700 px-2 py-1">{visibleTimetable.length > 0 ? `${visibleTimetable.length} periods` : "Setup incomplete"}</span>
             </div>
             <div className="mt-4 space-y-2">
               {visibleTimetable.length > 0 ? visibleTimetable.map((item) => (
@@ -4243,7 +4244,7 @@ export default function DashboardOverview({
                     Coordinator Dashboard
                   </span>
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${isSetupState ? "border border-amber-200 bg-amber-50 text-amber-700" : "border border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-                    {isSetupState ? "Setup required" : "Live data"}
+                    {isSetupState ? "Setup incomplete" : "Live data"}
                   </span>
                 </div>
                 <h2 className="mt-1 text-xl sm:text-2xl font-black text-slate-900 truncate">{profile.name || "Coordinator dashboard setup required"}</h2>
@@ -4452,7 +4453,7 @@ export default function DashboardOverview({
                     Parent Representative
                   </span>
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${isSetupState ? "border border-amber-200 bg-amber-50 text-amber-700" : "border border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-                    {isSetupState ? "Setup required" : "Live data"}
+                    {isSetupState ? "Setup incomplete" : "Live data"}
                   </span>
                 </div>
                 <h2 className="mt-1 text-xl sm:text-2xl font-black text-slate-900 truncate">{header.name || "Parents liaison"}</h2>
@@ -4648,7 +4649,7 @@ export default function DashboardOverview({
                     HOD Dashboard
                   </span>
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${isSetupState ? "border border-amber-200 bg-amber-50 text-amber-700" : "border border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-                    {isSetupState ? "Setup required" : "Live data"}
+                    {isSetupState ? "Setup incomplete" : "Live data"}
                   </span>
                 </div>
                 <h2 className="mt-1 text-xl sm:text-2xl font-black text-slate-900 truncate">{profile.name || "HOD dashboard setup required"}</h2>
@@ -4977,7 +4978,7 @@ export default function DashboardOverview({
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-sm font-extrabold text-slate-900">{card.title}</h3>
               <span className={`text-[10px] font-sans font-bold px-2 py-0.5 rounded-full ${card.rows > 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                {card.rows > 0 ? `${card.rows} rows` : "No live rows"}
+                {card.rows > 0 ? `${card.rows} rows` : "No rows"}
               </span>
             </div>
             <div className="text-[10px] text-blue-700 font-mono font-bold">Source: {card.source}</div>
@@ -4988,15 +4989,15 @@ export default function DashboardOverview({
                 onClick={() => card.actionRegistryId ? openRegistryDataRoute(card.actionRegistryId) : onToggleTab(card.actionTab || "admin-registry-detail")}
                 className="px-2.5 py-1.5 rounded-lg border border-blue-200 bg-white text-[10px] font-extrabold text-blue-700 hover:bg-blue-50"
               >
-                {card.actionRegistryId ? "Open Registry" : card.actionTab ? "Open Page" : "Drill Through"}
-              </button>
+                {card.actionRegistryId ? "Open Registry Detail" : card.actionTab ? "Open Tab" : "Drill Through"}
+                </button>
               {card.sourceUrl && canViewRegistrySheetLinks && (
                 <button
                   type="button"
                   onClick={() => openRegistrySheetLink(card.sourceUrl, "view")}
                   className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[10px] font-extrabold text-slate-700 hover:bg-slate-100"
                 >
-                  View
+                  Open Sheet
                 </button>
               )}
               {card.sourceUrl && canEditRegistrySheetLinks && (

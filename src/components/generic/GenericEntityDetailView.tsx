@@ -123,10 +123,10 @@ export default function GenericEntityDetailView<T extends object>({
       <div className={`bg-white border border-slate-200 rounded-2xl p-6 shadow-sm text-center space-y-2 ${className}`}>
         <FileText size={26} className="mx-auto text-slate-300" />
         <h3 className="text-sm font-bold text-slate-800">
-          Select a {definition.entityName.toLowerCase()}
+          No row selected
         </h3>
         <p className="text-xs text-slate-500">
-          Choose an item from the list to inspect its details.
+          Choose a record from the list to inspect its source details.
         </p>
       </div>
     );

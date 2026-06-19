@@ -242,8 +242,8 @@ const EMPTY_COORDINATOR_DASHBOARD = {
   classroomActivity: [],
   assessmentTracking: [],
   announcements: [],
-  invigilationDuty: { configured: false, title: "Invigilation & olympiads", message: "Invigilation/Olympiad duty registry not configured.", statusLabel: "Setup required" },
-  renewalStatus: { configured: false, title: "Renewal / compliance status", message: "Teacher CPD renewal registry is not configured.", statusLabel: "Setup required" },
+  invigilationDuty: { configured: false, title: "Invigilation & olympiads", message: "Invigilation/Olympiad duty registry not configured.", statusLabel: "Setup incomplete" },
+  renewalStatus: { configured: false, title: "Renewal / compliance status", message: "Teacher CPD renewal registry is not configured.", statusLabel: "Setup incomplete" },
   sourceHealth: [],
   setupState: { status: "setup_required", title: "Coordinator dashboard setup required", message: "Coordinator could not be resolved from live data.", messages: [] }
 };
@@ -546,11 +546,11 @@ function buildRegistryHealthSummary(
     : (sourceState.warnings[0] || sourceState.setupMessages[0] || "All registry connections are healthy.");
   const onboardingStatus = sourceState.mode === "live"
     ? (criticalRegistries > 0 || totalRegistries === 0
-      ? "Setup required"
+      ? "Setup incomplete"
       : warningRegistries > 0
         ? "Onboarding in progress"
         : "Onboarding complete")
-    : "Setup required";
+    : "Setup incomplete";
   const nextRequiredAction = sourceIssue
     ? (isCriticalRegistryStatus(sourceIssue)
       ? `Reconnect ${sourceIssue.label}`
@@ -1090,7 +1090,7 @@ function buildHodDashboard(tabs: SheetTabMap, sourceState: DashboardSourceState,
           ? "Live rows found for this HOD context."
           : "HOD scope not configured.",
         messages: hasConfiguredScope
-          ? (sourceState.setupMessages.length > 0 ? sourceState.setupMessages : ["Live rows are available."])
+          ? (sourceState.setupMessages.length > 0 ? sourceState.setupMessages : ["Live rows are available in the connected source."])
           : [
               "Add Schooly_Master_Data_Registry / Department_Scope.",
               "Seed Schooly_Master_Data_Registry / Teacher_Allocations for class and subject ownership."
@@ -1126,7 +1126,7 @@ function buildHodDashboard(tabs: SheetTabMap, sourceState: DashboardSourceState,
         configured: false,
         title: "Enrichment and Olympiads",
         message: "Schooly_Enrichment_Olympiad_Registry is not configured.",
-        statusLabel: "Setup required"
+        statusLabel: "Setup incomplete"
       },
       remedialStatus: [],
       announcements: [],
@@ -1234,7 +1234,7 @@ function buildHodDashboard(tabs: SheetTabMap, sourceState: DashboardSourceState,
         configured: false,
         title: "Enrichment and Olympiads",
         message: "Schooly_Enrichment_Olympiad_Registry is not configured.",
-        statusLabel: "Setup required"
+        statusLabel: "Setup incomplete"
       };
 
   const remedialStatus: HodRemedialStatus[] = [
@@ -1407,7 +1407,7 @@ function buildTeacherDashboard(tabs: SheetTabMap, sourceState: DashboardSourceSt
         status: sourceState.mode === "live" ? "live" : sourceState.mode,
         title: "Teacher dashboard connected",
         message: "Live rows found for this teacher context.",
-        messages: sourceState.setupMessages.length > 0 ? sourceState.setupMessages : ["Live rows are available."]
+        messages: sourceState.setupMessages.length > 0 ? sourceState.setupMessages : ["Live rows are available in the connected source."]
       }
     : {
         status: "setup_required",
@@ -1434,10 +1434,10 @@ function buildTeacherDashboard(tabs: SheetTabMap, sourceState: DashboardSourceSt
       timetable: [],
       pendingTasks: [],
       quickLinks: [
-        { label: "Class announcements", detail: "Review classroom updates.", actionTab: "classroom", actionLabel: "Open", available: true },
-        { label: "My repository/files", detail: "Open lesson resources.", actionTab: "textbooks", actionLabel: "Open", available: true },
-        { label: "Submit weekly planner", detail: "Go to lesson workspace.", actionTab: "lesson-plans", actionLabel: "Open", available: true },
-        { label: "Apply for leave", detail: "No leave workflow is connected yet.", actionLabel: "Setup required", available: false }
+        { label: "Class announcements", detail: "Review classroom updates.", actionTab: "classroom", actionLabel: "Open Classroom", available: true },
+        { label: "My repository/files", detail: "Open lesson resources.", actionTab: "textbooks", actionLabel: "View Resources", available: true },
+        { label: "Submit weekly planner", detail: "Go to lesson workspace.", actionTab: "lesson-plans", actionLabel: "Open Lesson Planner", available: true },
+        { label: "Apply for leave", detail: "No leave workflow is connected yet.", actionLabel: "Setup incomplete", available: false }
       ],
       classPerformance: [],
       classroomActivity: [],
@@ -1447,7 +1447,7 @@ function buildTeacherDashboard(tabs: SheetTabMap, sourceState: DashboardSourceSt
         configured: false,
         title: "My renewal status",
         message: "Teacher CPD renewal registry is not configured.",
-        statusLabel: "Setup required"
+        statusLabel: "Setup incomplete"
       },
       announcements: [],
       sourceHealth: [
@@ -1598,7 +1598,7 @@ function buildTeacherDashboard(tabs: SheetTabMap, sourceState: DashboardSourceSt
       detail: pickFirst(row, ["publish_status", "notes"], "Resource publish pending"),
       severity: "low" as const,
       dueLabel: formatCompactDateTime(pickFirst(row, ["published_at", "created_at"], "")) || "Pending",
-      actionLabel: "View",
+      actionLabel: "Open Sheet",
       actionTab: "classroom",
       statusLabel: pickFirst(row, ["publish_status", "status"], "Pending"),
       sourceLabel: "Classroom publish",
@@ -1761,10 +1761,10 @@ function buildTeacherDashboard(tabs: SheetTabMap, sourceState: DashboardSourceSt
   ];
 
   const quickLinks: TeacherDashboardQuickLink[] = [
-    { label: "Class announcements", detail: "Open classroom notices and posts.", actionTab: "classroom", actionLabel: "Open", available: true },
-    { label: "My repository/files", detail: "Open lesson workspace and artifacts.", actionTab: "textbooks", actionLabel: "Open", available: true },
-    { label: "Submit weekly planner", detail: "Go to lesson workspace planner.", actionTab: "lesson-plans", actionLabel: "Open", available: true },
-    { label: "Apply for leave", detail: "No leave workflow is connected yet.", actionLabel: "Setup required", available: false }
+    { label: "Class announcements", detail: "Open classroom notices and posts.", actionTab: "classroom", actionLabel: "Open Classroom", available: true },
+    { label: "My repository/files", detail: "Open lesson workspace and artifacts.", actionTab: "textbooks", actionLabel: "View Resources", available: true },
+    { label: "Submit weekly planner", detail: "Go to lesson workspace planner.", actionTab: "lesson-plans", actionLabel: "Open Lesson Planner", available: true },
+    { label: "Apply for leave", detail: "No leave workflow is connected yet.", actionLabel: "Setup incomplete", available: false }
   ];
 
   const renewalStatus: TeacherRenewalStatus = renewalRow
@@ -1779,7 +1779,7 @@ function buildTeacherDashboard(tabs: SheetTabMap, sourceState: DashboardSourceSt
         configured: false,
         title: "My renewal status",
         message: "Teacher CPD renewal registry is not configured.",
-        statusLabel: "Setup required"
+        statusLabel: "Setup incomplete"
       };
 
   const sourceHealth: TeacherDashboardSourceReference[] = [
@@ -2003,7 +2003,7 @@ function buildCoordinatorDashboard(tabs: SheetTabMap, sourceState: DashboardSour
           ? "Live rows found for this coordinator context."
           : "Coordinator scope not configured.",
         messages: hasConfiguredScope
-          ? (sourceState.setupMessages.length > 0 ? sourceState.setupMessages : ["Live rows are available."])
+          ? (sourceState.setupMessages.length > 0 ? sourceState.setupMessages : ["Live rows are available in the connected source."])
           : [
               "Add Schooly_Master_Data_Registry / Coordinator_Scope.",
               "Seed Schooly_Master_Data_Registry / Teacher_Allocations for class/section mapping."
@@ -2037,8 +2037,8 @@ function buildCoordinatorDashboard(tabs: SheetTabMap, sourceState: DashboardSour
       classroomActivity: [],
       assessmentTracking: [],
       announcements: [],
-      invigilationDuty: { configured: false, title: "Invigilation & olympiads", message: "Invigilation/Olympiad duty registry not configured.", statusLabel: "Setup required" },
-      renewalStatus: { configured: false, title: "Renewal status", message: "Teacher CPD renewal registry is not configured.", statusLabel: "Setup required" },
+        invigilationDuty: { configured: false, title: "Invigilation & olympiads", message: "Invigilation/Olympiad duty registry not configured.", statusLabel: "Setup incomplete" },
+      renewalStatus: { configured: false, title: "Renewal status", message: "Teacher CPD renewal registry is not configured.", statusLabel: "Setup incomplete" },
       sourceHealth: [
         profileSource,
         sourceRef(sourceState, "masterDataRegistryUrl", "Academic_Years"),
@@ -2229,7 +2229,7 @@ function buildCoordinatorDashboard(tabs: SheetTabMap, sourceState: DashboardSour
         configured: false,
         title: "Invigilation & olympiads",
         message: "Invigilation/Olympiad duty registry not configured.",
-        statusLabel: "Setup required"
+        statusLabel: "Setup incomplete"
       };
 
   const renewalStatus: CoordinatorRenewalStatus = cpdScopeRows.length > 0
@@ -2244,7 +2244,7 @@ function buildCoordinatorDashboard(tabs: SheetTabMap, sourceState: DashboardSour
         configured: false,
         title: "Renewal / compliance status",
         message: "Teacher CPD renewal registry is not configured.",
-        statusLabel: "Setup required"
+        statusLabel: "Setup incomplete"
       };
 
   const sourceHealth: CoordinatorDashboardSourceReference[] = [
@@ -2417,7 +2417,7 @@ function buildExamsDashboard(tabs: SheetTabMap, sourceState: DashboardSourceStat
       return {
         id: pickFirst(row, ["question_paper_id", "assessment_plan_id", "exam_id", "id"], `verification-${index + 1}`),
         title,
-        detail: detailBits.join(" | ") || "Live row",
+        detail: detailBits.join(" | ") || "Row details unavailable",
         statusLabel: status || "Review",
         actionLabel: /approved|verified|locked|final/i.test(status) ? "Approved" : "Verify & Accept",
         actionTab: /approved|verified|locked|final/i.test(status) ? undefined : "registry-detail",
@@ -2452,7 +2452,7 @@ function buildExamsDashboard(tabs: SheetTabMap, sourceState: DashboardSourceStat
         status: "live",
         title: "Examination chair dashboard connected",
         message: "Live rows are available for the examination chair view.",
-        messages: sourceState.setupMessages.length > 0 ? sourceState.setupMessages : ["Live rows are available."]
+        messages: sourceState.setupMessages.length > 0 ? sourceState.setupMessages : ["Live rows are available in the connected source."]
       }
     : {
         status: "setup_required",
@@ -2639,7 +2639,7 @@ function buildParentDashboard(tabs: SheetTabMap, sourceState: DashboardSourceSta
       className: pickFirst(row, ["class", "class_name", "grade"], ""),
       section: pickFirst(row, ["section"], ""),
       title: pickFirst(row, ["announcement_title", "title", "post_title"], "Parent notice"),
-      text: pickFirst(row, ["announcement_text", "message", "notes", "description"], "Live row"),
+      text: pickFirst(row, ["announcement_text", "message", "notes", "description"], "Announcement details unavailable"),
       postedAt: pickFirst(row, ["posted_at", "created_at", "updated_at", "completed_at"], ""),
       source: parentSourceRef(sourceState, "classroomSyncRegistryUrl", "Classroom_Announcement_Sync")
     }))
@@ -2650,7 +2650,7 @@ function buildParentDashboard(tabs: SheetTabMap, sourceState: DashboardSourceSta
   const advisoryTickets: ParentAdvisoryTicket[] = advisoryTicketRows
     .map((row, index) => {
       const title = pickFirst(row, ["message", "title", "alert", "description"], `Advisory ticket ${index + 1}`);
-      const detail = pickFirst(row, ["notes", "description", "message"], "Live parent advisory row");
+      const detail = pickFirst(row, ["notes", "description", "message"], "Advisory details unavailable");
       const status = pickFirst(row, ["status", "severity", "priority"], "Open");
       return {
         id: pickFirst(row, ["alert_id", "id"], `ticket-${index + 1}`),
@@ -2671,14 +2671,14 @@ function buildParentDashboard(tabs: SheetTabMap, sourceState: DashboardSourceSta
       id: "bus",
       label: "Bus fleet security monitor",
       detail: transportVerifiedCount > 0 ? `${transportVerifiedCount} routes verified` : "Bus route records not configured.",
-      statusLabel: transportVerifiedCount > 0 ? "Routes verified" : "Setup required",
+      statusLabel: transportVerifiedCount > 0 ? "Routes verified" : "Setup incomplete",
       source: parentSourceRef(sourceState, "classroomSyncRegistryUrl", "Classroom_Sync_Log")
     },
     {
       id: "fire",
       label: "Annual fire & safety audit",
       detail: safetyRows.length > 0 ? "Emergency and hygiene standards tracked." : "No live safety audit rows found.",
-      statusLabel: safetyRows.length > 0 ? "Stage 1 clear" : "Setup required",
+      statusLabel: safetyRows.length > 0 ? "Stage 1 clear" : "Setup incomplete",
       source: parentSourceRef(sourceState, "dashboardDataSourceUrl", "Dashboard_Alerts")
     }
   ];
@@ -2688,7 +2688,7 @@ function buildParentDashboard(tabs: SheetTabMap, sourceState: DashboardSourceSta
         status: sourceState.mode === "live" ? "live" : sourceState.mode,
         title: "Parent dashboard connected",
         message: "Live rows are available for the parent liaison view.",
-        messages: sourceState.setupMessages.length > 0 ? sourceState.setupMessages : ["Live rows are available."]
+        messages: sourceState.setupMessages.length > 0 ? sourceState.setupMessages : ["Live rows are available in the connected source."]
       }
     : {
         status: "setup_required",
@@ -2985,7 +2985,7 @@ function buildManagerDashboard(tabs: SheetTabMap, sourceState: DashboardSourceSt
     .map((row, index) => ({
       id: pickFirst(row, ["checklist_id", "qa_review_id", "report_id", "milestone_id", "id"], `manager-check-${index + 1}`),
       title: pickFirst(row, ["check_item", "milestone_name", "framework_id", "report_period", "alert_type", "title", "name"], "Strategic review"),
-      detail: pickFirst(row, ["description", "notes", "blocking_issues", "warnings", "recommendations", "message"], "Live row"),
+      detail: pickFirst(row, ["description", "notes", "blocking_issues", "warnings", "recommendations", "message"], "Row details unavailable"),
       statusLabel: pickFirst(row, ["status", "review_status", "completion_status", "action_status"], "Open"),
       severity: normalizeManagerSeverity(pickFirst(row, ["severity", "priority", "status", "review_status"], "")),
       source: row["milestone_id"] || row["milestone_name"]
@@ -3025,7 +3025,7 @@ function buildManagerDashboard(tabs: SheetTabMap, sourceState: DashboardSourceSt
         status: "live",
         title: "School manager dashboard connected",
         message: "Live rows are available for this manager.",
-        messages: sourceState.setupMessages.length > 0 ? sourceState.setupMessages : ["Live rows are available."]
+        messages: sourceState.setupMessages.length > 0 ? sourceState.setupMessages : ["Live rows are available in the connected source."]
       }
     : {
         status: "setup_required",
@@ -3368,7 +3368,7 @@ function buildStudentDashboard(tabs: SheetTabMap, sourceState: DashboardSourceSt
         status: "live",
         title: "Student dashboard connected",
         message: "Live rows are available for this student context.",
-        messages: sourceState.setupMessages.length > 0 ? sourceState.setupMessages : ["Live rows are available."]
+        messages: sourceState.setupMessages.length > 0 ? sourceState.setupMessages : ["Live rows are available in the connected source."]
       }
     : {
         status: "setup_required",
@@ -3496,7 +3496,7 @@ async function resolveLiveRegistryData(options: LoadDashboardDataOptions): Promi
   if (!isGoogleSheetsUrl(dashboardUrl)) {
     const baseSourceState = {
       mode: "setup_required" as const,
-      sourceLabel: "Setup required - no live data found",
+      sourceLabel: "Setup incomplete - no live data found",
       sourceUrl: dashboardUrl,
       lastSyncedAt: null,
       activeAcademicYearLabel: "",
@@ -3559,7 +3559,7 @@ async function resolveLiveRegistryData(options: LoadDashboardDataOptions): Promi
   if (totalRows === 0) {
     const baseSourceState = {
       mode: "setup_required" as const,
-      sourceLabel: "Setup required - no live data found",
+      sourceLabel: "Setup incomplete - no live data found",
       sourceUrl: dashboardUrl,
       lastSyncedAt: null,
       activeAcademicYearLabel,

@@ -18,7 +18,7 @@ export default function RoleDashboards({
   if (!summary) return null;
   if (mode !== "chip") return null;
 
-  const hasIssues = summary.criticalRegistries > 0 || summary.warningRegistries > 0 || summary.onboardingStatus === "Setup required";
+  const hasIssues = summary.criticalRegistries > 0 || summary.warningRegistries > 0 || summary.onboardingStatus === "Setup incomplete";
   const statusTone = hasIssues
     ? summary.criticalRegistries > 0
       ? "border-rose-200 bg-rose-50 text-rose-800"
@@ -28,7 +28,7 @@ export default function RoleDashboards({
   return (
     <div className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${statusTone}`}>
       {hasIssues ? <AlertTriangle size={12} /> : <Sparkles size={12} />}
-      <span>{hasIssues ? "Setup required" : summary.onboardingStatus}</span>
+      <span>{hasIssues ? "Setup incomplete" : summary.onboardingStatus}</span>
     </div>
   );
 }

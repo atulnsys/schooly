@@ -64,7 +64,7 @@ export function toDashboardCardModel(
       source: card.source
     },
     drillThroughTarget: `/dashboard/details/${role}/${card.key}`,
-    drillThroughLabel: totalRows > 0 ? `View all (${totalRows})` : "Open details",
+    drillThroughLabel: totalRows > 0 ? `Open details (${totalRows})` : "Open details",
     emptyState: card.emptyState
   };
 }

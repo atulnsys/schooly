@@ -344,14 +344,14 @@ export default function RegistryPageShell<T extends object>({
       sourceState === "Ready"
         ? `${rows.length} ${rows.length === 1 ? "record" : "records"}`
         : sourceState === "Empty"
-          ? "No rows available"
+          ? "No rows"
           : sourceState === "Missing"
             ? "Source unavailable"
             : sourceState === "Fallback"
               ? "Fallback data"
               : sourceState === "Incomplete"
-                ? "Check setup"
-                : "State unknown",
+                ? "Setup incomplete"
+                : "Metadata only",
     mandatoryFieldLabel:
       requiredFieldCount > 0
         ? rows.length === 0
@@ -364,15 +364,48 @@ export default function RegistryPageShell<T extends object>({
         : "Validation metadata not available from this source yet",
     guidance:
       sourceState === "Empty"
-        ? `${entry.label} exists but has no rows yet.`
+        ? `${entry.label} exists, but no rows are available yet.`
         : sourceState === "Missing"
-          ? `${entry.label} source is unavailable.`
+          ? "Source metadata is available, but live rows are not loaded."
           : sourceState === "Fallback"
-            ? `This registry is showing fallback data. Reconnect the live source when ready.`
-          : sourceState === "Incomplete"
-            ? "Mandatory fields defined, but row data is unavailable in this route."
+            ? "Fallback data is in use. Reconnect the live source when ready."
+            : sourceState === "Incomplete"
+            ? "Setup incomplete. Required headers are still missing in this route."
             : undefined,
   };
+
+  const viewDefinition = useMemo(
+    () => ({
+      ...definition,
+      ...(sourceState === "Empty"
+        ? {
+            emptyTitle: "No rows available from this registry yet.",
+            emptyDescription: "This registry is mapped, but no live rows are available.",
+          }
+        : sourceState === "Missing"
+          ? {
+              emptyTitle: "Source unavailable",
+              emptyDescription: "Source metadata is available, but live rows are not loaded.",
+            }
+          : sourceState === "Incomplete"
+            ? {
+                emptyTitle: "Setup incomplete",
+                emptyDescription: "Required headers are defined, but live rows are not available in this route.",
+              }
+            : sourceState === "Fallback"
+              ? {
+                  emptyTitle: "Fallback data in use",
+                  emptyDescription: "Reconnect the live source when ready.",
+                }
+              : sourceState === "Unknown"
+                ? {
+                    emptyTitle: "Metadata only",
+                    emptyDescription: "This route exposes registry metadata until live rows are available.",
+                  }
+                : {}),
+    }),
+    [definition, sourceState],
+  );
 
   const controls = {
     showSearch: showSearch ?? entry.controlDefaults.showSearch,
@@ -398,7 +431,7 @@ export default function RegistryPageShell<T extends object>({
         </div>
       ) : (
         <GenericEntityPage
-          definition={definition}
+          definition={viewDefinition}
           rows={rows}
           selectedRow={selectedRow}
           onSelectRow={onSelectRow ?? undefined}

@@ -125,7 +125,7 @@ function buildRegistryDetailSummary(
     requiredHeaders.length === 0
       ? "Mandatory field metadata unavailable"
       : readiness === "Missing"
-        ? "Mandatory fields defined, but row data is unavailable in this route."
+        ? "Mandatory fields defined, but live rows are not loaded."
         : readiness === "Empty"
           ? "Mandatory fields defined, but no rows are available to validate."
           : readiness === "Fallback"
@@ -150,14 +150,14 @@ function buildRegistryDetailSummary(
     readiness === "Ready"
       ? `${rowCount} ${rowCount === 1 ? "row" : "rows"}`
       : readiness === "Empty"
-        ? "No rows available"
+        ? "No rows"
         : readiness === "Missing"
           ? "Source unavailable"
           : readiness === "Fallback"
             ? "Fallback data"
             : readiness === "Incomplete"
-              ? "Check setup"
-              : "State unknown";
+              ? "Setup incomplete"
+              : "Metadata only";
 
   if (readiness === "Incomplete" && missingFields.length > 0) {
     validationMessages.push(`Validation rules need review: ${missingFields.slice(0, 3).join(", ")}.`);
@@ -167,15 +167,15 @@ function buildRegistryDetailSummary(
 
   let guidance: string | undefined;
   if (readiness === "Missing") {
-    guidance = `${sourceDisplayName} source is unavailable.`;
+    guidance = "Source metadata is available, but live rows are not loaded.";
   } else if (readiness === "Empty") {
-    guidance = `${sourceDisplayName} exists but has no rows.`;
+    guidance = `${sourceDisplayName} is mapped, but no live rows are available.`;
   } else if (readiness === "Incomplete") {
-    guidance = "Mandatory fields defined, but row data is unavailable in this route.";
+    guidance = "Setup incomplete. Required headers are still missing in this route.";
   } else if (readiness === "Fallback") {
-    guidance = "This registry is showing fallback/static data. Reconnect the live source before relying on it.";
+    guidance = "Fallback data is in use. Reconnect the live source before relying on it.";
   } else if (readiness === "Unknown") {
-    guidance = "Registry source state is unknown for this entry.";
+    guidance = "Registry metadata is available, but live rows are not loaded yet.";
   }
 
   return {
@@ -400,9 +400,9 @@ export default function GenericRegistryDataPage({
   if (!row) {
     const sourceLabel = catalogEntry?.capabilityMetadata?.displayName || registryId;
     return (
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 space-y-1.5">
-        <div className="font-extrabold">{sourceLabel} source is unavailable</div>
-        <div>
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 space-y-1.5">
+      <div className="font-extrabold">{sourceLabel} source is unavailable</div>
+      <div>
           Use the first-class page when available. This registry detail route remains read-only.
         </div>
         <div className="text-[11px] text-amber-700">

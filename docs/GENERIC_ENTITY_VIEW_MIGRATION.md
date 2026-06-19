@@ -22,6 +22,39 @@ Branch: `import/enhanced-codebase`
 | `1d8e3cb` | Added registry catalog and first-class Students page |
 | `d35334b` | Reconciled generic registry migration tracker     |
 
+## Registry and Role Dashboards - Copy and Empty State Cleanup
+
+Scope:
+
+* Cleaned registry explorer and detail-page empty states so they say `No rows`, `Setup incomplete`, `Source unavailable`, or `Metadata only` instead of generic fallback language.
+* Tightened the dashboard role-card and shortcut labels so the action text reads more clearly, including registry detail, sheet, classroom, and lesson-planner actions.
+* Reduced repetitive helper text in the dashboard resolver so source-state messages use shorter, role-aware phrasing.
+* Kept drill-throughs, navigation routes, and source mappings intact.
+
+Files touched:
+
+* `src/components/DashboardOverview.tsx`
+* `src/components/GenericRegistryDataPage.tsx`
+* `src/components/RegistryExplorerPage.tsx`
+* `src/components/RegistryPageShell.tsx`
+* `src/components/generic/GenericEntityDetailView.tsx`
+* `src/components/generic/GenericEntityListView.tsx`
+* `src/lib/dashboardDataResolver.ts`
+* `src/lib/dashboardRoleCards.ts`
+* `src/lib/registryCatalog.tsx`
+
+Verification:
+
+* `npx tsc --noEmit --pretty false`
+* `npm run build` should be rerun after the remaining copy pass is finalized.
+* Route smoke was kept local and read-only; browser automation was not used for this pass.
+
+Notes:
+
+* No backend, database, mock data, or dependency changes were introduced.
+* `/resources` and all existing routes remain in place.
+* This cleanup is copy-first only; the next sprint should focus on the remaining dashboard presentation polish rather than new data wiring.
+
 ## Existing Generic Framework Files
 
 * `src/lib/genericEntityView.ts`

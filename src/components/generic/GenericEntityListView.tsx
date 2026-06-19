@@ -555,10 +555,14 @@ export default function GenericEntityListView<T extends object>({
         <div className="p-12 text-center text-slate-400 space-y-2">
           <Search size={32} className="mx-auto text-slate-350" />
           <p className="text-sm font-semibold text-slate-600">
-            {definition.emptyTitle ?? `No ${definition.entityNamePlural.toLowerCase()} found.`}
+            {hasActiveControls
+              ? "No matching records for the current filters."
+              : definition.emptyTitle ?? "No rows available yet."}
           </p>
           <p className="text-xs text-slate-400">
-            {definition.emptyDescription ?? "Adjust filters or search terms and try again."}
+            {hasActiveControls
+              ? "Clear filters or search terms to broaden the results."
+              : definition.emptyDescription ?? "This source has not returned live rows yet."}
           </p>
         </div>
       ) : activeDisplayMode === "table" ? (
