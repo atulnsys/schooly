@@ -1924,6 +1924,109 @@ This follow-up tightens dashboard trust signals without changing the app structu
 
 ---
 
+# Dashboard KPI Registry Data and Card Bottom Padding Fixes
+
+## KPI Root Cause
+
+* The dashboard KPI reads were still going through browser-side `gviz/tq` fetches in both `src/lib/dashboardDataResolver.ts` and `src/lib/schoolRegistry.ts`.
+* Those requests were redirecting private Workspace sheets to Google login, which then failed in the browser.
+* The existing Google Workspace OAuth token was already available client-side through `src/lib/googleWorkspaceAuth.ts`, but the KPI path was not using it.
+
+## Read Path
+
+* A shared helper was added in `src/lib/googleSheetRead.ts`.
+* It reads private tabs through the authenticated Google Sheets API when a Workspace token is available.
+* It falls back to public `gviz/tq` only when no authenticated token exists and the source is genuinely public.
+* The dashboard resolver and school registry loader now both use that shared helper.
+
+## Request Deduplication
+
+* The new reader deduplicates in-flight requests by spreadsheet ID, tab name, and auth mode.
+* The cache is cleared when Workspace auth state changes so reconnects can rehydrate live KPI values.
+* Successful data is not cached indefinitely.
+
+## KPI Source Mapping Reviewed
+
+* Active Students -> `Student_Enrollment` / `Student_Directory`
+* Active Staff -> `Staff_Directory`
+* Active Class Sections -> `Classes_Sections`
+* Teacher Allocation Coverage -> `Teacher_Allocations`
+* Google Classroom Courses -> the connected classroom course source
+* Attendance / Engagement -> the existing attendance source contract
+
+## Session Filter Behavior
+
+* Selected academic-year/session filters continue to apply when the live rows are resolved.
+* Existing academic-year aliases remain normalized rather than remapped to a fabricated value.
+
+## Dashboard UI Result
+
+* KPI cards now render live counts again when the linked registry source is connected.
+* Source-state badges still show availability or reconnect guidance when a source is unavailable.
+* A disconnected or expired source does not overwrite valid values from unrelated cards.
+
+## Card Padding Root Cause
+
+* The dashboard cockpit had an explicit inline rule that forced common card shells to `padding-bottom: 1rem !important;`.
+* That made the bottoms of several dashboard cards feel tighter than their top and side spacing.
+
+## Shared Spacing Fix
+
+* `src/index.css` now applies a shared bottom-padding rule to the common rounded card shells used across the app.
+* The rule leaves top and horizontal padding alone and skips overflow-hidden shells that are meant to stay edge-to-edge.
+* `src/components/DashboardOverview.tsx` now raises the cockpit-only bottom override to `1.5rem !important;`.
+
+## Exceptional Card Fixes
+
+* Cards that intentionally use overflow-hidden table/chart layouts were left alone.
+* The shared rule focuses on the normal raised card shells rather than changing route structure or typography.
+
+## Responsive Checks
+
+* Verified at the existing app routes after the spacing change.
+* The layout remained stable at the current desktop smoke size.
+
+## Preserved Routes
+
+* `/`
+* `/registries`
+* `/registers`
+* `/staff`
+* `/teachers`
+* `/resources`
+* `/lesson-plans`
+* `/textbooks`
+* `/classroom`
+* `/students`
+* `/courses`
+* `/assignments`
+* `/search`
+* `/settings`
+
+## Verification Result
+
+* `npx tsc --noEmit --pretty false` succeeded.
+* `npm run build` succeeded with the existing Vite chunk-size warning only.
+* Route smoke returned `200` for all preserved routes above.
+
+## Files Changed
+
+* Workstream A:
+  * `src/lib/googleSheetRead.ts`
+  * `src/lib/dashboardDataResolver.ts`
+  * `src/lib/schoolRegistry.ts`
+  * `src/components/DashboardOverview.tsx`
+* Workstream B:
+  * `src/index.css`
+  * `src/components/DashboardOverview.tsx`
+
+## Commit SHAs
+
+* `fix: restore linked registry dashboard KPIs` -> `116be32`
+* `fix: normalize card bottom padding` -> `65d1482`
+
+---
+
 # School Setup Onboarding - Complete Setup Shortcut Consistency
 
 ## Setup Shortcuts Inventoried
