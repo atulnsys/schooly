@@ -398,9 +398,11 @@ interface DashboardOverviewProps {
   isWorkspaceMock?: boolean;
   onConfigureWorkspace?: () => void;
   onEditWorkspaceConnection?: () => void;
+  isWorkspaceConnectionChecking?: boolean;
   onTestWorkspaceConnection?: (workspaceUrl: string) => void;
   onDisconnectWorkspace?: () => void;
   workspaceConnectionTestResult?: { success: boolean; message: string } | null;
+  registryRefreshVersion?: number;
   workspaceUrl?: string;
   activeAcademicYearLabel?: string;
   academicYearOptions?: string[];
@@ -425,9 +427,11 @@ export default function DashboardOverview({
   isWorkspaceMock = false,
   onConfigureWorkspace,
   onEditWorkspaceConnection,
+  isWorkspaceConnectionChecking = false,
   onTestWorkspaceConnection,
   onDisconnectWorkspace,
   workspaceConnectionTestResult,
+  registryRefreshVersion = 0,
   workspaceUrl,
   activeAcademicYearLabel = "",
   academicYearOptions = [],
@@ -731,6 +735,7 @@ export default function DashboardOverview({
   const [editedBootstrapRows, setEditedBootstrapRows] = useState<Record<string, Record<string, string>>>({});
   const [bootstrapWizardStep, setBootstrapWizardStep] = useState(0);
   const [expandedTechnicalRows, setExpandedTechnicalRows] = useState<Record<string, boolean>>({});
+  const [liveDataRefreshState, setLiveDataRefreshState] = useState<"idle" | "refreshing" | "ready" | "error">("idle");
   const [googleWorkspaceAuthState, setGoogleWorkspaceAuthState] = useState(() => getGoogleWorkspaceAuthState());
   useEffect(() => {
     const syncAuthState = () => {
@@ -745,6 +750,8 @@ export default function DashboardOverview({
   useEffect(() => {
     let cancelled = false;
     const hydrateDashboardData = async () => {
+      clearGoogleSheetReadCache();
+      setLiveDataRefreshState("refreshing");
       try {
         const dashboardRoleView = currentRole.toLowerCase().includes("teacher")
           ? "teacher"
@@ -781,6 +788,7 @@ export default function DashboardOverview({
         setHodDashboard(result.hod || EMPTY_HOD_DASHBOARD);
         setLiveDashboardBlueprints(result.blueprints || null);
         setDashboardSourceState(result.sourceState);
+        setLiveDataRefreshState("ready");
       } catch (error: any) {
         if (cancelled) return;
         setPrincipalDashboard(EMPTY_PRINCIPAL_DASHBOARD);
@@ -803,6 +811,7 @@ export default function DashboardOverview({
           registryHealthSummary: EMPTY_REGISTRY_HEALTH_SUMMARY,
           localStorageOverrides: {}
         });
+        setLiveDataRefreshState("error");
       }
     };
 
@@ -811,7 +820,17 @@ export default function DashboardOverview({
     return () => {
       cancelled = true;
     };
-  }, [workspaceUrl, currentUser, currentRole, googleWorkspaceAuthState.connected, googleWorkspaceAuthState.errorMessage]);
+  }, [workspaceUrl, currentUser, currentRole, googleWorkspaceAuthState.connected, googleWorkspaceAuthState.errorMessage, registryRefreshVersion]);
+
+  useEffect(() => {
+    if (!workspaceConnectionTestResult && !isWorkspaceConnectionChecking && liveDataRefreshState === "idle") return;
+    window.requestAnimationFrame(() => {
+      const resultPanel = document.getElementById("drive-sync-result-panel") as HTMLElement | null;
+      if (!resultPanel) return;
+      resultPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+      resultPanel.focus({ preventScroll: true });
+    });
+  }, [workspaceConnectionTestResult, isWorkspaceConnectionChecking, liveDataRefreshState]);
 
   // --- Shadow static state properties with dynamic computed values inside the component scope ---
   const teacherPerformanceData = React.useMemo<TeacherPerformanceIndicator[]>(() => {
@@ -2051,6 +2070,8 @@ export default function DashboardOverview({
   };
 
   const refreshDashboardAfterBootstrapWrite = async () => {
+    clearGoogleSheetReadCache();
+    setLiveDataRefreshState("refreshing");
     const result: any = await loadDashboardData({
       roleView: "all",
       dashboardSheetUrl: workspaceUrl,
@@ -2065,6 +2086,7 @@ export default function DashboardOverview({
     setParentDashboard(result.parent || EMPTY_PARENT_DASHBOARD);
     setLiveDashboardBlueprints(result.blueprints || null);
     setDashboardSourceState(result.sourceState);
+    setLiveDataRefreshState("ready");
   };
   const currentDashboardView = dashboardView;
 
@@ -3349,6 +3371,45 @@ export default function DashboardOverview({
   };
 
   const renderSettingsHub = () => {
+    const registryReadyCount = dashboardSourceState.registryHealthSummary.connectedRegistries;
+    const registryTotalCount = dashboardSourceState.registryHealthSummary.totalRegistries;
+    const driveStatusLabel = isWorkspaceConnectionChecking
+      ? "Checking"
+      : workspaceConnectionTestResult?.success
+        ? "Connected"
+        : !workspaceUrl?.trim()
+          ? "Not connected"
+          : workspaceConnectionTestResult
+            ? (() => {
+                const lowered = workspaceConnectionTestResult.message.toLowerCase();
+                if (lowered.includes("permission") || lowered.includes("origin") || lowered.includes("unauthor") || lowered.includes("auth") || lowered.includes("required")) {
+                  return "Access required";
+                }
+                return "Connection error";
+              })()
+            : "Status unavailable";
+    const registryReadinessLabel = dashboardSourceState.mode === "live"
+      ? `${registryReadyCount} of ${registryTotalCount} registry sources ready.`
+      : dashboardSourceState.mode === "setup_required"
+        ? `Registry setup is incomplete: ${registryReadyCount} of ${registryTotalCount} sources are ready.`
+        : "Registry data could not be loaded. Review the source mappings and permissions.";
+    const dashboardRefreshLabel = liveDataRefreshState === "refreshing"
+      ? "Refreshing registry data..."
+      : dashboardSourceState.mode === "live"
+        ? "Dashboard data: Refreshed."
+        : dashboardSourceState.mode === "setup_required"
+          ? "Dashboard data: Refreshed from available sources."
+          : "Dashboard refresh could not complete.";
+    const resultAction = liveDataRefreshState === "refreshing"
+      ? "Checking"
+      : workspaceConnectionTestResult?.success
+        ? dashboardSourceState.mode === "live" || dashboardSourceState.mode === "setup_required"
+          ? "Open Setup Centre"
+          : "Review Registry Issues"
+        : workspaceConnectionTestResult
+          ? "Reconnect Workspace"
+          : "Open Setup Centre";
+
     return (
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4 outline-none" id="settings-hub" tabIndex={-1}>
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
@@ -3359,16 +3420,11 @@ export default function DashboardOverview({
               Keep configuration separate from working registers. The detailed setup cards now live in the dedicated Setup & Registries page.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-sans font-black px-2 py-1 rounded-lg bg-blue-50 text-blue-700">
-              {registryHealthSummary.onboardingStatus}
+          {isWorkspaceMock && (
+            <span className="text-[10px] font-sans font-black px-2 py-1 rounded-lg border border-amber-200 bg-amber-50 text-amber-800">
+              Workspace preview
             </span>
-            {isWorkspaceMock && (
-              <span className="text-[10px] font-sans font-black px-2 py-1 rounded-lg border border-amber-200 bg-amber-50 text-amber-800">
-                Workspace preview
-              </span>
-            )}
-          </div>
+          )}
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4">
@@ -3378,20 +3434,6 @@ export default function DashboardOverview({
               <h3 className="text-sm font-extrabold text-slate-900">Configure the Google Drive folder used for Schooly registries and supporting files.</h3>
               <p className="text-xs text-slate-600 mt-1">School Registry Folder</p>
             </div>
-            <span className={`text-[10px] font-sans font-black px-2 py-1 rounded-lg border ${workspaceUrl ? "bg-white text-slate-700 border-slate-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}>
-              {(() => {
-                if (!workspaceUrl?.trim()) return "Not connected";
-                if (workspaceConnectionTestResult?.success) return "Connected";
-                if (workspaceConnectionTestResult && !workspaceConnectionTestResult.success) {
-                  const lowered = workspaceConnectionTestResult.message.toLowerCase();
-                  if (lowered.includes("permission") || lowered.includes("origin") || lowered.includes("unauthor") || lowered.includes("auth")) {
-                    return "Access required";
-                  }
-                  return "Connection error";
-                }
-                return "Status unavailable";
-              })()}
-            </span>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-4" id="drive-sync-settings-card" tabIndex={-1}>
@@ -3401,19 +3443,8 @@ export default function DashboardOverview({
                 <h4 className="text-sm font-extrabold text-slate-900">Google Drive folder containing the school registries and supporting files.</h4>
                 <p className="text-xs text-slate-600 mt-1">Use the configured folder or folder ID below. The full value is only shown in this Settings surface.</p>
               </div>
-              <span className={`text-[10px] font-sans font-black px-2 py-1 rounded-full ${workspaceUrl ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                {(() => {
-                  if (!workspaceUrl?.trim()) return "Not connected";
-                  if (workspaceConnectionTestResult?.success) return "Connected";
-                  if (workspaceConnectionTestResult && !workspaceConnectionTestResult.success) {
-                    const lowered = workspaceConnectionTestResult.message.toLowerCase();
-                    if (lowered.includes("permission") || lowered.includes("origin") || lowered.includes("unauthor") || lowered.includes("auth")) {
-                      return "Access required";
-                    }
-                    return "Connection error";
-                  }
-                  return "Status unavailable";
-                })()}
+              <span className={`text-[10px] font-sans font-black px-2 py-1 rounded-full border ${driveStatusLabel === "Connected" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : driveStatusLabel === "Access required" || driveStatusLabel === "Connection error" ? "bg-rose-50 text-rose-700 border-rose-200" : driveStatusLabel === "Checking" ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}>
+                {driveStatusLabel}
               </span>
             </div>
 
@@ -3444,17 +3475,46 @@ export default function DashboardOverview({
                   <button
                     type="button"
                     onClick={() => onTestWorkspaceConnection(workspaceUrl || "")}
-                    disabled={!workspaceUrl?.trim()}
+                    disabled={!workspaceUrl?.trim() || isWorkspaceConnectionChecking}
                     className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[11px] font-extrabold ${workspaceUrl?.trim() ? "border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50" : "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"}`}
                   >
-                    Test Connection
+                    {isWorkspaceConnectionChecking ? "Checking..." : "Test Connection"}
                   </button>
                 )}
               </div>
             </div>
-            {workspaceConnectionTestResult && (
-              <div className={`rounded-xl border px-3 py-2 text-[11px] font-semibold ${workspaceConnectionTestResult.success ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
-                {workspaceConnectionTestResult.message}
+            {(workspaceConnectionTestResult || isWorkspaceConnectionChecking) && (
+              <div
+                id="drive-sync-result-panel"
+                tabIndex={-1}
+                role={workspaceConnectionTestResult?.success === false ? "alert" : "status"}
+                aria-live={workspaceConnectionTestResult?.success === false ? "assertive" : "polite"}
+                aria-atomic="true"
+                className={`rounded-xl border px-3 py-3 text-[11px] font-semibold space-y-1.5 whitespace-pre-line break-words scroll-mt-24 ${isWorkspaceConnectionChecking ? "border-blue-200 bg-blue-50 text-blue-800" : workspaceConnectionTestResult?.success === false ? "border-rose-200 bg-rose-50 text-rose-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}
+              >
+                <div>{isWorkspaceConnectionChecking ? "Checking connection..." : workspaceConnectionTestResult?.message || "Connection status unavailable."}</div>
+                <div className="text-[10px] font-bold text-slate-700">Drive folder: {driveStatusLabel}</div>
+                <div className="text-[10px] font-bold text-slate-700">Registry readiness: {registryReadinessLabel}</div>
+                <div className="text-[10px] font-bold text-slate-700">{dashboardRefreshLabel}</div>
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (workspaceConnectionTestResult?.success) {
+                        onToggleTab("setup-registries");
+                        return;
+                      }
+                      if (workspaceConnectionTestResult) {
+                        onEditWorkspaceConnection?.();
+                        return;
+                      }
+                      onToggleTab("setup-registries");
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/70 bg-white px-3 py-1.5 text-[10px] font-extrabold text-slate-700 hover:bg-slate-50"
+                  >
+                    {resultAction}
+                  </button>
+                </div>
               </div>
             )}
           </div>
