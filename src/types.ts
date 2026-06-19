@@ -94,7 +94,7 @@ export interface StudentDetails {
   enrollmentStatus: string;
   riskFactor?: 'high' | 'medium' | 'low';
   riskScore?: number; // 0 - 100
-  gpa: number;
+  gpa?: number;
 }
 
 export interface AcademicYearConfig {

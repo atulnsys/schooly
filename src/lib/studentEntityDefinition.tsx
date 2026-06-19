@@ -9,13 +9,6 @@ function getEnrollmentBadgeVariant(enrollmentStatus: string | undefined) {
   return "default";
 }
 
-function getRiskBadgeVariant(riskFactor: StudentDetails["riskFactor"]) {
-  if (riskFactor === "high") return "danger";
-  if (riskFactor === "medium") return "warning";
-  if (riskFactor === "low") return "success";
-  return "default";
-}
-
 export function createStudentEntityDefinition(): GenericEntityDefinition<StudentDetails> {
   return {
     entityName: "Student",
@@ -24,7 +17,7 @@ export function createStudentEntityDefinition(): GenericEntityDefinition<Student
     getId: (student) => student.id,
     getTitle: (student) => student.name,
     getSubtitle: (student) => student.gradeLevel,
-    getSummary: (student) => `${student.enrollmentStatus} • GPA ${student.gpa.toFixed(2)} • Risk ${student.riskScore ?? 0}%`,
+    getSummary: (student) => student.enrollmentStatus,
     defaultDisplayMode: "table",
     defaultPageSize: 20,
     searchPlaceholder: "Search students by name, email, grade, or enrollment status",
@@ -36,7 +29,6 @@ export function createStudentEntityDefinition(): GenericEntityDefinition<Student
         label: "Email",
         type: "text",
         searchable: true,
-        required: true,
       },
       {
         key: "gradeLevel",
@@ -57,29 +49,6 @@ export function createStudentEntityDefinition(): GenericEntityDefinition<Student
         required: true,
         getBadgeVariant: (student) => getEnrollmentBadgeVariant(student.enrollmentStatus),
       },
-      {
-        key: "gpa",
-        label: "GPA",
-        type: "number",
-        sortable: true,
-        renderListValue: (student) => `GPA ${student.gpa.toFixed(2)}`,
-      },
-      {
-        key: "riskFactor",
-        label: "Risk Flag",
-        type: "badge",
-        filterable: true,
-        sortable: true,
-        getBadgeVariant: (student) => getRiskBadgeVariant(student.riskFactor),
-        renderListValue: (student) => student.riskFactor ? `${student.riskFactor} risk` : "Normal",
-      },
-      {
-        key: "riskScore",
-        label: "Risk Index",
-        type: "number",
-        sortable: true,
-        renderListValue: (student) => `${student.riskScore ?? 0}%`,
-      },
     ],
     sections: [
       {
@@ -87,21 +56,9 @@ export function createStudentEntityDefinition(): GenericEntityDefinition<Student
         title: "Identity",
         fields: ["email", "gradeLevel", "enrollmentStatus"],
       },
-      {
-        id: "performance",
-        title: "Academic Snapshot",
-        fields: ["gpa", "riskFactor", "riskScore"],
-      },
     ],
     getRowIssues: (student) => {
-      if (!student.riskScore || student.riskScore <= 30) return [];
-      return [
-        {
-          id: `risk_${student.id}`,
-          message: student.riskScore >= 70 ? "High risk pupil" : "Moderate risk pupil",
-          severity: student.riskScore >= 70 ? "error" : "warning",
-        },
-      ];
+      return [];
     },
   };
 }

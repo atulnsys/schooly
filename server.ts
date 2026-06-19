@@ -1496,6 +1496,7 @@ app.get("/api/workspace/files", async (req, res) => {
       folderId = match[1];
     }
   }
+  const isSeedWorkspaceFile = (file: WorkspaceFile) => /^file-(gs|sm|sl|pdf|gm|cl|lm|rep)-/.test(file.id);
 
   let token = null;
   if (authHeader && authHeader.startsWith("Bearer ")) {
@@ -1506,27 +1507,15 @@ app.get("/api/workspace/files", async (req, res) => {
   if (token || (folderId && folderId.trim())) {
     const liveFiles = await getLiveGoogleDriveFiles(token, folderId);
     if (liveFiles && liveFiles.length > 0) {
-      // Merge live files, ensuring duplicates are avoided based on file name or Google ID
-      const finalFiles = [...liveFiles];
-      const liveIds = new Set(liveFiles.map(f => f.id));
-      const liveNames = new Set(liveFiles.map(f => f.name.toLowerCase()));
-      
-      files.forEach(f => {
-        // Only keep mock files that don't match the live ID or the exact filename to prevent cluttering
-        if (!liveIds.has(f.id) && !liveNames.has(f.name.toLowerCase())) {
-          finalFiles.push(f);
-        }
-      });
-      
-      // Persist to in-memory database
-      files = finalFiles;
+      files = [...liveFiles, ...files.filter((file) => !isSeedWorkspaceFile(file))];
       console.log(`[SERVER SYNC SUCCESS] Pulled ${liveFiles.length} live files from Google Drive (Folder ID: ${folderId || "Global Root"}).`);
     } else {
-      console.log(`[SERVER SYNC ALERT] Live pull returned 0 files. Using existing configured workspace repository.`);
+      files = files.filter((file) => !isSeedWorkspaceFile(file));
+      console.log(`[SERVER SYNC ALERT] Live pull returned 0 files. Returning an empty workspace repository.`);
     }
   }
-  
-  res.json(files);
+
+  res.json(files.filter((file) => !isSeedWorkspaceFile(file)));
 });
 
 app.post("/api/workspace/files", (req, res) => {
@@ -1660,18 +1649,15 @@ app.get("/api/classroom/courses", async (req, res) => {
     if (token) {
       const liveData = await getLiveGoogleClassroomData(token);
       if (liveData) {
-        if (liveData.courses && liveData.courses.length > 0) {
-          courses = liveData.courses; 
-        }
-        if (liveData.assignments && liveData.assignments.length > 0) {
-          assignments = liveData.assignments;
-        }
-        console.log(`[SERVER SYNC SUCCESS] Successfully pulled ${liveData.courses.length} active courses and ${liveData.assignments.length} coursework items from Google Classroom.`);
+        courses = liveData.courses || [];
+        assignments = liveData.assignments || [];
+        console.log(`[SERVER SYNC SUCCESS] Successfully pulled ${courses.length} active courses and ${assignments.length} coursework items from Google Classroom.`);
+        return res.json(courses);
       }
     }
   }
-  
-  res.json(courses);
+
+  res.json([]);
 });
 
 app.get("/api/classroom/assignments", async (req, res) => {
@@ -1683,17 +1669,14 @@ app.get("/api/classroom/assignments", async (req, res) => {
     if (token) {
       const liveData = await getLiveGoogleClassroomData(token);
       if (liveData) {
-        if (liveData.courses && liveData.courses.length > 0) {
-          courses = liveData.courses; 
-        }
-        if (liveData.assignments && liveData.assignments.length > 0) {
-          assignments = liveData.assignments;
-        }
+        courses = liveData.courses || [];
+        assignments = liveData.assignments || [];
+        return res.json(assignments);
       }
     }
   }
-  
-  res.json(assignments);
+
+  res.json([]);
 });
 
 // 3. School Operations (SIS / LMS metadata sync endpoint)
@@ -1719,7 +1702,7 @@ app.post("/api/sis/sync", (req, res) => {
 // 4. Kanban Tasks
 app.get("/api/tasks", (req, res) => {
   console.log(`[SERVER DEBUG] GET /api/tasks requested`);
-  res.json(tasks);
+  res.json(tasks.filter((task) => !["task-001", "task-002", "task-003", "task-004"].includes(task.id)));
 });
 
 app.post("/api/tasks", (req, res) => {
@@ -1781,7 +1764,7 @@ app.delete("/api/tasks/:id", (req, res) => {
 // 5. Governance Security Logs
 app.get("/api/audit-logs", (req, res) => {
   console.log(`[SERVER DEBUG] GET /api/audit-logs requested`);
-  res.json(auditLogs);
+  res.json(auditLogs.filter((log) => !["log-001", "log-002"].includes(log.id)));
 });
 
 app.post("/api/audit-logs", (req, res) => {
@@ -1793,7 +1776,7 @@ app.post("/api/audit-logs", (req, res) => {
 // 6. Automation Management
 app.get("/api/automations", (req, res) => {
   console.log(`[SERVER DEBUG] GET /api/automations requested`);
-  res.json(automations);
+  res.json(automations.filter((rule) => !["auto-001", "auto-002", "auto-003"].includes(rule.id)));
 });
 
 app.post("/api/automations", (req, res) => {
@@ -1830,12 +1813,12 @@ app.post("/api/automations/:id/toggle", (req, res) => {
 // 7. SIS Data
 app.get("/api/students", (req, res) => {
   console.log(`[SERVER DEBUG] GET /api/students requested`);
-  res.json(students);
+  res.json(students.filter((student) => !["std-1", "std-2", "std-3", "std-4", "std-5", "std-6"].includes(student.id)));
 });
 
 app.get("/api/teachers", (req, res) => {
   console.log(`[SERVER DEBUG] GET /api/teachers requested`);
-  res.json(teachers);
+  res.json(teachers.filter((teacher) => !["t-1", "t-2", "t-3"].includes(teacher.id)));
 });
 
 // 8. Academic Rollover Execution Engine (Wizard)

@@ -68,7 +68,7 @@ import { getRegistryExplorerRow } from "./lib/registryExplorerEntityDefinition";
 import { loadConnectionConfig, FALLBACK_ALERT_MESSAGES, validateSourceLink } from "./lib/dataSourceEngine";
 import { DEFAULT_DASHBOARD_SHEET_URL } from "./lib/dashboardConfig";
 import { clearGoogleSheetReadCache } from "./lib/googleSheetRead";
-import { loadSchoolRegistry, type SchoolRegistryState, type StaffDirectoryRow, type StudentDirectoryRow, type StudentEnrollmentRow } from "./lib/schoolRegistry";
+import { loadSchoolRegistry, type SchoolRegistryState, type StaffDirectoryRow, type StudentDirectoryRow, type StudentEnrollmentRow, type TeacherAllocationRow } from "./lib/schoolRegistry";
 import {
   connectGoogleWorkspaceWriteAccess,
   disconnectGoogleWorkspaceAccess,
@@ -178,6 +178,87 @@ function buildStudentPersonaOptions(studentDirectory: StudentDirectoryRow[], enr
       };
     })
     .filter((item) => Boolean(item.value));
+}
+
+function buildStudentDetailsFromRegistry(studentDirectory: StudentDirectoryRow[], enrollmentRows: StudentEnrollmentRow[] = []): StudentDetails[] {
+  const enrollmentByStudentId = new Map(
+    (enrollmentRows || [])
+      .filter((row) => Boolean(row.student_id))
+      .map((row) => [String(row.student_id || "").trim().toLowerCase(), row] as const)
+  );
+
+  return (studentDirectory || [])
+    .filter((row) => {
+      const status = normalizePersonaToken(row.status);
+      return !status || status.includes("active") || status.includes("current") || status.includes("enrolled") || status.includes("enabled");
+    })
+    .sort((a, b) => String(a.student_name || a.student_id || "").localeCompare(String(b.student_name || b.student_id || "")))
+    .map((row) => {
+      const enrollment = enrollmentByStudentId.get(String(row.student_id || "").trim().toLowerCase());
+      const gradeLevel = [enrollment?.class || row.class || "", enrollment?.section || row.section || ""]
+        .filter(Boolean)
+        .join(enrollment?.section || row.section ? "-" : "");
+      const enrollmentStatus = enrollment?.status || row.status || "Active";
+
+      return {
+        id: row.student_id || row.student_name || "student",
+        name: row.student_name || row.student_id || "Unnamed student",
+        email: "",
+        gradeLevel: gradeLevel || row.class || "Unassigned",
+        enrollmentStatus,
+        gpa: undefined,
+        riskFactor: undefined,
+        riskScore: undefined
+      };
+    });
+}
+
+function buildTeacherDetailsFromRegistry(
+  staffDirectory: StaffDirectoryRow[],
+  teacherAllocations: TeacherAllocationRow[] = []
+): TeacherDetails[] {
+  const allocationsByTeacherKey = new Map<string, TeacherAllocationRow[]>();
+  (teacherAllocations || []).forEach((row) => {
+    const keys = [row.teacher_email, row.teacher_name].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean);
+    keys.forEach((key) => {
+      const current = allocationsByTeacherKey.get(key) || [];
+      current.push(row);
+      allocationsByTeacherKey.set(key, current);
+    });
+  });
+
+  return (staffDirectory || [])
+    .filter((row) => {
+      const status = normalizePersonaToken(row.status);
+      if (status && !(status.includes("active") || status.includes("current") || status.includes("enabled"))) return false;
+      const role = normalizePersonaToken(row.role);
+      const designation = normalizePersonaToken(row.designation || "");
+      const category = normalizePersonaToken(row.staff_category || "");
+      const primaryRole = normalizePersonaToken(row.primary_staff_role || "");
+      const teacherFlag = normalizePersonaToken(row.is_teacher || "");
+      return [role, designation, category, primaryRole, teacherFlag].some((value) =>
+        value.includes("teacher") || value.includes("instructor") || value.includes("faculty")
+      );
+    })
+    .sort((a, b) => String(a.staff_name || a.email || a.staff_id || "").localeCompare(String(b.staff_name || b.email || b.staff_id || "")))
+    .map((row) => {
+      const allocationKeys = [row.email, row.staff_name, row.staff_id].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean);
+      const currentCourses = Array.from(new Set(
+        allocationKeys.flatMap((key) =>
+          (allocationsByTeacherKey.get(key) || []).map((allocation) =>
+            [allocation.class, allocation.section, allocation.subject].filter(Boolean).join(allocation.section ? "-" : " ")
+          )
+        ).filter(Boolean)
+      ));
+
+      return {
+        id: row.staff_id || row.email || row.staff_name,
+        name: row.staff_name || row.email || row.staff_id || "Unnamed teacher",
+        email: row.email || "",
+        department: row.department || row.role || "Teacher",
+        currentCourses
+      };
+    });
 }
 
 interface SidebarGroup {
@@ -584,6 +665,23 @@ export default function App() {
     };
   }, [registryRefreshVersion]);
 
+  const liveStudentsFromRegistry = useMemo(
+    () => buildStudentDetailsFromRegistry(schoolRegistry?.studentDirectory || [], schoolRegistry?.studentEnrollment || []),
+    [schoolRegistry]
+  );
+  const liveTeachersFromRegistry = useMemo(
+    () => buildTeacherDetailsFromRegistry(schoolRegistry?.staffDirectory || [], schoolRegistry?.teacherAllocations || []),
+    [schoolRegistry]
+  );
+
+  useEffect(() => {
+    setStudents(liveStudentsFromRegistry);
+  }, [liveStudentsFromRegistry]);
+
+  useEffect(() => {
+    setTeachers(liveTeachersFromRegistry);
+  }, [liveTeachersFromRegistry]);
+
   const [googleWorkspaceAuthState, setGoogleWorkspaceAuthState] = useState(() => getGoogleWorkspaceAuthState());
   const didSyncWorkspaceAuthState = useRef(false);
   useEffect(() => {
@@ -891,13 +989,11 @@ export default function App() {
         headers["X-Workspace-Url"] = workspaceUrl;
       }
 
-      const [filesRes, coursesRes, assignRes, tasksRes, stdRes, teachRes, logsRes, autoRes, configRes] = await Promise.all([
+      const [filesRes, coursesRes, assignRes, tasksRes, logsRes, autoRes, configRes] = await Promise.all([
         fetch("/api/workspace/files", { headers }),
         fetch("/api/classroom/courses", { headers }),
         fetch("/api/classroom/assignments", { headers }),
         fetch("/api/tasks", { headers }),
-        fetch("/api/students", { headers }),
-        fetch("/api/teachers", { headers }),
         fetch("/api/audit-logs", { headers }),
         fetch("/api/automations", { headers }),
         fetch("/api/academic/rollover-config", { headers })
@@ -907,8 +1003,6 @@ export default function App() {
       const coursesData = await coursesRes.json();
       const assignmentsData = await assignRes.json();
       const tasksData = await tasksRes.json();
-      const studentsData = await stdRes.json();
-      const teachersData = await teachRes.json();
       const logsData = await logsRes.json();
       const automationsData = await autoRes.json();
       const configData = await configRes.json();
@@ -924,8 +1018,6 @@ export default function App() {
       setCourses(coursesData);
       setAssignments(assignmentsData);
       setTasks(tasksData);
-      setStudents(studentsData);
-      setTeachers(teachersData);
       setAuditLogs(logsData);
       setAutomations(automationsData);
       setRolloverConfig(configData);
