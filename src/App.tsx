@@ -424,6 +424,12 @@ function getRouteStateFromPathname(pathname: string): RouteState {
       registryId: null,
     };
   }
+  if (firstSegment === "school-setup") {
+    return {
+      tab: "setup-registries",
+      registryId: null,
+    };
+  }
   if (firstSegment === "registries") {
     return {
       tab: "registries",
@@ -440,6 +446,7 @@ function getRouteStateFromPathname(pathname: string): RouteState {
 function getPathnameFromRouteState(tab: string, registryId: string | null): string {
   if (tab === "overview") return "/";
   if (tab === "registers") return "/registries";
+  if (tab === "school-setup") return "/setup-registries";
   if (tab === "registries") {
     return registryId ? `/registries/${encodeURIComponent(registryId)}` : "/registries";
   }
@@ -1685,7 +1692,7 @@ export default function App() {
         )}
 
         {activeTab === "school-setup" && (
-          renderDashboardWorkspace("setup")
+          renderDashboardWorkspace("setup-registries")
         )}
 
         {activeTab === "setup-registries" && (

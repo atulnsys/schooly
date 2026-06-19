@@ -2046,6 +2046,29 @@ export default function DashboardOverview({
     setBootstrapWriteError("");
   };
 
+  const bootstrapWizardContentRef = React.useRef<HTMLDivElement | null>(null);
+
+  const revealBootstrapWizardContent = () => {
+    if (typeof window === "undefined") return;
+    window.requestAnimationFrame(() => {
+      bootstrapWizardContentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      bootstrapWizardContentRef.current?.focus({ preventScroll: true });
+    });
+  };
+
+  const handleBootstrapWizardStepSelect = (step: number) => {
+    setBootstrapWizardStep(step);
+    if (step === 0) {
+      onConfigureWorkspace?.();
+    }
+    revealBootstrapWizardContent();
+  };
+
+  const handleBootstrapWizardStepMove = (step: number) => {
+    setBootstrapWizardStep(step);
+    revealBootstrapWizardContent();
+  };
+
   const applySelectedBootstrapRows = async () => {
     if (
       selectedBootstrapDestinations.length === 0 ||
@@ -2096,7 +2119,12 @@ export default function DashboardOverview({
   };
 
   const renderRegistryBootstrapPreview = () => (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-5" id="registry-bootstrap-preview">
+    <div
+      ref={bootstrapWizardContentRef}
+      tabIndex={-1}
+      className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-5 outline-none"
+      id="registry-bootstrap-preview"
+    >
       <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4">
         <div className="space-y-1 min-w-0">
           <h2 className="text-lg font-extrabold text-slate-900">School Setup Onboarding Wizard</h2>
@@ -2156,7 +2184,7 @@ export default function DashboardOverview({
             <button
               key={step.title}
               type="button"
-              onClick={() => setBootstrapWizardStep(index)}
+              onClick={() => handleBootstrapWizardStepSelect(index)}
               className={`text-left rounded-xl border px-3 py-2 ${bootstrapWizardStep === index ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-white hover:bg-slate-100"}`}
             >
               <div className="text-[10px] uppercase font-mono font-black text-slate-400">Step {index + 1}</div>
@@ -2168,7 +2196,7 @@ export default function DashboardOverview({
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <button
             type="button"
-            onClick={() => setBootstrapWizardStep((step) => Math.max(0, step - 1))}
+            onClick={() => handleBootstrapWizardStepMove(Math.max(0, bootstrapWizardStep - 1))}
             disabled={bootstrapWizardStep === 0}
             className={`px-3 py-2 rounded-xl text-xs font-extrabold ${bootstrapWizardStep === 0 ? "bg-slate-100 text-slate-400 cursor-not-allowed" : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"}`}
           >
@@ -2177,7 +2205,7 @@ export default function DashboardOverview({
           <div className="text-[11px] font-bold text-slate-600">Write-enabled action appears only in Step 6. No operational data.</div>
           <button
             type="button"
-            onClick={() => setBootstrapWizardStep((step) => Math.min(bootstrapWizardSteps.length - 1, step + 1))}
+            onClick={() => handleBootstrapWizardStepMove(Math.min(bootstrapWizardSteps.length - 1, bootstrapWizardStep + 1))}
             disabled={bootstrapWizardStep >= bootstrapWizardSteps.length - 1 || !canContinueBootstrapWizard(bootstrapWizardStep)}
             className={`px-3 py-2 rounded-xl text-xs font-extrabold ${bootstrapWizardStep < bootstrapWizardSteps.length - 1 && canContinueBootstrapWizard(bootstrapWizardStep) ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-slate-200 text-slate-400 cursor-not-allowed"}`}
           >
@@ -2238,6 +2266,26 @@ export default function DashboardOverview({
                 : "A school administrator needs to connect the required registries before setup can continue."}
             </div>
           )}
+          <div className="flex flex-wrap gap-2">
+            {onConfigureWorkspace ? (
+              <button
+                type="button"
+                onClick={onConfigureWorkspace}
+                className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-600 px-3 py-2 text-xs font-extrabold text-white hover:bg-blue-700"
+              >
+                Open Workspace Link Setup
+                <ArrowRight size={14} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-extrabold text-slate-400 cursor-not-allowed"
+              >
+                Workspace Link Setup Unavailable
+              </button>
+            )}
+          </div>
           {!requiredRegistriesReadable && <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">One or more required registries are not readable yet.</div>}
         </div>
       )}
@@ -2831,7 +2879,7 @@ export default function DashboardOverview({
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 flex items-center justify-between gap-3 flex-wrap">
         <button
           type="button"
-          onClick={() => setBootstrapWizardStep((step) => Math.max(0, step - 1))}
+          onClick={() => handleBootstrapWizardStepMove(Math.max(0, bootstrapWizardStep - 1))}
           disabled={bootstrapWizardStep === 0}
           className={`px-4 py-2 rounded-xl text-xs font-extrabold ${bootstrapWizardStep === 0 ? "bg-slate-100 text-slate-400 cursor-not-allowed" : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"}`}
         >
@@ -2843,7 +2891,7 @@ export default function DashboardOverview({
         </div>
         <button
           type="button"
-          onClick={() => setBootstrapWizardStep((step) => Math.min(bootstrapWizardSteps.length - 1, step + 1))}
+          onClick={() => handleBootstrapWizardStepMove(Math.min(bootstrapWizardSteps.length - 1, bootstrapWizardStep + 1))}
           disabled={bootstrapWizardStep >= bootstrapWizardSteps.length - 1 || !canContinueBootstrapWizard(bootstrapWizardStep)}
           className={`px-4 py-2 rounded-xl text-xs font-extrabold ${bootstrapWizardStep < bootstrapWizardSteps.length - 1 && canContinueBootstrapWizard(bootstrapWizardStep) ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-slate-200 text-slate-400 cursor-not-allowed"}`}
         >

@@ -1891,6 +1891,68 @@ This follow-up tightens dashboard trust signals without changing the app structu
 
 ---
 
+# School Setup Onboarding - Restore Step Form Navigation
+
+## Broken Behavior Found
+
+* Wizard step clicks only changed the local step index, so the active setup panel was not always brought into view.
+* The School Setup entry path still carried a stale `school-setup` alias instead of the current setup-center route.
+* Step 0 had no direct Workspace-link opener inside the onboarding flow, so the connection form was easy to miss.
+
+## Step-to-Target Mapping Restored
+
+* Step 0, Registry Connection Check, now reveals the wizard panel and can open the Workspace Link Setup modal.
+* Step 1, Registry Health Check, now scrolls the wizard content into view so the health panel is visible.
+* Step 2, School Identity Review, keeps the editable `School_Profile` and `Academic_Years` fields visible.
+* Step 3, Safe Foundation Data, keeps the safe foundation selection rows visible.
+* Step 4, Deferred Setup Items, keeps the deferred setup review visible and read-only.
+* Step 5, Approval and Apply, keeps the Google Sheets write-access section visible.
+* Step 6, Completion, keeps the NCERT Textbooks continuation visible.
+
+## Stale Route Aliases Corrected
+
+* `school-setup` now resolves to the current `/setup-registries` setup-center path.
+* `/registers` still resolves to `/registries`.
+* New navigation continues to prefer `/registries` for explorer work.
+
+## Preserved Surfaces
+
+* `/`
+* `/search`
+* `/lesson-plans`
+* `/resources`
+* `/textbooks`
+* `/classroom`
+* `/students`
+* `/courses`
+* `/assignments`
+* `/staff`
+* `/teachers`
+* `/registries`
+* `/registers`
+* `/registries/REG_STAFF_DIRECTORY`
+* `/registries/REG_TEACHER_ALLOCATIONS`
+* `/settings`
+
+## Safety Preserved
+
+* No backend, database, mock-data, or dependency changes were added.
+* Existing Google Workspace approval gates stayed intact.
+* Existing LessonPlanner, TextbookIngestor, and `/resources` behavior stayed intact.
+
+## Verification Result
+
+* `npx tsc --noEmit --pretty false` succeeded.
+* `npm run build` succeeded with the existing Vite chunk-size warning.
+* Route smoke returned `200` for `/`, `/registries`, `/registers`, `/staff`, `/teachers`, `/resources`, `/lesson-plans`, `/textbooks`, `/classroom`, `/students`, `/courses`, `/assignments`, `/search`, `/settings`, `/setup-registries`, and `/school-setup`.
+* Browser smoke confirmed the Workspace Link Setup modal opens from the onboarding flow.
+
+## Commit SHA
+
+* `pending`
+
+---
+
 # Registry Detail Pages - Mandatory Fields and Validation Visibility
 
 ## Scope
