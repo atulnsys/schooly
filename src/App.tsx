@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   WorkspaceFile,
   ClassroomCourse,
@@ -67,6 +67,7 @@ import {
 import { getRegistryExplorerRow } from "./lib/registryExplorerEntityDefinition";
 import { loadConnectionConfig, FALLBACK_ALERT_MESSAGES, validateSourceLink } from "./lib/dataSourceEngine";
 import { DEFAULT_DASHBOARD_SHEET_URL } from "./lib/dashboardConfig";
+import { clearGoogleSheetReadCache } from "./lib/googleSheetRead";
 import { loadSchoolRegistry, type SchoolRegistryState, type StaffDirectoryRow, type StudentDirectoryRow, type StudentEnrollmentRow } from "./lib/schoolRegistry";
 import {
   connectGoogleWorkspaceWriteAccess,
@@ -504,6 +505,7 @@ export default function App() {
   const [currentRole, setCurrentRole] = useState("Principal");
   const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistryState | null>(null);
   const [schoolRegistryLoading, setSchoolRegistryLoading] = useState(false);
+  const [registryRefreshVersion, setRegistryRefreshVersion] = useState(0);
 
   // Schema-driven active definitions states
   const [schema, setSchema] = useState<ExportableSchoolySchema>(() => loadActiveMetadata());
@@ -561,6 +563,7 @@ export default function App() {
   useEffect(() => {
     let isMounted = true;
     setSchoolRegistryLoading(true);
+    clearGoogleSheetReadCache();
     loadSchoolRegistry()
       .then((registry) => {
         if (!isMounted) return;
@@ -579,14 +582,23 @@ export default function App() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [registryRefreshVersion]);
 
   const [googleWorkspaceAuthState, setGoogleWorkspaceAuthState] = useState(() => getGoogleWorkspaceAuthState());
+  const didSyncWorkspaceAuthState = useRef(false);
   useEffect(() => {
     const syncAuthState = () => setGoogleWorkspaceAuthState(getGoogleWorkspaceAuthState());
     window.addEventListener(GOOGLE_WORKSPACE_AUTH_STATE_CHANGED_EVENT, syncAuthState);
     return () => window.removeEventListener(GOOGLE_WORKSPACE_AUTH_STATE_CHANGED_EVENT, syncAuthState);
   }, []);
+  useEffect(() => {
+    if (!didSyncWorkspaceAuthState.current) {
+      didSyncWorkspaceAuthState.current = true;
+      return;
+    }
+    clearGoogleSheetReadCache();
+    setRegistryRefreshVersion((version) => version + 1);
+  }, [googleWorkspaceAuthState.connected, googleWorkspaceAuthState.errorMessage]);
 
   // Resolve combined capabilities list for UI preview
   const getCombinedCapabilities = () => {
@@ -736,10 +748,12 @@ export default function App() {
     } catch {
       // Ignore storage restrictions.
     }
+    clearGoogleSheetReadCache();
     setWorkspaceUrl("");
     setConnectionTestResult(null);
     setTempUrl("");
     setShowUrlModal(false);
+    setRegistryRefreshVersion((version) => version + 1);
   };
 
   const handleTestConnection = async (targetUrl: string) => {
@@ -780,6 +794,10 @@ export default function App() {
         success: result.success,
         message: result.message
       });
+      if (result.success) {
+        clearGoogleSheetReadCache();
+        setRegistryRefreshVersion((version) => version + 1);
+      }
     } catch (error: any) {
       console.error("[TEST CONNECTION ERROR]", error);
       setConnectionTestResult({
@@ -810,10 +828,11 @@ export default function App() {
       : "Needs setup";
   const getSidebarDriveStatus = () => {
     const lowered = String(connectionTestResult?.message || "").toLowerCase();
+    if (isTestingConnection) return "Checking";
     if (!workspaceUrl.trim()) return "Not Connected";
     if (connectionTestResult?.success) return "Connected";
     if (connectionTestResult && !connectionTestResult.success) {
-      if (lowered.includes("permission") || lowered.includes("origin") || lowered.includes("unauthor") || lowered.includes("auth")) {
+      if (lowered.includes("permission") || lowered.includes("origin") || lowered.includes("unauthor") || lowered.includes("auth") || lowered.includes("required")) {
         return "Access required";
       }
       return "Status unavailable";
@@ -821,22 +840,29 @@ export default function App() {
     return "Status unavailable";
   };
   const getSidebarRegistryStatus = () => {
-    if (schoolRegistryLoading) return "Status unavailable";
+    if (isTestingConnection || schoolRegistryLoading) return "Checking";
     if (!workspaceUrl.trim()) return "Not Connected";
+    if (connectionTestResult && !connectionTestResult.success) {
+      const lowered = String(connectionTestResult.message || "").toLowerCase();
+      if (lowered.includes("permission") || lowered.includes("origin") || lowered.includes("unauthor") || lowered.includes("auth") || lowered.includes("required")) {
+        return "Access required";
+      }
+      return "Connection error";
+    }
     if (!schoolRegistry) return "Status unavailable";
     if (schoolRegistry.mode === "live") return "Connected";
-    if (schoolRegistry.mode === "fallback") return "Setup incomplete";
+    if (schoolRegistry.mode === "fallback" || schoolRegistry.mode === "missing") return "Setup incomplete";
     if (schoolRegistry.mode === "error") {
       const lowered = String(connectionTestResult?.message || "").toLowerCase();
-      if (lowered.includes("permission") || lowered.includes("origin") || lowered.includes("unauthor") || lowered.includes("auth")) {
+      if (lowered.includes("permission") || lowered.includes("origin") || lowered.includes("unauthor") || lowered.includes("auth") || lowered.includes("required")) {
         return "Access required";
       }
       return "Status unavailable";
     }
-    if (schoolRegistry.mode === "missing") return "Setup incomplete";
     return "Status unavailable";
   };
   const getSidebarStatusDot = (status: string) => {
+    if (status === "Checking") return "bg-blue-500 animate-pulse";
     if (status === "Connected") return "bg-emerald-500";
     if (status === "Access required") return "bg-rose-500";
     if (status === "Setup incomplete" || status === "Not Connected") return "bg-amber-400";
@@ -1274,9 +1300,11 @@ export default function App() {
         setTempGeminiKey(geminiApiKey);
         setShowUrlModal(true);
       }}
+      isWorkspaceConnectionChecking={isTestingConnection}
       onTestWorkspaceConnection={handleTestConnection}
       onDisconnectWorkspace={disconnectWorkspaceConnection}
       workspaceConnectionTestResult={connectionTestResult}
+      registryRefreshVersion={registryRefreshVersion}
     />
   );
 
@@ -2068,6 +2096,8 @@ export default function App() {
                     }
                     setWorkspaceUrl(tempUrl.trim());
                     setGeminiApiKey(tempGeminiKey.trim());
+                    clearGoogleSheetReadCache();
+                    setRegistryRefreshVersion((version) => version + 1);
                     setShowUrlModal(false);
                     fetch("/api/audit-logs", {
                       method: "POST",

@@ -1356,7 +1356,7 @@ app.post("/api/workspace/test-connection", async (req, res) => {
     console.log("[TEST CONNECTION] Intercepting target folder connection.");
     return res.json({
       success: true,
-      message: "Google Drive folder 'SchoolyTestDrive' connected.",
+      message: "Google Drive folder 'SchoolyTestDrive' is accessible.",
       folderId: folderId,
       folderName: "SchoolyTestDrive",
       googleAuthenticated: true
@@ -1382,7 +1382,7 @@ app.post("/api/workspace/test-connection", async (req, res) => {
           const folderName = folderData.name ? `'${folderData.name}'` : "Main Workspace Directory";
           return res.json({
             success: true,
-            message: `Google Drive API connection is active. Folder ${folderName} is accessible.`,
+            message: `Google Drive folder ${folderName} is accessible.`,
             folderId: folderId || "Root",
             folderName: folderData.name || "Global Root",
             googleAuthenticated: true
@@ -1413,21 +1413,21 @@ app.post("/api/workspace/test-connection", async (req, res) => {
 
     if (reachabilityResponse.status >= 200 && reachabilityResponse.status < 500) {
       return res.json({
-        success: true,
-        message: `Network Reachability Active: Ping succeeded! The Google Workspace host is fully reachable from our servers (HTTP ${reachabilityResponse.status}).`,
+        success: false,
+        message: "Workspace access is required to test this connection.",
         googleAuthenticated: false,
         folderId: folderId || "Root"
       });
     } else {
       return res.json({
         success: false,
-        message: `Network Reachability warning: The target URL returned an unstable web status (HTTP ${reachabilityResponse.status}).`
+        message: "The configured Google Drive folder could not be accessed."
       });
     }
   } catch (err: any) {
     return res.json({
       success: false,
-      message: `Handshake Timed Out or Failed: Cannot connect to the workspace URL. Check internet connection and URL spelling. (${err?.message || "Timeout Exception"})`
+      message: "The configured Google Drive folder could not be accessed."
     });
   }
 });
