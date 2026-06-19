@@ -383,7 +383,7 @@ export default function RegistryPageShell<T extends object>({
   };
 
   return (
-    <div className="space-y-6 animate-fade-in" id={`${registryId}-registry-page`} data-testid={`${registryId}-registry-page`}>
+    <div className="space-y-6 animate-fade-in outline-none" id={`${registryId}-registry-page`} data-testid={`${registryId}-registry-page`} tabIndex={-1}>
       {renderRegistryHeader(entry, currentRole, summary)}
 
       {errorMessage && (

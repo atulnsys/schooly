@@ -94,7 +94,7 @@ export default function RegistryExplorerPage({
   };
 
   return (
-    <div id="registries-registry-page" data-testid="registries-registry-page">
+    <div id="registries-registry-page" data-testid="registries-registry-page" tabIndex={-1} className="outline-none">
       <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-1.5">

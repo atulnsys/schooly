@@ -3197,7 +3197,7 @@ export default function DashboardOverview({
     ];
 
     return (
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4" id="registers-hub">
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4 outline-none" id="registers-hub" tabIndex={-1}>
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
           <div>
             <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Registers</div>
@@ -3255,7 +3255,7 @@ export default function DashboardOverview({
 
   const renderSettingsHub = () => {
     return (
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4" id="settings-hub">
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4 outline-none" id="settings-hub" tabIndex={-1}>
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
           <div>
             <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Settings</div>
@@ -3342,7 +3342,7 @@ export default function DashboardOverview({
   };
 
   const renderSetupAndRegistriesPage = () => (
-    <div className="space-y-6 mt-2 animate-fade-in" id="setup-and-registries-page">
+    <div className="space-y-6 mt-2 animate-fade-in outline-none" id="setup-and-registries-page" tabIndex={-1}>
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
           <div className="min-w-0">

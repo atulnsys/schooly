@@ -1891,6 +1891,82 @@ This follow-up tightens dashboard trust signals without changing the app structu
 
 ---
 
+# School Setup Onboarding - Complete Setup Shortcut Consistency
+
+## Setup Shortcuts Inventoried
+
+* `Configure Workspace Link` and `Modify Connection Link` in `src/App.tsx`
+* `Open Workspace Link Setup` in the School Setup Onboarding Wizard
+* `Open Setup Centre` and `Open Registry Explorer` in `src/components/DashboardOverview.tsx`
+* registry detail and explorer entry points in `src/components/RegistryExplorerPage.tsx` and `src/components/RegistryPageShell.tsx`
+
+## Stale Aliases Corrected
+
+* `/school-setup` still resolves to the current `/setup-registries` setup center.
+* `/registers` still resolves to the canonical `/registries` explorer path.
+* setup surfaces now reveal and focus the active panel instead of leaving the user on a hidden or unchanged section.
+
+## Shortcut Target Map
+
+* School setup center -> `/setup-registries`
+* Old school setup alias -> `/school-setup` -> `/setup-registries`
+* Registry Explorer -> `/registries`
+* Specific registry -> `/registries/<REGISTRY_ID>`
+* Workspace setup -> the existing Workspace Link modal
+* Settings setup -> `/settings`
+* Registry helper shortcuts -> the existing registry explorer or registry shell target
+
+## Reveal And Focus Behavior
+
+* Route changes now scroll the active setup surface into view and move keyboard focus to the matching page shell.
+* The setup center, settings hub, registry explorer, and registry shell roots are focusable so repeated shortcut clicks still reveal the target.
+* The School Setup wizard still reveals its internal content on step changes, preserving the restored onboarding behavior.
+
+## Modal And Write Safety
+
+* The Workspace Link setup shortcut still opens the existing modal.
+* Write actions remain behind the same approval and connection checks.
+* No new backend surface, dependency, or automatic write path was added.
+
+## Routes Preserved
+
+* `/`
+* `/search`
+* `/lesson-plans`
+* `/resources`
+* `/textbooks`
+* `/classroom`
+* `/students`
+* `/courses`
+* `/assignments`
+* `/staff`
+* `/teachers`
+* `/registries`
+* `/registers`
+* `/setup-registries`
+* `/school-setup`
+* `/settings`
+
+## Verification Results
+
+* `npx tsc --noEmit --pretty false` succeeded.
+* `npm run build` succeeded with the existing Vite chunk-size warning only.
+* Local route smoke returned `200` for the preserved app routes listed above.
+* The setup-center wiring and Workspace Link modal remain in the existing source paths, but this shell did not expose a direct browser automation connector for a live click-through test.
+
+## UI Smoke Notes
+
+* The setup center remains reachable from both the main wizard and the shortcut surfaces.
+* The route-focus behavior covers the setup center, settings hub, registry explorer, and registry detail shells.
+* No new disabled-action states were needed in this pass because the existing shortcuts already had live targets.
+* Live browser click-through verification of the Workspace modal was not available in this session, so the runtime smoke note remains route-focused.
+
+## Commit SHA
+
+* `pending`
+
+---
+
 # School Setup Onboarding - Restore Step Form Navigation
 
 ## Broken Behavior Found

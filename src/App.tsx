@@ -633,6 +633,28 @@ export default function App() {
     }
   }, [activeTab, selectedRegistryId]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const routeFocusId =
+      activeTab === "setup-registries" || activeTab === "school-setup"
+        ? "setup-and-registries-page"
+        : activeTab === "settings"
+          ? "settings-hub"
+          : (activeTab === "registries" || activeTab === "registers")
+            ? (selectedRegistryId ? `${selectedRegistryId}-registry-page` : "registries-registry-page")
+            : null;
+
+    if (!routeFocusId) return;
+
+    window.requestAnimationFrame(() => {
+      const target = document.getElementById(routeFocusId) as HTMLElement | null;
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      target.focus({ preventScroll: true });
+    });
+  }, [activeTab, selectedRegistryId]);
+
   // Protect route views in real-time when roles or configurations shift
   useEffect(() => {
     // Avoid running before navigation items compile
