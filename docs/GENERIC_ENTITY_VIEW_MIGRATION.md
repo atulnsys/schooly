@@ -1924,6 +1924,122 @@ This follow-up tightens dashboard trust signals without changing the app structu
 
 ---
 
+# Setup Centre - Card Spacing and Truthful Connection Status
+
+## Visual Spacing Defects Found
+
+* The Setup Centre source rows were tight at the bottom edge and long registry URLs could crowd the row boundary.
+* The School Setup Onboarding Wizard footer buttons sat too close to the lower edge of the card.
+* The registry-derived overview action buttons and the compact sidebar connection card felt cramped at the bottom.
+
+## Root Cause
+
+* The previous broad card-padding rule was not enough for nested and action-oriented cards.
+* Several setup cards needed footer-level spacing rather than only more generic shell padding.
+* The connection summary also overclaimed state by describing a real folder as a virtual sync and calling a partial check verified.
+
+## Global Padding Rule Decision
+
+* The existing broad card-shell padding rule was retained for general card balance.
+* Setup-specific cards now use targeted shell and footer spacing utilities so action rows stay inside the card without widening the layout.
+
+## Shared Layout Fix
+
+* Added compact setup card utilities in `src/index.css` for shell and footer spacing.
+* Applied those utilities to the Setup Centre summary panels, the wizard footer, and the registry detail action rows.
+* Kept the top and horizontal spacing unchanged.
+
+## Exceptional Cards Handled
+
+* Nested source rows now wrap URLs safely and keep warnings below the main row content.
+* Wizard Back/Continue controls now sit inside a padded footer zone.
+* Registry overview action rows now have their own footer spacing.
+* The sidebar connection card was reduced to a compact summary plus an optional details panel.
+
+## Responsive Result
+
+* Verified at the current desktop smoke size and on the preserved route set.
+* `/setup-registries` and `/school-setup` still open cleanly after the spacing updates.
+
+## Misleading Terms Removed
+
+* Removed `Virtual Directory Sync`.
+* Removed `Connection verified successfully!`.
+* Removed `OAuth Handshake Verified`.
+* Removed `Layout compliance` and `live file metrics are active`.
+
+## Exact Replacement
+
+* The setup-test success message now reads: `Google Drive folder 'SchoolyTestDrive' connected.`
+* The more general Drive access check now says the Workspace link is connected or not configured, without claiming registry readiness it did not actually check.
+
+## Status Semantics Implemented
+
+* Connected: used when the workspace or Drive access check actually succeeds.
+* Registry readiness: shown separately through the live registry health summary.
+* Setup incomplete: used when registry sources are missing, incomplete, or not all ready.
+* Access required: used when auth or permission prevents a live check.
+* Source unavailable: used per source, not as a blanket claim for the whole page.
+
+## Sidebar Before And After
+
+* Before: a compact card that mixed role, workspace, and Sheets badges with a verbose success message.
+* After: `Data connections`, `Workspace: Connected` or `Configured`, `Registries: Status unavailable`, and a single `View details` action.
+
+## Setup Summary Simplification
+
+* `Data Setup Centre` now uses a shorter subtitle and less repeated prose.
+* The registry status panel now foregrounds connection state, readiness count, and next action.
+* Repeated badges were reduced, and long URLs now wrap safely instead of crowding the card edge.
+
+## Drive Versus Registry Readiness
+
+* Drive access and registry readiness are shown as separate checks.
+* Folder access does not imply the registry set is complete.
+* The UI no longer presents partial connection checks as fully verified readiness.
+
+## No Mock Or Virtual Data
+
+* No mock, sample, fallback, or virtual registry data was introduced for the status UI.
+* The state shown in the setup flow still comes from the live Drive/Sheets/registry diagnostic state already present in the app.
+
+## Files Changed
+
+* `src/index.css`
+* `src/components/DashboardOverview.tsx`
+* `src/App.tsx`
+* `server.ts`
+
+## Verification
+
+* `npx tsc --noEmit --pretty false` succeeded.
+* `npm run build` succeeded with the existing Vite chunk-size warning only.
+* Route smoke returned `200` for `/`, `/registries`, `/registers`, `/staff`, `/students`, `/courses`, `/assignments`, `/resources`, `/lesson-plans`, `/textbooks`, `/classroom`, `/settings`, `/setup-registries`, and `/school-setup`.
+
+## Commit SHAs
+
+* `fix: repair setup card spacing` -> `0d81775`
+* `fix: simplify live connection status` -> `ccda299`
+
+## Push Status
+
+* Branch push completed after the code commits were created.
+
+## Tracker Update
+
+* Added this section to `docs/GENERIC_ENTITY_VIEW_MIGRATION.md` to capture the layout and status repair notes.
+
+## Remaining Limitations
+
+* I did not get an interactive browser visual pass in this environment.
+* The sidebar still uses `Status unavailable` for registry counts because that panel does not own the live readiness summary.
+
+## Recommended Next Sprint
+
+* Factor the remaining setup card shells into a reusable shared footer/body pattern so future setup summaries can reuse one stable structure.
+
+---
+
 # Dashboard KPI Registry Data and Card Bottom Padding Fixes
 
 ## KPI Root Cause
