@@ -755,6 +755,11 @@ export default function App() {
       return true;
     }
   })()) && !isSheetWorkspace;
+  const workspaceConnectionStatus = connectionTestResult?.success
+    ? "Connected"
+    : workspaceUrl
+      ? "Configured"
+      : "Needs setup";
 
   console.log(`[RENDER DIAGNOSTIC] App Component Render. Active Tab: ${activeTab} | Role: ${currentRole} | User: ${currentUser} | showUrlModal: ${showUrlModal} | workspaceUrl: ${workspaceUrl}`);
 
@@ -1522,21 +1527,12 @@ export default function App() {
 
         {/* Sidebar Footer segment */}
         <div className="pt-4 border-t border-slate-150 font-mono">
-          <div className="rounded-2xl border border-slate-150 bg-slate-50 px-3 py-2.5 font-sans shadow-sm space-y-2">
+          <div className="setup-card-shell rounded-2xl border border-slate-150 bg-slate-50 px-3 py-3 font-sans shadow-sm space-y-2">
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-[8.5px] font-mono font-bold text-slate-400 uppercase tracking-wider">Connection summary</div>
-                <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-bold text-slate-700">
-                    Role: {currentRole || "Not set"}
-                  </span>
-                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-bold ${workspaceUrl ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
-                    {workspaceUrl ? "Workspace connected" : "Needs setup"}
-                  </span>
-                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-bold ${googleWorkspaceAuthState.connected ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
-                    {googleWorkspaceAuthState.connected ? "Sheets connected" : "Sheets not connected"}
-                  </span>
-                </div>
+              <div className="min-w-0 space-y-0.5">
+                <div className="text-[8.5px] font-mono font-bold text-slate-400 uppercase tracking-wider">Data connections</div>
+                <div className="text-[10px] font-bold text-slate-700">Workspace: {workspaceConnectionStatus}</div>
+                <div className="text-[10px] font-bold text-slate-700">Registries: Status unavailable</div>
               </div>
 
               <button
@@ -1546,7 +1542,7 @@ export default function App() {
                 aria-expanded={sidebarConnectionDetailsOpen}
                 aria-controls="sidebar-connection-details"
               >
-                <span>{sidebarConnectionDetailsOpen ? "Hide details" : "Show details"}</span>
+                <span>{sidebarConnectionDetailsOpen ? "Hide details" : "View details"}</span>
                 <ChevronDown size={11} className={`transition-transform ${sidebarConnectionDetailsOpen ? "rotate-180" : ""}`} />
               </button>
             </div>
@@ -1564,7 +1560,7 @@ export default function App() {
                   <div className="flex items-center gap-1.5 text-[10px] min-w-0">
                     <Link size={11} className="shrink-0 text-blue-600" />
                     {workspaceUrl ? (
-                      <span className="min-w-0 truncate max-w-full text-slate-700 font-semibold" title={workspaceUrl}>{workspaceUrl}</span>
+                      <span className="min-w-0 break-words max-w-full text-slate-700 font-semibold" title={workspaceUrl}>{workspaceUrl}</span>
                     ) : (
                       <span className="text-amber-700 font-bold">No Workspace Link Configured</span>
                     )}
@@ -1577,7 +1573,7 @@ export default function App() {
                   </div>
                   <div className="text-[9px] text-slate-500 font-mono space-y-0.5">
                     <div>Local Schooly role: {currentRole || "Not set"}</div>
-                    <div>Google Sheets write account: {googleWorkspaceAuthState.connected ? "Connected account unavailable" : "Not connected"}</div>
+                    <div>Google Sheets write account: {googleWorkspaceAuthState.connected ? "Connected" : "Not connected"}</div>
                   </div>
                   <button
                     type="button"
@@ -1602,7 +1598,7 @@ export default function App() {
                       <span className="shrink-0 text-[8.5px] text-blue-600 bg-blue-50 px-1 py-0.2 rounded-sm border border-blue-105 font-mono">META</span>
                     )}
                   </div>
-                  <div className="text-[9px] text-slate-500 font-mono break-words">Google Sheets write account: {googleWorkspaceAuthState.connected ? "Connected account unavailable" : "Not connected"}</div>
+                  <div className="text-[9px] text-slate-500 font-mono break-words">Google Sheets write account: {googleWorkspaceAuthState.connected ? "Connected" : "Not connected"}</div>
                 </div>
 
                 <div className="rounded-xl border border-slate-150 bg-white p-2.5 text-[10px] space-y-1.5" id="workspace-url-indicator">
@@ -1610,7 +1606,7 @@ export default function App() {
                   {workspaceUrl ? (
                     <div className="flex items-center gap-1.5 text-blue-700 font-semibold min-w-0">
                       <Link size={11} className="shrink-0" />
-                      <span className="min-w-0 truncate max-w-full" title={workspaceUrl}>{workspaceUrl}</span>
+                      <span className="min-w-0 break-words max-w-full" title={workspaceUrl}>{workspaceUrl}</span>
                     </div>
                   ) : (
                     <div className="flex items-center gap-1.5 text-amber-600 font-bold">
@@ -1620,7 +1616,7 @@ export default function App() {
                   )}
 
                   {workspaceUrl && (
-                    <div className="pt-1.5 border-t border-slate-150/60 space-y-1.5">
+                    <div className="setup-card-footer border-t border-slate-150/60 space-y-1.5">
                       <button
                         type="button"
                         disabled={isTestingConnection}
@@ -1633,7 +1629,7 @@ export default function App() {
                         id="sidebar-test-connection-btn"
                       >
                         <RefreshCw size={9} className={`${isTestingConnection ? "animate-spin text-blue-500" : "text-blue-600"}`} />
-                        <span>{isTestingConnection ? "Checking Access..." : "Test Connection"}</span>
+                        <span>{isTestingConnection ? "Checking access..." : "Test connection"}</span>
                       </button>
 
                       {connectionTestResult && (
@@ -1646,12 +1642,12 @@ export default function App() {
                             {connectionTestResult.success ? (
                               <>
                                 <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block animate-ping"></span>
-                                <span className="text-emerald-700">Verified</span>
+                                <span className="text-emerald-700">Connected</span>
                               </>
                             ) : (
                               <>
                                 <span className="w-1.5 h-1.5 bg-amber-500 rounded-full inline-block"></span>
-                                <span className="text-amber-700">Status Alert</span>
+                                <span className="text-amber-700">Status alert</span>
                               </>
                             )}
                           </p>

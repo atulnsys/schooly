@@ -1356,7 +1356,7 @@ app.post("/api/workspace/test-connection", async (req, res) => {
     console.log("[TEST CONNECTION] Intercepting target folder connection.");
     return res.json({
       success: true,
-      message: "Virtual Directory Sync: Google Drive folder 'SchoolyTestDrive' synced successfully. Layout compliance and live file metrics are active!",
+      message: "Google Drive folder 'SchoolyTestDrive' connected.",
       folderId: folderId,
       folderName: "SchoolyTestDrive",
       googleAuthenticated: true
@@ -1382,7 +1382,7 @@ app.post("/api/workspace/test-connection", async (req, res) => {
           const folderName = folderData.name ? `'${folderData.name}'` : "Main Workspace Directory";
           return res.json({
             success: true,
-            message: `OAuth Handshake Verified: Google Drive API connection is active and stable. Folder ${folderName} is accessible.`,
+            message: `Google Drive API connection is active. Folder ${folderName} is accessible.`,
             folderId: folderId || "Root",
             folderName: folderData.name || "Global Root",
             googleAuthenticated: true
