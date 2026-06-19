@@ -22,7 +22,7 @@ body {
 
 .setup-card-row {
   padding-top: 0.75rem;
-  padding-bottom: 0.75rem;
+  padding-bottom: 0.875rem;
 }
 
 /* Keep the common card shells visually balanced without widening their layout. */

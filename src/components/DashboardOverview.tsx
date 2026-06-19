@@ -1788,7 +1788,7 @@ export default function DashboardOverview({
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 pb-2">
             {summaryRows.map((registry) => {
               const registryState = getRegistrySourceState(registry.key);
               const statusLabel = registryState === "missing"
@@ -1812,7 +1812,7 @@ export default function DashboardOverview({
                 <div key={registry.key} className="setup-card-row rounded-xl border border-white bg-white px-3 flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="text-xs font-extrabold text-slate-900 truncate">{registry.label}</div>
-                    <div className="text-[10px] text-slate-500 break-words leading-snug">{registry.url || "No registry URL configured"}</div>
+                    <div className="text-[10px] text-slate-500 break-words leading-snug">{registry.error ? "Source unavailable" : "Live source"}</div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-wider">
                     <span className={`rounded-full px-2 py-1 ${registryState === "ready" || registryState === "empty" ? "bg-emerald-50 text-emerald-700" : registryState === "missing" || registryState === "incomplete" ? "bg-amber-50 text-amber-700" : "bg-slate-50 text-slate-700"}`}>
@@ -1821,6 +1821,15 @@ export default function DashboardOverview({
                     <span className="rounded-full px-2 py-1 bg-slate-50 text-slate-700 border border-slate-200">
                       {countLabel}
                     </span>
+                    {registry.url && canViewRegistrySheetLinks && (
+                      <button
+                        type="button"
+                        onClick={() => openRegistrySheetLink(registry.url, "view")}
+                        className="rounded-full border border-blue-200 bg-white px-2 py-1 text-[10px] font-black uppercase tracking-wider text-blue-700 hover:bg-blue-50"
+                      >
+                        Open Sheet
+                      </button>
+                    )}
                   </div>
                   {registry.warning ? (
                     <div className="text-[10px] font-semibold text-amber-700 break-words lg:max-w-[45%]">
@@ -1978,8 +1987,6 @@ export default function DashboardOverview({
       )
     }))
     .filter((destination) => destination.rows.length > 0);
-  const requiredRegistriesReadable = dashboardSourceState.registries.length > 0 &&
-    dashboardSourceState.registries.every((registry) => !registry.error && String(registry.url || "").trim());
   const safeFoundationHeaderIssues = safeFoundationDestinations.flatMap((destination) => {
     const registry = dashboardSourceState.registries.find((item) => item.label === destination.spreadsheet);
     return [
@@ -1988,10 +1995,28 @@ export default function DashboardOverview({
     ];
   });
   const canContinueBootstrapWizard = (step: number) => {
-    if (step === 0) return requiredRegistriesReadable;
-    if (step === 1) return safeFoundationHeaderIssues.length === 0;
+    if (step === 0) return true;
+    if (step === 1) return true;
     if (step === 2) return selectedBootstrapPlaceholderIssues.length === 0;
-    return true;
+    if (step === 3) return selectedBootstrapDestinations.length > 0 || selectableSafeFoundationDestinations.length === 0;
+    if (step === 4) return true;
+    if (step === 5) return selectedBootstrapSummary.rowsToCreate === 0 || bootstrapWriteResult !== null;
+    return false;
+  };
+  const bootstrapWizardContinueReason = (step: number) => {
+    if (step === 2 && selectedBootstrapPlaceholderIssues.length > 0) {
+      return "Resolve the required school identity fields before continuing.";
+    }
+    if (step === 3 && selectedBootstrapDestinations.length === 0 && selectableSafeFoundationDestinations.length > 0) {
+      return "Select at least one safe foundation group before continuing.";
+    }
+    if (step === 5 && selectedBootstrapSummary.rowsToCreate > 0 && !bootstrapWriteResult) {
+      return "Run Apply Safe Foundation Setup before continuing.";
+    }
+    if (step === 6) {
+      return "Completion is the final step.";
+    }
+    return "Continue keeps the current review state intact.";
   };
   const bootstrapWizardSteps = [
     { title: "Registry Connection Check", mode: "Read-only" },
@@ -2064,9 +2089,6 @@ export default function DashboardOverview({
 
   const handleBootstrapWizardStepSelect = (step: number) => {
     setBootstrapWizardStep(step);
-    if (step === 0) {
-      onConfigureWorkspace?.();
-    }
     revealBootstrapWizardContent();
   };
 
@@ -2126,7 +2148,6 @@ export default function DashboardOverview({
 
   const renderRegistryBootstrapPreview = () => (
     <div
-      ref={bootstrapWizardContentRef}
       tabIndex={-1}
       className="setup-card-shell bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-5 outline-none"
       id="registry-bootstrap-preview"
@@ -2185,7 +2206,95 @@ export default function DashboardOverview({
             )}
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-7 gap-2">
+        <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-2">
+          <div>
+            <div className="text-[10px] uppercase font-mono text-blue-600 font-black">Current step</div>
+            <h3 className="text-sm font-extrabold text-slate-900">Step {bootstrapWizardStep + 1}: {bootstrapWizardSteps[bootstrapWizardStep]?.title}</h3>
+            <p className="text-xs text-slate-600 mt-1">
+              {bootstrapWizardStep === 0
+                ? "Check the current workspace and registry connection state before you move on."
+                : bootstrapWizardStep === 1
+                  ? "Review live registry health before continuing."
+                  : bootstrapWizardStep === 2
+                    ? "Review School Profile and Academic Year fields."
+                    : bootstrapWizardStep === 3
+                      ? "Select the first safe foundation rows to write."
+                      : bootstrapWizardStep === 4
+                        ? "Deferred items stay read-only in this pass."
+                        : bootstrapWizardStep === 5
+                          ? "Approve and connect Google Sheets write access before applying setup."
+                          : "Review completion and continue to NCERT Textbooks."}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {bootstrapWizardStep === 0 && onConfigureWorkspace && (
+              <button type="button" onClick={onConfigureWorkspace} className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-600 px-3 py-1.5 text-xs font-extrabold text-white hover:bg-blue-700">
+                Open Workspace Link Setup <ArrowRight size={14} />
+              </button>
+            )}
+            {bootstrapWizardStep === 3 && selectableSafeFoundationDestinations.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedBootstrapGroups((current) => ({
+                    ...current,
+                    ...Object.fromEntries(selectableSafeFoundationDestinations.map((destination) => [getBootstrapDestinationId(destination), true]))
+                  }));
+                  setBootstrapApprovalChecked(false);
+                }}
+                className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-extrabold text-amber-800 hover:bg-amber-100"
+              >
+                Select available safe foundation groups
+              </button>
+            )}
+            {bootstrapWizardStep === 5 && (
+              <>
+                <button type="button" onClick={handleConnectGoogleWorkspaceWriteAccess} className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-600 px-3 py-1.5 text-xs font-extrabold text-white hover:bg-blue-700">
+                  Connect Google Sheets Write Access
+                </button>
+                <button
+                  type="button"
+                  onClick={applySelectedBootstrapRows}
+                  disabled={selectedBootstrapSummary.rowsToCreate === 0 || selectedBootstrapHeaderIssues.length > 0 || selectedBootstrapPlaceholderIssues.length > 0 || !bootstrapApprovalChecked || !googleWorkspaceAuthState.connected || bootstrapWriteInProgress}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-extrabold ${selectedBootstrapSummary.rowsToCreate > 0 && selectedBootstrapHeaderIssues.length === 0 && selectedBootstrapPlaceholderIssues.length === 0 && bootstrapApprovalChecked && googleWorkspaceAuthState.connected && !bootstrapWriteInProgress ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-slate-200 text-slate-400 cursor-not-allowed"}`}
+                >
+                  {bootstrapWriteInProgress ? "Applying selected rows..." : "Apply Safe Foundation Setup"}
+                </button>
+              </>
+            )}
+            {bootstrapWizardStep === 6 && (
+              <button
+                type="button"
+                onClick={() => onToggleTab("textbooks")}
+                className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-600 px-3 py-1.5 text-xs font-extrabold text-white hover:bg-blue-700"
+              >
+                Continue to NCERT Textbooks <ArrowRight size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="setup-card-footer flex items-center justify-between gap-3 flex-wrap border-t border-slate-200">
+          <button
+            type="button"
+            onClick={() => handleBootstrapWizardStepMove(Math.max(0, bootstrapWizardStep - 1))}
+            disabled={bootstrapWizardStep === 0}
+            className={`px-4 py-2 rounded-xl text-xs font-extrabold ${bootstrapWizardStep === 0 ? "bg-slate-100 text-slate-400 cursor-not-allowed" : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"}`}
+          >
+            Back
+          </button>
+          <div className="flex-1 min-w-0 text-center text-[11px] font-bold text-slate-600 px-2">
+            {bootstrapWizardContinueReason(bootstrapWizardStep)}
+          </div>
+          <button
+            type="button"
+            onClick={() => handleBootstrapWizardStepMove(Math.min(bootstrapWizardSteps.length - 1, bootstrapWizardStep + 1))}
+            disabled={bootstrapWizardStep >= bootstrapWizardSteps.length - 1 || !canContinueBootstrapWizard(bootstrapWizardStep)}
+            className={`px-4 py-2 rounded-xl text-xs font-extrabold ${bootstrapWizardStep < bootstrapWizardSteps.length - 1 && canContinueBootstrapWizard(bootstrapWizardStep) ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-slate-200 text-slate-400 cursor-not-allowed"}`}
+          >
+            Continue
+          </button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-2">
           {bootstrapWizardSteps.map((step, index) => (
             <button
               key={step.title}
@@ -2199,26 +2308,8 @@ export default function DashboardOverview({
             </button>
           ))}
         </div>
-        <div className="setup-card-footer flex items-center justify-between gap-3 flex-wrap border-t border-slate-200">
-          <button
-            type="button"
-            onClick={() => handleBootstrapWizardStepMove(Math.max(0, bootstrapWizardStep - 1))}
-            disabled={bootstrapWizardStep === 0}
-            className={`px-3 py-2 rounded-xl text-xs font-extrabold ${bootstrapWizardStep === 0 ? "bg-slate-100 text-slate-400 cursor-not-allowed" : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"}`}
-          >
-            Back
-          </button>
-          <div className="flex-1 min-w-0 text-center text-[11px] font-bold text-slate-600 px-2">Write-enabled action appears only in Step 6. No operational data.</div>
-          <button
-            type="button"
-            onClick={() => handleBootstrapWizardStepMove(Math.min(bootstrapWizardSteps.length - 1, bootstrapWizardStep + 1))}
-            disabled={bootstrapWizardStep >= bootstrapWizardSteps.length - 1 || !canContinueBootstrapWizard(bootstrapWizardStep)}
-            className={`px-3 py-2 rounded-xl text-xs font-extrabold ${bootstrapWizardStep < bootstrapWizardSteps.length - 1 && canContinueBootstrapWizard(bootstrapWizardStep) ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-slate-200 text-slate-400 cursor-not-allowed"}`}
-          >
-            Continue
-          </button>
-        </div>
       </div>
+      <div ref={bootstrapWizardContentRef} tabIndex={-1} className="space-y-4 outline-none">
 
       {showAdminSetupDetails && bootstrapWizardStep >= 3 && (
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -2243,8 +2334,22 @@ export default function DashboardOverview({
         <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
           <div>
             <div className="text-[10px] uppercase font-mono text-blue-600 font-black">Read-only</div>
-            <h3 className="text-base font-extrabold text-slate-900">Start School Setup</h3>
-            <p className="text-sm text-slate-600 mt-1">This wizard checks registry connections, validates headers, lets you review safe foundation rows, and writes only after approval.</p>
+            <h3 className="text-base font-extrabold text-slate-900">Registry Connection Check</h3>
+            <p className="text-sm text-slate-600 mt-1">This step shows the current workspace and registry connection state before any setup changes are reviewed.</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="text-[10px] uppercase font-mono text-slate-400 font-black">Workspace</div>
+              <div className="mt-1 text-sm font-extrabold text-slate-900">
+                {dashboardSourceState.mode === "live" ? "Connected" : "Setup incomplete"}
+              </div>
+              <div className="mt-1 text-[11px] text-slate-500">{dashboardSourceState.sourceLabel}</div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="text-[10px] uppercase font-mono text-slate-400 font-black">Registries</div>
+              <div className="mt-1 text-sm font-extrabold text-slate-900">{registryHealthSummary.connectedRegistries}/{registryHealthSummary.totalRegistries} ready</div>
+              <div className="mt-1 text-[11px] text-slate-500">Next action: {registryHealthSummary.nextRequiredAction}</div>
+            </div>
           </div>
           {hasSavedRegistryOverrides && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 font-semibold">
@@ -2265,13 +2370,7 @@ export default function DashboardOverview({
               </div>
             ))}
           </div>
-          ) : (
-            <div className={`rounded-xl border px-3 py-3 text-sm font-semibold ${requiredRegistriesReadable ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
-              {requiredRegistriesReadable
-                ? "Schooly can read the school registries. An administrator can manage detailed registry settings if needed."
-                : "A school administrator needs to connect the required registries before setup can continue."}
-            </div>
-          )}
+          ) : null}
           <div className="flex flex-wrap gap-2">
             {onConfigureWorkspace ? (
               <button
@@ -2292,21 +2391,23 @@ export default function DashboardOverview({
               </button>
             )}
           </div>
-          {!requiredRegistriesReadable && <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">One or more required registries are not readable yet.</div>}
         </div>
       )}
 
       {!showAdminSetupDetails && bootstrapWizardStep === 1 && (
-        <div className={`rounded-xl border p-4 space-y-2 ${safeFoundationHeaderIssues.length === 0 ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
-          <div className={`text-[10px] uppercase font-mono font-black ${safeFoundationHeaderIssues.length === 0 ? "text-emerald-700" : "text-amber-700"}`}>Setup check</div>
+        <div className={`rounded-xl border p-4 space-y-3 ${safeFoundationHeaderIssues.length === 0 ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
+          <div className={`text-[10px] uppercase font-mono font-black ${safeFoundationHeaderIssues.length === 0 ? "text-emerald-700" : "text-amber-700"}`}>Registry health</div>
           <h3 className="text-sm font-extrabold text-slate-900">
-            {safeFoundationHeaderIssues.length === 0 ? "School setup checks are clear" : "School admin review needed"}
+            {safeFoundationHeaderIssues.length === 0 ? "Live registry readiness looks healthy" : "Live registry readiness needs review"}
           </h3>
           <p className="text-sm text-slate-700">
-            {safeFoundationHeaderIssues.length === 0
-              ? "The foundation registries are readable and ready for the next setup step."
-              : "Some registry settings need admin attention before setup can continue."}
+            {registryHealthSummary.connectedRegistries}/{registryHealthSummary.totalRegistries} registries are available. Warnings: {registryHealthSummary.warningRegistries}. Critical: {registryHealthSummary.criticalRegistries}. Next action: {registryHealthSummary.nextRequiredAction}.
           </p>
+          {safeFoundationHeaderIssues.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs font-semibold text-amber-800">
+              {safeFoundationHeaderIssues.slice(0, 3).join("; ")}
+            </div>
+          )}
         </div>
       )}
 
@@ -2882,27 +2983,6 @@ export default function DashboardOverview({
         </div>
       )}
 
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 flex items-center justify-between gap-3 flex-wrap">
-        <button
-          type="button"
-          onClick={() => handleBootstrapWizardStepMove(Math.max(0, bootstrapWizardStep - 1))}
-          disabled={bootstrapWizardStep === 0}
-          className={`px-4 py-2 rounded-xl text-xs font-extrabold ${bootstrapWizardStep === 0 ? "bg-slate-100 text-slate-400 cursor-not-allowed" : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"}`}
-        >
-          Back
-        </button>
-        <div className="flex items-center gap-2 text-[10px] font-mono font-black uppercase">
-          <span className="px-2 py-1 rounded-lg bg-blue-50 text-blue-700">No overwrite</span>
-          <span className="px-2 py-1 rounded-lg bg-slate-100 text-slate-700">No operational data</span>
-        </div>
-        <button
-          type="button"
-          onClick={() => handleBootstrapWizardStepMove(Math.min(bootstrapWizardSteps.length - 1, bootstrapWizardStep + 1))}
-          disabled={bootstrapWizardStep >= bootstrapWizardSteps.length - 1 || !canContinueBootstrapWizard(bootstrapWizardStep)}
-          className={`px-4 py-2 rounded-xl text-xs font-extrabold ${bootstrapWizardStep < bootstrapWizardSteps.length - 1 && canContinueBootstrapWizard(bootstrapWizardStep) ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-slate-200 text-slate-400 cursor-not-allowed"}`}
-        >
-          Continue
-        </button>
       </div>
     </div>
   );
@@ -3250,7 +3330,7 @@ export default function DashboardOverview({
                   onClick={() => card.actionRegistryId ? openRegistryDataRoute(card.actionRegistryId) : onToggleTab(card.drillTab)}
                   className="px-2.5 py-1.5 rounded-lg border border-blue-200 bg-white text-[10px] font-extrabold text-blue-700 hover:bg-blue-50"
                 >
-                  {card.actionRegistryId ? "Open Registry Detail" : "Open Tab"}
+                  {card.actionRegistryId ? "Open Registry" : "Open Tab"}
                 </button>
               </div>
             </div>
@@ -4984,19 +5064,18 @@ export default function DashboardOverview({
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-sm font-extrabold text-slate-900">{card.title}</h3>
               <span className={`text-[10px] font-sans font-bold px-2 py-0.5 rounded-full ${card.rows > 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                {card.rows > 0 ? `${card.rows} rows` : "No rows"}
+                {card.rows > 0 ? `${card.rows} rows` : "No rows available"}
               </span>
             </div>
-            <div className="text-[10px] text-blue-700 font-mono font-bold">Source: {card.source}</div>
-            {card.rows === 0 && <p className="text-xs text-amber-700 font-semibold">{card.empty}</p>}
+            <div className="text-[10px] text-blue-700 font-mono font-bold">{card.source.replace(" / ", " - ")}</div>
             <div className="setup-card-footer flex flex-wrap gap-2 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => card.actionRegistryId ? openRegistryDataRoute(card.actionRegistryId) : onToggleTab(card.actionTab || "admin-registry-detail")}
                 className="px-2.5 py-1.5 rounded-lg border border-blue-200 bg-white text-[10px] font-extrabold text-blue-700 hover:bg-blue-50"
               >
-                {card.actionRegistryId ? "Open Registry Detail" : card.actionTab ? "Open Tab" : "Drill Through"}
-                </button>
+                {card.actionRegistryId ? "Open Registry" : card.actionTab ? "Open Tab" : "Open Source"}
+              </button>
               {card.sourceUrl && canViewRegistrySheetLinks && (
                 <button
                   type="button"

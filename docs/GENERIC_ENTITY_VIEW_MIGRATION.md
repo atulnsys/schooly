@@ -1924,6 +1924,47 @@ This follow-up tightens dashboard trust signals without changing the app structu
 
 ---
 
+# Setup Centre - Restore Wizard Forms, Progression, Card Spacing, and Concise Registry Cards
+
+## What Broke
+
+* The setup wizard had lost visible step forms and the current progression panel was too easy to bury below secondary diagnostics.
+* `Continue` could end up feeling hidden because the footer sat too low in the layout on narrower screens.
+* Registry and readiness cards repeated long URLs and redundant empty-state prose, which made the live data harder to scan.
+
+## What Was Restored
+
+* The setup wizard now shows a visible active-step panel with the relevant form actions for the current step.
+* The step rail stays available as direct navigation, and the Back/Continue controls are kept in a visible footer zone.
+* Continue remains available only when the current step state is ready to advance, with a short inline reason when it is not.
+* The wizard step content preserves form state while moving through the live setup flow.
+
+## Spacing Fixes
+
+* Added targeted bottom padding for setup cards and setup rows so the footer and readiness cards have a little more breathing room.
+* Kept the layout compact rather than widening the cards or changing the overall dashboard rhythm.
+
+## Copy Cleanup
+
+* Ordinary registry rows no longer print raw URLs as visible row text.
+* Registry detail cards now use shorter source labels and simpler action labels.
+* Empty-state copy was trimmed so the live signal is easier to read at a glance.
+
+## Registry Detail Cleanup
+
+* The admin registry detail cards were simplified to reduce repeated wording.
+* Source labels now read more like live data summaries and less like duplicated sheet metadata.
+* The visible actions still open the same live targets, but the cards are more concise.
+
+## Verification
+
+* `npx tsc --noEmit --pretty false` succeeded.
+* `npm run build` succeeded with the existing Vite chunk-size warning.
+* Browser smoke confirmed the wizard panel, step rail, and `Continue` button were visible and usable at normal desktop widths.
+* The flow remained live-data only; no mock, fallback, or virtual data path was introduced.
+
+---
+
 # Setup Centre - Card Spacing and Truthful Connection Status
 
 ## Visual Spacing Defects Found
