@@ -1924,6 +1924,73 @@ This follow-up tightens dashboard trust signals without changing the app structu
 
 ---
 
+## Live Registry Data and Setup Centre - Remove Mock Data and Restore Complete Wizard UI
+
+### Runtime Mock Inventory
+
+* `server.ts` previously seeded students, teachers, files, courses, assignments, tasks, audit logs, and automations with demo rows.
+* The six visible synthetic students came from the hard-coded `students` array in `server.ts`:
+  * David Chen
+  * Leah Patterson
+  * Marcus Brody
+  * Sophia Martinez
+  * Jameson Lee
+  * Clarissa Finch
+* The visible dashboard and registry surfaces were also reading those in-memory collections through `/api/workspace/files`, `/api/classroom/courses`, `/api/classroom/assignments`, `/api/tasks`, `/api/students`, `/api/teachers`, `/api/audit-logs`, and `/api/automations`.
+
+### Remediation
+
+* Students now hydrate from the live `Student_Directory` and `Student_Enrollment` registry rows in `src/App.tsx`.
+* Teachers now hydrate from the live staff registry and allocation rows in `src/App.tsx`.
+* Student GPA and risk fields are treated as absent when the live registry does not provide them.
+* `src/lib/studentEntityDefinition.tsx` and `src/lib/classroomStudentEntityDefinition.tsx` no longer fabricate GPA or risk values for the live student views.
+* `server.ts` now filters the seeded demo rows out of the visible API responses so the production views do not surface them.
+* Classroom course and assignment endpoints only return live classroom data when it is actually available.
+
+### Drive Sync Provenance
+
+* The Settings > Drive Sync result panel reads from the live connection state and the dashboard source state.
+* The visible message now distinguishes between:
+  * connection failure;
+  * registry readiness with zero connected sources;
+  * live refresh completion;
+  * no live sources being available to refresh.
+* The panel is now allowed to grow naturally instead of being capped by the dashboard cockpit clipping rule.
+
+### Setup Centre Provenance
+
+* The registry readiness card now grows naturally and no longer clips its rows.
+* The setup wizard keeps the full seven-step rail visible.
+* The root clipping cause was the dashboard cockpit `max-height: 360px` / `overflow: hidden` style block in `src/components/DashboardOverview.tsx`.
+* The last known good wizard base from history was `35e8f7d` (`feat: restore setup centre wizard and cleanup cards`).
+* The wizard retains:
+  * Step 1: Registry Connection Check
+  * Step 2: Registry Health Check
+  * Step 3: School Identity Review
+  * Step 4: Safe Foundation Data
+  * Step 5: Deferred Setup Items
+  * Step 6: Approval and Apply
+  * Step 7: Completion
+* Back and Continue controls remain in the wizard footer.
+* The wizard content preserves its existing progression rules and the step rail remains visible at desktop widths.
+
+### Verification
+
+* `npx tsc --noEmit --pretty false` succeeded.
+* `npm run build` succeeded with the existing Vite chunk-size warning only.
+* Browser smoke verified:
+  * `/settings?section=drive-sync` shows the live result panel and truthful no-source refresh copy.
+  * `/setup-registries` shows the full wizard card and step rail.
+  * `/students` no longer shows the six demo student names.
+
+### Commit SHAs
+
+* Runtime data fix: `df2f153`
+* Connection/status panels: `c07e6b9`
+* Documentation update: `pending`
+
+---
+
 # Setup Centre - Restore Wizard Forms, Progression, Card Spacing, and Concise Registry Cards
 
 ## What Broke
