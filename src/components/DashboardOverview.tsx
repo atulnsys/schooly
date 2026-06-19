@@ -6383,7 +6383,7 @@ export default function DashboardOverview({
         #dashboard-cockpit .rounded-2xl.border.border-slate-200.bg-white.p-6.shadow-sm {
           max-height: 360px !important;
           overflow: hidden !important;
-          padding-bottom: 1rem !important;
+          padding-bottom: 1.5rem !important;
         }
       `}</style>
       {renderWelcomeHeader()}

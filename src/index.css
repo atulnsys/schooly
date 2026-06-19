@@ -11,6 +11,19 @@ body {
   background-color: #F8FAFC;
 }
 
+/* Keep the common card shells visually balanced without widening their layout. */
+:where(
+  .bg-white.border.border-slate-200.rounded-2xl.shadow-sm,
+  .bg-white.border.border-slate-200.rounded-2xl.shadow-xs,
+  .rounded-2xl.border.border-slate-200.bg-white.shadow-sm,
+  .rounded-2xl.border.border-slate-200.bg-white.shadow-xs,
+  .bg-slate-50.border.border-slate-200.rounded-2xl.shadow-sm,
+  .bg-slate-50.border.border-slate-150.rounded-2xl.shadow-sm,
+  .bg-gradient-to-r.from-blue-50.to-white.border.border-blue-100.rounded-2xl.shadow-sm
+):not(.overflow-hidden) {
+  padding-bottom: 1.5rem !important;
+}
+
 /* Custom scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
