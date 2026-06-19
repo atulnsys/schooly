@@ -2092,6 +2092,18 @@ This follow-up tightens dashboard trust signals without changing the app structu
 * Commit B SHA: `4237f2a`
 * Commit C SHA: recorded in the final handoff for this tracker update.
 
+### Runtime Verification Follow-up
+
+* The active Settings surface is `src/components/DashboardOverview.tsx` in `renderSettingsHub`; `src/App.tsx` only handles route/state plumbing and the edit-URL modal.
+* The earlier no-change report was caused by a stale runtime/browser state, not a different visible route: after rebuilding and restarting the local app, the updated card rendered in a clean browser session.
+* The source-card heading now renders as `School Registry Folder`, the button shows `Checking`, and the result panel sits inside the same card without clipping.
+* Visible result wording after the test resolves is `The configured Google Drive folder could not be accessed.`, `Drive folder: Connection error`, `Registry readiness: Registry setup is incomplete: 0 of 11 sources are ready.`, and `Dashboard data: Refreshed from available sources.`
+* The duplicate top-level `Connected` badge is still absent; the source card badge remains the single primary status location.
+* Browser smoke passed on the live `/settings?section=drive-sync` route, and the panel remained visible inside the source card.
+* Authenticated live-read verification remains pending because the browser smoke exercised the safe unauthenticated failure path.
+* New repair commit SHA: recorded in the final handoff.
+* Push status: not pushed yet.
+
 ## Files Changed
 
 * `src/index.css`

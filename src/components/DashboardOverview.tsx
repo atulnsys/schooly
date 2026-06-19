@@ -3439,7 +3439,7 @@ export default function DashboardOverview({
           <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-4" id="drive-sync-settings-card" tabIndex={-1}>
             <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-black">1. School Registry Folder</div>
+                <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-black">School Registry Folder</div>
                 <h4 className="text-sm font-extrabold text-slate-900">Google Drive folder containing the school registries and supporting files.</h4>
                 <p className="text-xs text-slate-600 mt-1">Use the configured folder or folder ID below. The full value is only shown in this Settings surface.</p>
               </div>
@@ -3478,7 +3478,7 @@ export default function DashboardOverview({
                     disabled={!workspaceUrl?.trim() || isWorkspaceConnectionChecking}
                     className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[11px] font-extrabold ${workspaceUrl?.trim() ? "border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50" : "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"}`}
                   >
-                    {isWorkspaceConnectionChecking ? "Checking..." : "Test Connection"}
+                    {isWorkspaceConnectionChecking ? "Checking" : "Test Connection"}
                   </button>
                 )}
               </div>
