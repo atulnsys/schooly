@@ -411,46 +411,58 @@ const ROUTE_TABS = new Set([
 interface RouteState {
   tab: string;
   registryId: string | null;
+  settingsSection: string | null;
 }
 
-function getRouteStateFromPathname(pathname: string): RouteState {
+function getRouteStateFromLocation(pathname: string, search: string = ""): RouteState {
   const path = String(pathname || "").replace(/^\/+/, "");
-  if (!path) return { tab: "overview", registryId: null };
+  const params = new URLSearchParams(String(search || ""));
+  const section = params.get("section");
+  const settingsSection = path === "settings" && section === "drive-sync" ? section : null;
+  if (!path) return { tab: "overview", registryId: null, settingsSection: null };
 
   const [firstSegment, ...rest] = path.split("/");
   if (firstSegment === "registers") {
     return {
       tab: "registries",
       registryId: null,
+      settingsSection: null
     };
   }
   if (firstSegment === "school-setup") {
     return {
       tab: "setup-registries",
       registryId: null,
+      settingsSection: null
     };
   }
   if (firstSegment === "registries") {
     return {
       tab: "registries",
       registryId: rest.length > 0 ? decodeURIComponent(rest.join("/")) : null,
+      settingsSection: null
     };
   }
 
   return {
     tab: ROUTE_TABS.has(firstSegment) ? firstSegment : "overview",
     registryId: null,
+    settingsSection
   };
 }
 
-function getPathnameFromRouteState(tab: string, registryId: string | null): string {
+function getPathnameFromRouteState(tab: string, registryId: string | null, settingsSection: string | null = null): string {
   if (tab === "overview") return "/";
   if (tab === "registers") return "/registries";
   if (tab === "school-setup") return "/setup-registries";
   if (tab === "registries") {
     return registryId ? `/registries/${encodeURIComponent(registryId)}` : "/registries";
   }
-  return `/${tab}`;
+  const basePath = `/${tab}`;
+  if (tab === "settings" && settingsSection === "drive-sync") {
+    return `${basePath}?section=drive-sync`;
+  }
+  return basePath;
 }
 
 export default function App() {
@@ -461,12 +473,13 @@ export default function App() {
   // Active Tab
   const initialRouteState = useMemo(() => {
     if (typeof window === "undefined") {
-      return { tab: "overview", registryId: null } as RouteState;
+      return { tab: "overview", registryId: null, settingsSection: null } as RouteState;
     }
-    return getRouteStateFromPathname(window.location.pathname);
+    return getRouteStateFromLocation(window.location.pathname, window.location.search);
   }, []);
   const [activeTab, setActiveTab] = useState(initialRouteState.tab);
   const [selectedRegistryId, setSelectedRegistryId] = useState<string | null>(initialRouteState.registryId);
+  const [settingsSection, setSettingsSection] = useState<string | null>(initialRouteState.settingsSection);
 
   // Databases States
   const [files, setFiles] = useState<WorkspaceFile[]>([]);
@@ -608,9 +621,10 @@ export default function App() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handlePopState = () => {
-      const nextRoute = getRouteStateFromPathname(window.location.pathname);
+      const nextRoute = getRouteStateFromLocation(window.location.pathname, window.location.search);
       setActiveTab(nextRoute.tab);
       setSelectedRegistryId(nextRoute.registryId);
+      setSettingsSection(nextRoute.settingsSection);
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
@@ -619,13 +633,17 @@ export default function App() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const desiredPath =
-      getPathnameFromRouteState(activeTab, activeTab === "registries" ? selectedRegistryId : null) +
+      getPathnameFromRouteState(
+        activeTab,
+        activeTab === "registries" ? selectedRegistryId : null,
+        activeTab === "settings" ? settingsSection : null
+      ) +
       (activeTab === "resources" ? window.location.search : "");
     const currentPath = `${window.location.pathname}${window.location.search}`;
     if (currentPath !== desiredPath) {
       window.history.pushState({}, "", desiredPath);
     }
-  }, [activeTab, selectedRegistryId]);
+  }, [activeTab, selectedRegistryId, settingsSection]);
 
   useEffect(() => {
     if (activeTab !== "registries" && selectedRegistryId) {
@@ -634,12 +652,20 @@ export default function App() {
   }, [activeTab, selectedRegistryId]);
 
   useEffect(() => {
+    if (activeTab !== "settings" && settingsSection) {
+      setSettingsSection(null);
+    }
+  }, [activeTab, settingsSection]);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
 
     const routeFocusId =
       activeTab === "setup-registries" || activeTab === "school-setup"
         ? "setup-and-registries-page"
-        : activeTab === "settings"
+        : activeTab === "settings" && settingsSection === "drive-sync"
+          ? "drive-sync-settings-card"
+          : activeTab === "settings"
           ? "settings-hub"
           : (activeTab === "registries" || activeTab === "registers")
             ? (selectedRegistryId ? `${selectedRegistryId}-registry-page` : "registries-registry-page")
@@ -653,7 +679,7 @@ export default function App() {
       target.scrollIntoView({ behavior: "smooth", block: "start" });
       target.focus({ preventScroll: true });
     });
-  }, [activeTab, selectedRegistryId]);
+  }, [activeTab, selectedRegistryId, settingsSection]);
 
   // Protect route views in real-time when roles or configurations shift
   useEffect(() => {
@@ -693,6 +719,28 @@ export default function App() {
   // Google Sidebar testing state controllers
   const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
   const [connectionTestResult, setConnectionTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const openSetupCentre = () => {
+    setActiveTab("setup-registries");
+    setMobileMenuOpen(false);
+  };
+  const openSettingsDriveSync = () => {
+    setSettingsSection("drive-sync");
+    setActiveTab("settings");
+    setMobileMenuOpen(false);
+  };
+
+  const disconnectWorkspaceConnection = () => {
+    try {
+      localStorage.removeItem("schooly_workspace_url");
+      localStorage.removeItem("schooly_workspace_connected");
+    } catch {
+      // Ignore storage restrictions.
+    }
+    setWorkspaceUrl("");
+    setConnectionTestResult(null);
+    setTempUrl("");
+    setShowUrlModal(false);
+  };
 
   const handleTestConnection = async (targetUrl: string) => {
     if (!targetUrl || !targetUrl.trim()) {
@@ -760,6 +808,40 @@ export default function App() {
     : workspaceUrl
       ? "Configured"
       : "Needs setup";
+  const getSidebarDriveStatus = () => {
+    const lowered = String(connectionTestResult?.message || "").toLowerCase();
+    if (!workspaceUrl.trim()) return "Not Connected";
+    if (connectionTestResult?.success) return "Connected";
+    if (connectionTestResult && !connectionTestResult.success) {
+      if (lowered.includes("permission") || lowered.includes("origin") || lowered.includes("unauthor") || lowered.includes("auth")) {
+        return "Access required";
+      }
+      return "Status unavailable";
+    }
+    return "Status unavailable";
+  };
+  const getSidebarRegistryStatus = () => {
+    if (schoolRegistryLoading) return "Status unavailable";
+    if (!workspaceUrl.trim()) return "Not Connected";
+    if (!schoolRegistry) return "Status unavailable";
+    if (schoolRegistry.mode === "live") return "Connected";
+    if (schoolRegistry.mode === "fallback") return "Setup incomplete";
+    if (schoolRegistry.mode === "error") {
+      const lowered = String(connectionTestResult?.message || "").toLowerCase();
+      if (lowered.includes("permission") || lowered.includes("origin") || lowered.includes("unauthor") || lowered.includes("auth")) {
+        return "Access required";
+      }
+      return "Status unavailable";
+    }
+    if (schoolRegistry.mode === "missing") return "Setup incomplete";
+    return "Status unavailable";
+  };
+  const getSidebarStatusDot = (status: string) => {
+    if (status === "Connected") return "bg-emerald-500";
+    if (status === "Access required") return "bg-rose-500";
+    if (status === "Setup incomplete" || status === "Not Connected") return "bg-amber-400";
+    return "bg-slate-400";
+  };
 
   console.log(`[RENDER DIAGNOSTIC] App Component Render. Active Tab: ${activeTab} | Role: ${currentRole} | User: ${currentUser} | showUrlModal: ${showUrlModal} | workspaceUrl: ${workspaceUrl}`);
 
@@ -1186,11 +1268,15 @@ export default function App() {
       onAcademicYearChange={setSelectedDashboardAcademicYearLabel}
       onOpenRegistryDataRoute={openRegistryDataRoute}
       dashboardView={dashboardView}
-      onConfigureWorkspace={() => {
+      onConfigureWorkspace={openSettingsDriveSync}
+      onEditWorkspaceConnection={() => {
         setTempUrl(workspaceUrl);
         setTempGeminiKey(geminiApiKey);
         setShowUrlModal(true);
       }}
+      onTestWorkspaceConnection={handleTestConnection}
+      onDisconnectWorkspace={disconnectWorkspaceConnection}
+      workspaceConnectionTestResult={connectionTestResult}
     />
   );
 
@@ -1527,155 +1613,43 @@ export default function App() {
 
         {/* Sidebar Footer segment */}
         <div className="pt-4 border-t border-slate-150 font-mono">
-          <div className="setup-card-shell rounded-2xl border border-slate-150 bg-slate-50 px-3 py-3 font-sans shadow-sm space-y-2">
+          <div className="setup-card-shell rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 font-sans shadow-sm space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 space-y-0.5">
-                <div className="text-[8.5px] font-mono font-bold text-slate-400 uppercase tracking-wider">Data connections</div>
-                <div className="text-[10px] font-bold text-slate-700">Workspace: {workspaceConnectionStatus}</div>
-                <div className="text-[10px] font-bold text-slate-700">Registries: Status unavailable</div>
+                <div className="text-[8.5px] font-mono font-bold text-slate-400 uppercase tracking-wider">CONNECTION STATUS</div>
+                <div className="text-[10px] font-bold text-slate-700">Profile Role: {currentRole || "Not set"}</div>
               </div>
-
-              <button
-                type="button"
-                onClick={() => setSidebarConnectionDetailsOpen((open) => !open)}
-                className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
-                aria-expanded={sidebarConnectionDetailsOpen}
-                aria-controls="sidebar-connection-details"
-              >
-                <span>{sidebarConnectionDetailsOpen ? "Hide details" : "View details"}</span>
-                <ChevronDown size={11} className={`transition-transform ${sidebarConnectionDetailsOpen ? "rotate-180" : ""}`} />
-              </button>
             </div>
 
-            {sidebarConnectionDetailsOpen && (
-              <div id="sidebar-connection-details" className="space-y-2 border-t border-slate-200 pt-2">
-                <div className="rounded-xl border border-slate-150 bg-white p-2.5 text-[10px] space-y-2">
-                  <div className="flex items-center justify-between gap-2 text-[8.5px] font-mono font-bold text-slate-400 uppercase tracking-wider">
-                    <span>Google Workspace Connection</span>
-                    <span className={`w-2 h-2 rounded-full ${workspaceUrl ? "bg-emerald-500" : "bg-amber-400"}`} />
-                  </div>
-                  <p className="text-[10px] text-slate-500 leading-relaxed font-semibold">
-                    Schooly uses the configured Workspace link for live registry checks. Google Sheets write access is managed in the onboarding wizard.
-                  </p>
-                  <div className="flex items-center gap-1.5 text-[10px] min-w-0">
-                    <Link size={11} className="shrink-0 text-blue-600" />
-                    {workspaceUrl ? (
-                      <span className="min-w-0 break-words max-w-full text-slate-700 font-semibold" title={workspaceUrl}>{workspaceUrl}</span>
-                    ) : (
-                      <span className="text-amber-700 font-bold">No Workspace Link Configured</span>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 bg-slate-50 px-2 py-1">
-                    <span className="text-[9px] uppercase font-mono font-black text-slate-400">Google Sheets write access</span>
-                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${googleWorkspaceAuthState.connected ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                      {googleWorkspaceAuthState.connected ? "Connected" : "Not connected"}
-                    </span>
-                  </div>
-                  <div className="text-[9px] text-slate-500 font-mono space-y-0.5">
-                    <div>Local Schooly role: {currentRole || "Not set"}</div>
-                    <div>Google Sheets write account: {googleWorkspaceAuthState.connected ? "Connected" : "Not connected"}</div>
+            <div className="space-y-2">
+              {[
+                {
+                  label: "Drive status",
+                  status: getSidebarDriveStatus(),
+                  action: openSettingsDriveSync
+                },
+                {
+                  label: "Registry data",
+                  status: getSidebarRegistryStatus(),
+                  action: openSetupCentre
+                }
+              ].map((row) => (
+                <div key={row.label} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
+                  <div className="min-w-0 flex items-center gap-2">
+                    <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${getSidebarStatusDot(row.status)}`} />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">{row.label}</span>
+                    <span className="text-[10px] font-extrabold text-slate-900 truncate">{row.status}</span>
                   </div>
                   <button
                     type="button"
-                    onClick={() => setShowUrlModal(true)}
-                    className="w-full py-1.5 border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-xl text-[10px] font-bold font-sans transition-all text-center cursor-pointer"
+                    onClick={row.action}
+                    className="shrink-0 text-[10px] font-extrabold uppercase tracking-wider text-blue-700 hover:text-blue-800"
                   >
-                    Configure Workspace Link
+                    Configure
                   </button>
                 </div>
-
-                <div className="rounded-xl border border-slate-150 bg-white p-2.5 text-[10px] space-y-1.5">
-                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5">
-                    <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider block">Local Schooly role</span>
-                    <span className="text-[9px] text-slate-500 font-bold px-1.5 py-0.5 bg-slate-50 border border-slate-150 rounded-md font-mono uppercase shrink-0">
-                      {(currentRole || "Not set").split(" ")[0]}
-                    </span>
-                  </div>
-                  <div className="font-semibold text-slate-650 truncate text-[10.5px]" title={currentUser}>Local Schooly operator</div>
-                  <div className="text-[9px] text-slate-400 italic flex items-center gap-1 min-w-0">
-                    <span className="min-w-0 truncate">Google Sheets write access: {googleWorkspaceAuthState.connected ? "Connected" : "Not connected"}</span>
-                    {schemaDrivenRendering && (
-                      <span className="shrink-0 text-[8.5px] text-blue-600 bg-blue-50 px-1 py-0.2 rounded-sm border border-blue-105 font-mono">META</span>
-                    )}
-                  </div>
-                  <div className="text-[9px] text-slate-500 font-mono break-words">Google Sheets write account: {googleWorkspaceAuthState.connected ? "Connected" : "Not connected"}</div>
-                </div>
-
-                <div className="rounded-xl border border-slate-150 bg-white p-2.5 text-[10px] space-y-1.5" id="workspace-url-indicator">
-                  <span className="text-[8.5px] font-mono font-bold text-slate-400 block uppercase tracking-wider">Workspace Connection Link</span>
-                  {workspaceUrl ? (
-                    <div className="flex items-center gap-1.5 text-blue-700 font-semibold min-w-0">
-                      <Link size={11} className="shrink-0" />
-                      <span className="min-w-0 break-words max-w-full" title={workspaceUrl}>{workspaceUrl}</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5 text-amber-600 font-bold">
-                      <AlertCircle size={11} className="shrink-0 animate-pulse" />
-                      <span>No Workspace Link Configured</span>
-                    </div>
-                  )}
-
-                  {workspaceUrl && (
-                    <div className="setup-card-footer border-t border-slate-150/60 space-y-1.5">
-                      <button
-                        type="button"
-                        disabled={isTestingConnection}
-                        onClick={() => handleTestConnection(workspaceUrl)}
-                        className={`w-full py-1 px-2 rounded-lg text-[8.5px] font-bold font-mono uppercase tracking-wider text-center cursor-pointer transition-all flex items-center justify-center gap-1 border ${
-                          isTestingConnection
-                            ? 'bg-slate-100 border-slate-200 text-slate-450'
-                            : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-250'
-                        }`}
-                        id="sidebar-test-connection-btn"
-                      >
-                        <RefreshCw size={9} className={`${isTestingConnection ? "animate-spin text-blue-500" : "text-blue-600"}`} />
-                        <span>{isTestingConnection ? "Checking access..." : "Test connection"}</span>
-                      </button>
-
-                      {connectionTestResult && (
-                        <div className={`p-1.5 rounded-lg text-[8.5px] leading-relaxed border animate-fade-in ${
-                          connectionTestResult.success
-                            ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950 font-medium text-left'
-                            : 'bg-amber-50/70 border-amber-200 text-amber-955 font-medium text-left'
-                        }`} id="sidebar-connection-test-result">
-                          <p className="font-extrabold text-[8px] uppercase tracking-wider font-mono mb-0.5 flex items-center gap-1 leading-none">
-                            {connectionTestResult.success ? (
-                              <>
-                                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block animate-ping"></span>
-                                <span className="text-emerald-700">Connected</span>
-                              </>
-                            ) : (
-                              <>
-                                <span className="w-1.5 h-1.5 bg-amber-500 rounded-full inline-block"></span>
-                                <span className="text-amber-700">Status alert</span>
-                              </>
-                            )}
-                          </p>
-                          <span className="font-sans block text-left leading-normal text-slate-650 break-words">{connectionTestResult.message}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTempUrl(workspaceUrl);
-                      setTempGeminiKey(geminiApiKey);
-                      setShowUrlModal(true);
-                    }}
-                    className="text-[9px] font-extrabold text-slate-500 hover:text-blue-600 flex items-center gap-1 pt-1.5 hover:underline transition-all cursor-pointer border-t border-slate-150/60 w-full text-left"
-                  >
-                    {workspaceUrl ? "Modify Connection Link" : "Configure Connection Link"}
-                  </button>
-                </div>
-
-                <div className="text-[10px] text-slate-400 space-y-0.5 border-t border-slate-100/60 pt-2 pb-0.5 font-sans font-medium">
-                  <div>Deployment Version: 1.0.4</div>
-                  <div>Status: Sys OK</div>
-                </div>
-              </div>
-            )}
+              ))}
+            </div>
           </div>
         </div>
       </aside>
@@ -1986,18 +1960,18 @@ export default function App() {
               </div>
               <div>
                 <h3 className="font-bold text-slate-900 text-base">
-                  Google Workspace Connection Link
+                  Drive Sync
                 </h3>
                 <p className="text-xs text-slate-500 mt-1 font-sans leading-relaxed">
-                  Provide a valid Google Drive Folder, Shared Folder, or Domain Root URL to establish synchronous indexing coordinates. Copilot planners require Workspace mapping indexes to compile curriculums.
+                  Configure the Google Drive folder used for Schooly registries and supporting files.
                 </p>
                 <div className="mt-3 bg-slate-50 border border-slate-100 p-3 rounded-xl space-y-2 text-xs font-sans">
                   <div className="font-bold text-slate-800 flex items-center gap-1.5">
                     <Database size={13} />
-                    <span>Workspace link only</span>
+                    <span>School Registry Folder</span>
                   </div>
                   <p className="text-[11px] text-slate-650 leading-relaxed font-semibold">
-                    Schooly uses the configured Workspace URL for connection checks. Google Sheets write access is managed separately in the onboarding wizard.
+                    Schooly uses the configured folder or folder ID for live registry checks. Google Sheets write access is managed separately in the onboarding wizard.
                   </p>
                 </div>
               </div>
@@ -2006,7 +1980,7 @@ export default function App() {
             <div className="space-y-3.5 pt-2">
               <div>
                 <label className="text-[10px] text-slate-400 font-mono block mb-1.5 font-bold uppercase tracking-wider">
-                  ENTER DRIVE OR WORKSPACE DIRECTORY URL *
+                  DRIVE FOLDER URL / ID *
                 </label>
                 <div className="relative">
                   <input
@@ -2026,7 +2000,7 @@ export default function App() {
                 onClick={() => setTempUrl("https://drive.google.com/drive/folders/1D_e735SchoolyDriveRootFolder_AP_Syllabus")}
                 className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-all block text-left"
               >
-                Insert Demo Folder Coordinate Link
+                Insert School Registry Folder
               </button>
 
               <div className="pt-3 border-t border-slate-100">
@@ -2060,7 +2034,7 @@ export default function App() {
 
               <div className="pt-3 border-t border-slate-100">
                 <p className="text-[9.5px] text-slate-450 mt-1.5 font-sans leading-relaxed">
-                  Google Sheets write access is managed in the School Setup Onboarding Wizard and stays separate from the Workspace URL.
+                  Google Sheets write access is managed in the School Setup Onboarding Wizard and stays separate from the Drive folder setting.
                 </p>
               </div>
             </div>
@@ -2069,15 +2043,11 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => {
-                  console.log("[DEBUG] Workspace URL Modal skipped/cancelled. Setting default/fallback URL.");
                   setShowUrlModal(false);
-                  if (!workspaceUrl) {
-                    setWorkspaceUrl("https://drive.google.com/drive/folders/1D_e735SchoolyDriveRootFolder_AP_Syllabus");
-                  }
                 }}
                 className="flex-1 py-2 px-3 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-xl text-xs font-semibold transition-colors cursor-pointer text-center"
               >
-                Skip / Setup Later
+                Cancel
               </button>
 
               <button
@@ -2119,7 +2089,7 @@ export default function App() {
                 disabled={!tempUrl.trim()}
                 className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
               >
-                Associate Workspace Coordinates
+                Save URL
               </button>
             </div>
           </div>

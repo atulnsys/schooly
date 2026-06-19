@@ -397,6 +397,10 @@ interface DashboardOverviewProps {
   activeRoles?: string[];
   isWorkspaceMock?: boolean;
   onConfigureWorkspace?: () => void;
+  onEditWorkspaceConnection?: () => void;
+  onTestWorkspaceConnection?: (workspaceUrl: string) => void;
+  onDisconnectWorkspace?: () => void;
+  workspaceConnectionTestResult?: { success: boolean; message: string } | null;
   workspaceUrl?: string;
   activeAcademicYearLabel?: string;
   academicYearOptions?: string[];
@@ -420,6 +424,10 @@ export default function DashboardOverview({
   activeRoles = ["School Admin"],
   isWorkspaceMock = false,
   onConfigureWorkspace,
+  onEditWorkspaceConnection,
+  onTestWorkspaceConnection,
+  onDisconnectWorkspace,
+  workspaceConnectionTestResult,
   workspaceUrl,
   activeAcademicYearLabel = "",
   academicYearOptions = [],
@@ -2229,7 +2237,7 @@ export default function DashboardOverview({
           <div className="flex flex-wrap gap-2">
             {bootstrapWizardStep === 0 && onConfigureWorkspace && (
               <button type="button" onClick={onConfigureWorkspace} className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-600 px-3 py-1.5 text-xs font-extrabold text-white hover:bg-blue-700">
-                Open Workspace Link Setup <ArrowRight size={14} />
+                Open Drive Sync Settings <ArrowRight size={14} />
               </button>
             )}
             {bootstrapWizardStep === 3 && selectableSafeFoundationDestinations.length > 0 && (
@@ -2372,24 +2380,24 @@ export default function DashboardOverview({
           </div>
           ) : null}
           <div className="flex flex-wrap gap-2">
-            {onConfigureWorkspace ? (
-              <button
-                type="button"
-                onClick={onConfigureWorkspace}
-                className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-600 px-3 py-2 text-xs font-extrabold text-white hover:bg-blue-700"
-              >
-                Open Workspace Link Setup
-                <ArrowRight size={14} />
-              </button>
-            ) : (
-              <button
-                type="button"
-                disabled
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-extrabold text-slate-400 cursor-not-allowed"
-              >
-                Workspace Link Setup Unavailable
-              </button>
-            )}
+              {onConfigureWorkspace ? (
+                <button
+                  type="button"
+                  onClick={onConfigureWorkspace}
+                  className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-600 px-3 py-2 text-xs font-extrabold text-white hover:bg-blue-700"
+                >
+                  Open Drive Sync Settings
+                  <ArrowRight size={14} />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-extrabold text-slate-400 cursor-not-allowed"
+                >
+                  Drive Sync Settings Unavailable
+                </button>
+              )}
           </div>
         </div>
       )}
@@ -3363,7 +3371,94 @@ export default function DashboardOverview({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Drive Sync</div>
+              <h3 className="text-sm font-extrabold text-slate-900">Configure the Google Drive folder used for Schooly registries and supporting files.</h3>
+              <p className="text-xs text-slate-600 mt-1">School Registry Folder</p>
+            </div>
+            <span className={`text-[10px] font-sans font-black px-2 py-1 rounded-lg border ${workspaceUrl ? "bg-white text-slate-700 border-slate-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}>
+              {(() => {
+                if (!workspaceUrl?.trim()) return "Not connected";
+                if (workspaceConnectionTestResult?.success) return "Connected";
+                if (workspaceConnectionTestResult && !workspaceConnectionTestResult.success) {
+                  const lowered = workspaceConnectionTestResult.message.toLowerCase();
+                  if (lowered.includes("permission") || lowered.includes("origin") || lowered.includes("unauthor") || lowered.includes("auth")) {
+                    return "Access required";
+                  }
+                  return "Connection error";
+                }
+                return "Status unavailable";
+              })()}
+            </span>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-4" id="drive-sync-settings-card" tabIndex={-1}>
+            <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-black">1. School Registry Folder</div>
+                <h4 className="text-sm font-extrabold text-slate-900">Google Drive folder containing the school registries and supporting files.</h4>
+                <p className="text-xs text-slate-600 mt-1">Use the configured folder or folder ID below. The full value is only shown in this Settings surface.</p>
+              </div>
+              <span className={`text-[10px] font-sans font-black px-2 py-1 rounded-full ${workspaceUrl ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                {(() => {
+                  if (!workspaceUrl?.trim()) return "Not connected";
+                  if (workspaceConnectionTestResult?.success) return "Connected";
+                  if (workspaceConnectionTestResult && !workspaceConnectionTestResult.success) {
+                    const lowered = workspaceConnectionTestResult.message.toLowerCase();
+                    if (lowered.includes("permission") || lowered.includes("origin") || lowered.includes("unauthor") || lowered.includes("auth")) {
+                      return "Access required";
+                    }
+                    return "Connection error";
+                  }
+                  return "Status unavailable";
+                })()}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_auto] gap-3 items-start">
+              <div className="space-y-1 min-w-0">
+                <label className="text-[10px] uppercase tracking-wider font-mono text-slate-400 font-black">Drive Folder URL / ID</label>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono text-slate-700 truncate" title={workspaceUrl || "Not connected"}>
+                  {workspaceUrl || "Not connected"}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 xl:justify-end">
+                <button
+                  type="button"
+                  onClick={onEditWorkspaceConnection}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
+                >
+                  Edit URL
+                </button>
+                <button
+                  type="button"
+                  onClick={onDisconnectWorkspace}
+                  disabled={!workspaceUrl?.trim()}
+                  className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[11px] font-extrabold ${workspaceUrl?.trim() ? "border-slate-200 bg-white text-slate-700 hover:bg-slate-50" : "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"}`}
+                >
+                  Disconnect
+                </button>
+                {onTestWorkspaceConnection && (
+                  <button
+                    type="button"
+                    onClick={() => onTestWorkspaceConnection(workspaceUrl || "")}
+                    disabled={!workspaceUrl?.trim()}
+                    className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[11px] font-extrabold ${workspaceUrl?.trim() ? "border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50" : "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"}`}
+                  >
+                    Test Connection
+                  </button>
+                )}
+              </div>
+            </div>
+            {workspaceConnectionTestResult && (
+              <div className={`rounded-xl border px-3 py-2 text-[11px] font-semibold ${workspaceConnectionTestResult.success ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+                {workspaceConnectionTestResult.message}
+              </div>
+            )}
+          </div>
+
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -3388,14 +3483,6 @@ export default function DashboardOverview({
               Open Setup Centre
               <ArrowRight size={12} />
             </button>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-            <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Workspace Controls</div>
-            <div className="text-sm font-extrabold text-slate-900">Keep setup actions out of the role header</div>
-            <p className="text-xs text-slate-600">
-              Use the Setup Centre for registry checks, source inspection, and repair actions. Settings stays focused on configuration only.
-            </p>
           </div>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
