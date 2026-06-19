@@ -2044,6 +2044,54 @@ This follow-up tightens dashboard trust signals without changing the app structu
 * No mock, sample, fallback, or virtual registry data was introduced for the status UI.
 * The state shown in the setup flow still comes from the live Drive/Sheets/registry diagnostic state already present in the app.
 
+## Settings Connection Test - Show Results, Refresh Registries, and Restore Live KPI Data
+
+### Root Cause
+
+* The Drive Sync test flow only surfaced a simple connection badge and a terse server message.
+* The old server copy still claimed generic reachability and did not separate folder access from registry readiness.
+* The dashboard and registry loaders were not being re-run after the test completed, so stale states could remain visible.
+
+### Layout Fix
+
+* The result panel now renders as a visible block inside the Drive Sync card with enough padding to avoid clipping.
+* The panel scrolls into view after testing and uses live-region semantics for success, checking, and failure states.
+* The duplicated top-level `Connected` badge was removed from the Settings header so the source card is the primary status location.
+
+### Truthful Status Model
+
+* Configuration, connection, and readiness are now distinct states.
+* `Configured` means a folder URL or ID is saved.
+* `Connected` means the configured source was actually accessed.
+* `Setup incomplete` means the folder exists but the registry sources are not ready.
+* `Access required` means auth or permissions blocked the check.
+* `Connection error` means the folder/source could not be accessed.
+
+### Test Contract
+
+* `Test Connection` now performs the existing auth check, Drive access check, and live registry reload path without mutating sheet data.
+* Successful testing clears the sheet read cache and re-runs the registry loader and dashboard loader.
+* The visible result now stays concise and truthful, with no virtual or compliance-themed success wording.
+
+### Refresh Behavior
+
+* Cache invalidation now runs when the folder URL changes, the test completes, the user reconnects, the user disconnects, or auth changes.
+* The registry loader and dashboard resolver are both re-run after a successful connection test.
+* Live KPI cards continue to use live rows only; no mock or fallback rows were substituted.
+
+### Verification Summary
+
+* Result panel visibility: verified in browser smoke.
+* Stale wording removal: verified, including the old `Virtual Directory Sync` and `Layout compliance` copy.
+* Failure behavior: verified with the current unauthenticated test path, which shows `Connection error` and keeps the panel visible.
+* Dashboard smoke: verified the dashboard route still renders its hero and live card shell after the connection flow.
+
+### Commits
+
+* Commit A SHA: `47466fe`
+* Commit B SHA: `4237f2a`
+* Commit C SHA: recorded in the final handoff for this tracker update.
+
 ## Files Changed
 
 * `src/index.css`
