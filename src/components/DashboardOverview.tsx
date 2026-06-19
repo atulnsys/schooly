@@ -1465,7 +1465,7 @@ export default function DashboardOverview({
         tasks.map(t => `"${t.id}","${t.title.replace(/"/g, '""')}","${t.description.replace(/"/g, '""')}","${t.priority}","${t.status}","${t.dueDate}","${t.assignedTo.replace(/"/g, '""')}"`).join("\n");
     } else {
       csvContent = "Student ID,Profile Name,Email,Grade Level,Status,GPA,Risk Index Score,Risk Band\n" +
-        students.map(s => `"${s.id}","${s.name.replace(/"/g, '""')}","${s.email}","${s.gradeLevel}","${s.enrollmentStatus}",${s.gpa},${s.riskScore || 0}%,"${s.riskFactor || 'low'}"`).join("\n");
+        students.map(s => `"${s.id}","${s.name.replace(/"/g, '""')}","${s.email || ""}","${s.gradeLevel}","${s.enrollmentStatus}",${s.gpa ?? ""},${s.riskScore ?? ""},"${s.riskFactor || ""}"`).join("\n");
     }
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -3395,10 +3395,14 @@ export default function DashboardOverview({
         : "Registry data could not be loaded. Review the source mappings and permissions.";
     const dashboardRefreshLabel = liveDataRefreshState === "refreshing"
       ? "Refreshing registry data..."
+      : liveDataRefreshState === "error"
+        ? "Dashboard data: Refresh failed."
       : dashboardSourceState.mode === "live"
         ? "Dashboard data: Refreshed."
-        : dashboardSourceState.mode === "setup_required"
-          ? "Dashboard data: Refreshed from available sources."
+      : dashboardSourceState.mode === "setup_required"
+          ? dashboardSourceState.registryHealthSummary.connectedRegistries > 0
+            ? "Dashboard data: Refreshed from available sources."
+            : "Dashboard data: No live sources were available to refresh."
           : "Dashboard refresh could not complete.";
     const resultAction = liveDataRefreshState === "refreshing"
       ? "Checking"
@@ -6605,15 +6609,6 @@ export default function DashboardOverview({
 
   return (
     <div className="space-y-6" id="dashboard-cockpit">
-      <style>{`
-        #dashboard-cockpit .rounded-2xl.border.border-slate-200.bg-white.p-4.shadow-sm,
-        #dashboard-cockpit .rounded-2xl.border.border-slate-200.bg-white.p-5.shadow-sm,
-        #dashboard-cockpit .rounded-2xl.border.border-slate-200.bg-white.p-6.shadow-sm {
-          max-height: 360px !important;
-          overflow: hidden !important;
-          padding-bottom: 1.5rem !important;
-        }
-      `}</style>
       {renderWelcomeHeader()}
       {currentDashboardView === "overview" && isTeacherRole() && renderTeacherDashboard()}
       {currentDashboardView === "overview" && isHodRole() && renderHodDashboard()}
