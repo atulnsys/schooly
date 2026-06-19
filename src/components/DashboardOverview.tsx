@@ -477,8 +477,8 @@ export default function DashboardOverview({
         success: isConnected,
         timestamp: new Date().toLocaleTimeString(),
         message: isConnected 
-          ? `Connection verified successfully! Workspace link detected: ${workspaceUrl || "Default Root Google Drive"}.`
-          : `Connected with limited permissions. Configure a Workspace link to authorize live workspace index queries.`,
+          ? `Workspace link connected: ${workspaceUrl || "Default Root Google Drive"}.`
+          : `Workspace link is not configured. Configure it to authorize live workspace index queries.`,
         retrievedCount: driveFiles.length,
         filesList: driveFiles.slice(0, 4).map(f => f.name)
       });
@@ -1731,12 +1731,14 @@ export default function DashboardOverview({
   const renderDashboardSourcePanel = () => {
     const summaryRows = registryHealthSummary.sourceHealthRows.slice(0, DASHBOARD_ROW_LIMIT);
     return (
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4" id="dashboard-live-registry-source-status">
+      <div className="setup-card-shell bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4" id="dashboard-live-registry-source-status">
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
           <div className="space-y-1 min-w-0">
-            <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Live Registry Connections</div>
+            <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Registry readiness</div>
             <h2 className="text-base font-extrabold text-slate-900">{dashboardSourceState.sourceLabel}</h2>
-            <div className="text-xs text-slate-500 break-all">Registry source active</div>
+            <div className="text-xs text-slate-500 break-words">
+              {registryHealthSummary.connectedRegistries}/{registryHealthSummary.totalRegistries} registry sources ready
+            </div>
             <div className="text-xs text-slate-500">
               Last successful read: {dashboardSourceState.lastSyncedAt ? new Date(dashboardSourceState.lastSyncedAt).toLocaleString() : "No successful live read yet"}
             </div>
@@ -1760,8 +1762,8 @@ export default function DashboardOverview({
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
             <div>
-              <div className="text-[10px] uppercase tracking-wider font-mono text-slate-500 font-black">Source Logs / Sync Logs</div>
-              <h3 className="text-sm font-extrabold text-slate-900">Live status and sync history</h3>
+              <div className="text-[10px] uppercase tracking-wider font-mono text-slate-500 font-black">Registry status</div>
+              <h3 className="text-sm font-extrabold text-slate-900">Connection state and next action</h3>
             </div>
             <span className="text-[10px] font-sans font-black rounded-full bg-white text-slate-700 border border-slate-200 px-2 py-1">
               {registryHealthSummary.connectedRegistries}/{registryHealthSummary.totalRegistries} connected
@@ -1807,10 +1809,10 @@ export default function DashboardOverview({
                     : `${registry.rowCount} rows`;
 
               return (
-                <div key={registry.key} className="rounded-xl border border-white bg-white px-3 py-2.5 flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="min-w-0">
+                <div key={registry.key} className="setup-card-row rounded-xl border border-white bg-white px-3 flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0 flex-1 space-y-1">
                     <div className="text-xs font-extrabold text-slate-900 truncate">{registry.label}</div>
-                    <div className="text-[10px] text-slate-500 truncate">{registry.url || "No registry URL configured"}</div>
+                    <div className="text-[10px] text-slate-500 break-words leading-snug">{registry.url || "No registry URL configured"}</div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-wider">
                     <span className={`rounded-full px-2 py-1 ${registryState === "ready" || registryState === "empty" ? "bg-emerald-50 text-emerald-700" : registryState === "missing" || registryState === "incomplete" ? "bg-amber-50 text-amber-700" : "bg-slate-50 text-slate-700"}`}>
@@ -1819,12 +1821,12 @@ export default function DashboardOverview({
                     <span className="rounded-full px-2 py-1 bg-slate-50 text-slate-700 border border-slate-200">
                       {countLabel}
                     </span>
-                    {registry.warning ? (
-                      <span className="rounded-full px-2 py-1 bg-amber-50 text-amber-700 border border-amber-100">
-                        {registry.warning}
-                      </span>
-                    ) : null}
                   </div>
+                  {registry.warning ? (
+                    <div className="text-[10px] font-semibold text-amber-700 break-words lg:max-w-[45%]">
+                      {registry.warning}
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
@@ -2126,7 +2128,7 @@ export default function DashboardOverview({
     <div
       ref={bootstrapWizardContentRef}
       tabIndex={-1}
-      className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-5 outline-none"
+      className="setup-card-shell bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-5 outline-none"
       id="registry-bootstrap-preview"
     >
       <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4">
@@ -2197,7 +2199,7 @@ export default function DashboardOverview({
             </button>
           ))}
         </div>
-        <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="setup-card-footer flex items-center justify-between gap-3 flex-wrap border-t border-slate-200">
           <button
             type="button"
             onClick={() => handleBootstrapWizardStepMove(Math.max(0, bootstrapWizardStep - 1))}
@@ -2206,7 +2208,7 @@ export default function DashboardOverview({
           >
             Back
           </button>
-          <div className="text-[11px] font-bold text-slate-600">Write-enabled action appears only in Step 6. No operational data.</div>
+          <div className="flex-1 min-w-0 text-center text-[11px] font-bold text-slate-600 px-2">Write-enabled action appears only in Step 6. No operational data.</div>
           <button
             type="button"
             onClick={() => handleBootstrapWizardStepMove(Math.min(bootstrapWizardSteps.length - 1, bootstrapWizardStep + 1))}
@@ -3348,13 +3350,13 @@ export default function DashboardOverview({
 
   const renderSetupAndRegistriesPage = () => (
     <div className="space-y-6 mt-2 animate-fade-in outline-none" id="setup-and-registries-page" tabIndex={-1}>
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+      <div className="setup-card-shell bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Setup & Registries</div>
-            <h2 className="text-lg font-extrabold text-slate-900">Live data setup and repair centre</h2>
+            <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Data Setup Centre</div>
+            <h2 className="text-lg font-extrabold text-slate-900">Connect and review the school&apos;s live registries.</h2>
             <p className="text-xs text-slate-600 mt-1 max-w-3xl">
-              Use this page for live data connections, onboarding, data-driven overview, catalog details, and sync logs.
+              Use this page for registry connections, readiness checks, catalog details, and repair actions.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -4952,7 +4954,7 @@ export default function DashboardOverview({
   };
 
   const renderRegistryDetailPanel = () => (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4" id="dashboard-live-only-overview">
+    <div className="setup-card-shell bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4" id="dashboard-live-only-overview">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Admin Registry Detail</div>
@@ -4987,7 +4989,7 @@ export default function DashboardOverview({
             </div>
             <div className="text-[10px] text-blue-700 font-mono font-bold">Source: {card.source}</div>
             {card.rows === 0 && <p className="text-xs text-amber-700 font-semibold">{card.empty}</p>}
-            <div className="flex flex-wrap gap-2 pt-1">
+            <div className="setup-card-footer flex flex-wrap gap-2 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => card.actionRegistryId ? openRegistryDataRoute(card.actionRegistryId) : onToggleTab(card.actionTab || "admin-registry-detail")}

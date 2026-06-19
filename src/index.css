@@ -11,6 +11,20 @@ body {
   background-color: #F8FAFC;
 }
 
+.setup-card-shell {
+  padding-bottom: 1.5rem;
+}
+
+.setup-card-footer {
+  padding-top: 1rem;
+  padding-bottom: 0.25rem;
+}
+
+.setup-card-row {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
 /* Keep the common card shells visually balanced without widening their layout. */
 :where(
   .bg-white.border.border-slate-200.rounded-2xl.shadow-sm,
