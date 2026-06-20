@@ -89,7 +89,7 @@ const EMPTY_REGISTRY_HEALTH_SUMMARY = {
   criticalRegistries: 0,
   onboardingStatus: "Setup incomplete",
   lastSyncAt: null,
-  nextRequiredAction: "Open Setup Centre",
+  nextRequiredAction: "Open Registry Settings",
   primaryIssue: "No live data rows were found.",
   canOpenSetupCentre: true,
   sourceHealthRows: []
@@ -416,7 +416,7 @@ interface DashboardOverviewProps {
   onOpenRegistryDataRoute?: (registryId: string) => void;
   schoolRegistry?: SchoolRegistryState | null;
   onRefreshData?: () => Promise<void> | void;
-  dashboardView?: "overview" | "role-cards" | "registers" | "settings" | "data-source" | "setup" | "setup-registries" | "registry-detail";
+  dashboardView?: "overview" | "role-cards" | "registers" | "data-source" | "setup" | "registry-detail";
 }
 
 export default function DashboardOverview({
@@ -3419,11 +3419,11 @@ export default function DashboardOverview({
       ? "Checking"
       : workspaceConnectionTestResult?.success
         ? dashboardSourceState.mode === "live" || dashboardSourceState.mode === "setup_required"
-          ? "Open Setup Centre"
+          ? "Open Registry Settings"
           : "Review Registry Issues"
         : workspaceConnectionTestResult
           ? "Reconnect Workspace"
-          : "Open Setup Centre";
+          : "Open Registry Settings";
 
     return (
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4 outline-none" id="settings-hub" tabIndex={-1}>
@@ -3556,7 +3556,7 @@ export default function DashboardOverview({
               onClick={openSetupCentre}
               className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
             >
-              Open Setup Centre
+              Open Registry Settings
               <ArrowRight size={12} />
             </button>
           </div>
@@ -3564,7 +3564,7 @@ export default function DashboardOverview({
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
             <div>
-              <h3 className="text-sm font-extrabold text-slate-900">Open the Setup Centre</h3>
+              <h3 className="text-sm font-extrabold text-slate-900">Open Registry Settings</h3>
               <p className="text-xs text-slate-600 mt-1">
                 Use this page for registry connections, onboarding, registry overview, and repair actions.
               </p>
@@ -3575,7 +3575,7 @@ export default function DashboardOverview({
                 onClick={() => onToggleTab("setup-registries")}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
               >
-                Open Setup Centre <ArrowRight size={12} />
+                Open Registry Settings <ArrowRight size={12} />
               </button>
               <button
                 type="button"
@@ -6644,8 +6644,6 @@ export default function DashboardOverview({
       {currentDashboardView === "overview" && !isPrincipalRole() && !isTeacherRole() && !isCoordinatorRole() && !isHodRole() && !isManagerRole() && !isStudentRole() && !isExamsRole() && !isParentRole() && renderRoleSpecificDashboardCards()}
       {currentDashboardView === "role-cards" && renderRoleSpecificDashboardCards()}
       {currentDashboardView === "registers" && renderRegistersHub()}
-      {currentDashboardView === "setup-registries" && renderSetupAndRegistriesPage()}
-      {currentDashboardView === "settings" && renderSettingsHub()}
       {currentDashboardView === "data-source" && renderDashboardSourcePanel()}
       {currentDashboardView === "setup" && renderRegistryBootstrapPreview()}
       {currentDashboardView === "registry-detail" && renderRegistryDetailPanel()}
