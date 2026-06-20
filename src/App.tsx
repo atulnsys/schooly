@@ -28,6 +28,7 @@ import SystemGovernance from "./components/SystemGovernance";
 import MockDataStudio from "./components/MockDataStudio";
 import LessonPlanner from "./components/LessonPlanner";
 import TextbookIngestor from "./components/TextbookIngestor";
+import SettingsPage from "./components/SettingsPage";
 import {
   GraduationCap,
   Search,
@@ -422,7 +423,7 @@ function getRouteStateFromLocation(pathname: string, search: string = ""): Route
   const path = String(pathname || "").replace(/^\/+/, "");
   const params = new URLSearchParams(String(search || ""));
   const section = params.get("section");
-  const settingsSection = path === "settings" && section === "drive-sync" ? section : null;
+  const settingsSection = path === "settings" ? (section || null) : null;
   if (!path) return { tab: "overview", registryId: null, settingsSection: null };
 
   const [firstSegment, ...rest] = path.split("/");
@@ -435,9 +436,16 @@ function getRouteStateFromLocation(pathname: string, search: string = ""): Route
   }
   if (firstSegment === "school-setup") {
     return {
-      tab: "setup-registries",
+      tab: "settings",
       registryId: null,
-      settingsSection: null
+      settingsSection: "registry"
+    };
+  }
+  if (firstSegment === "setup-registries") {
+    return {
+      tab: "settings",
+      registryId: null,
+      settingsSection: "registry"
     };
   }
   if (firstSegment === "registries") {
@@ -458,13 +466,13 @@ function getRouteStateFromLocation(pathname: string, search: string = ""): Route
 function getPathnameFromRouteState(tab: string, registryId: string | null, settingsSection: string | null = null): string {
   if (tab === "overview") return "/";
   if (tab === "registers") return "/registries";
-  if (tab === "school-setup") return "/setup-registries";
+  if (tab === "school-setup" || tab === "setup-registries") return "/settings?section=registry";
   if (tab === "registries") {
     return registryId ? `/registries/${encodeURIComponent(registryId)}` : "/registries";
   }
   const basePath = `/${tab}`;
-  if (tab === "settings" && settingsSection === "drive-sync") {
-    return `${basePath}?section=drive-sync`;
+  if (tab === "settings" && settingsSection) {
+    return `${basePath}?section=${encodeURIComponent(settingsSection)}`;
   }
   return basePath;
 }
@@ -692,13 +700,13 @@ export default function App() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const routeFocusId =
+    const resolvedSettingsSection =
       activeTab === "setup-registries" || activeTab === "school-setup"
-        ? "setup-and-registries-page"
-        : activeTab === "settings" && settingsSection === "drive-sync"
-          ? "drive-sync-settings-card"
-          : activeTab === "settings"
-          ? "settings-hub"
+        ? "registry"
+        : settingsSection || "organization";
+    const routeFocusId =
+      activeTab === "settings" || activeTab === "setup-registries" || activeTab === "school-setup"
+        ? `settings-section-${resolvedSettingsSection}`
           : (activeTab === "registries" || activeTab === "registers")
             ? (selectedRegistryId ? `${selectedRegistryId}-registry-page` : "registries-registry-page")
             : null;
@@ -751,14 +759,47 @@ export default function App() {
   // Google Sidebar testing state controllers
   const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
   const [connectionTestResult, setConnectionTestResult] = useState<{ success: boolean; message: string } | null>(null);
-  const openSetupCentre = () => {
-    setActiveTab("setup-registries");
-    setMobileMenuOpen(false);
-  };
-  const openSettingsDriveSync = () => {
-    setSettingsSection("drive-sync");
+  const openSettingsSection = (section: string) => {
+    setSettingsSection(section);
     setActiveTab("settings");
     setMobileMenuOpen(false);
+  };
+  const openSetupCentre = () => {
+    openSettingsSection("registry");
+  };
+  const openSettingsDriveSync = () => {
+    openSettingsSection("registry");
+  };
+  const saveWorkspaceConnection = (nextUrl: string) => {
+    const trimmedUrl = String(nextUrl || "").trim();
+    try {
+      if (trimmedUrl) {
+        localStorage.setItem("schooly_workspace_url", trimmedUrl);
+        localStorage.setItem("schooly_workspace_connected", "true");
+      } else {
+        localStorage.removeItem("schooly_workspace_url");
+        localStorage.removeItem("schooly_workspace_connected");
+      }
+    } catch {
+      // Ignore storage restrictions.
+    }
+    clearGoogleSheetReadCache();
+    setWorkspaceUrl(trimmedUrl);
+    setConnectionTestResult(null);
+    setRegistryRefreshVersion((version) => version + 1);
+  };
+  const saveGeminiApiKey = (nextKey: string) => {
+    const trimmedKey = String(nextKey || "").trim();
+    try {
+      if (trimmedKey) {
+        localStorage.setItem("schooly_gemini_api_key", trimmedKey);
+      } else {
+        localStorage.removeItem("schooly_gemini_api_key");
+      }
+    } catch {
+      // Ignore storage restrictions.
+    }
+    setGeminiApiKey(trimmedKey);
   };
 
   const disconnectWorkspaceConnection = () => {
@@ -889,7 +930,7 @@ export default function App() {
     return "bg-slate-400";
   };
 
-  console.log(`[RENDER DIAGNOSTIC] App Component Render. Active Tab: ${activeTab} | Role: ${currentRole} | User: ${currentUser} | showUrlModal: ${showUrlModal} | workspaceUrl: ${workspaceUrl}`);
+  console.log(`[RENDER DIAGNOSTIC] App Component Render. Active Tab: ${activeTab} | Role: ${currentRole} | User: ${currentUser} | workspaceUrl: ${workspaceUrl}`);
 
   // Re-fetch all standard school assets when personas or operators pivot
   useEffect(() => {
@@ -1332,11 +1373,7 @@ export default function App() {
       schoolRegistry={schoolRegistry}
       onRefreshData={fetchAllData}
       onConfigureWorkspace={openSettingsDriveSync}
-      onEditWorkspaceConnection={() => {
-        setTempUrl(workspaceUrl);
-        setTempGeminiKey(geminiApiKey);
-        setShowUrlModal(true);
-      }}
+      onEditWorkspaceConnection={() => openSettingsSection("registry")}
       isWorkspaceConnectionChecking={isTestingConnection}
       onTestWorkspaceConnection={handleTestConnection}
       onDisconnectWorkspace={disconnectWorkspaceConnection}
@@ -1741,7 +1778,25 @@ export default function App() {
         )}
 
         {activeTab === "settings" && (
-          renderDashboardWorkspace("settings")
+          <SettingsPage
+            currentRole={currentRole}
+            currentUser={currentUser}
+            workspaceUrl={workspaceUrl}
+            geminiApiKey={geminiApiKey}
+            schoolRegistry={schoolRegistry}
+            files={files}
+            courses={courses}
+            assignments={assignments}
+            students={students}
+            teachers={teachers}
+            googleWorkspaceAuthState={googleWorkspaceAuthState}
+            onWorkspaceUrlSave={saveWorkspaceConnection}
+            onGeminiApiKeySave={saveGeminiApiKey}
+            onRefreshData={fetchAllData}
+            onNavigateTab={setActiveTab}
+            onDisconnectWorkspace={disconnectWorkspaceConnection}
+            settingsSection={settingsSection}
+          />
         )}
 
         {activeTab === "dashboard-data-source" && (
@@ -1749,11 +1804,47 @@ export default function App() {
         )}
 
         {activeTab === "school-setup" && (
-          renderDashboardWorkspace("setup-registries")
+          <SettingsPage
+            currentRole={currentRole}
+            currentUser={currentUser}
+            workspaceUrl={workspaceUrl}
+            geminiApiKey={geminiApiKey}
+            schoolRegistry={schoolRegistry}
+            files={files}
+            courses={courses}
+            assignments={assignments}
+            students={students}
+            teachers={teachers}
+            googleWorkspaceAuthState={googleWorkspaceAuthState}
+            onWorkspaceUrlSave={saveWorkspaceConnection}
+            onGeminiApiKeySave={saveGeminiApiKey}
+            onRefreshData={fetchAllData}
+            onNavigateTab={setActiveTab}
+            onDisconnectWorkspace={disconnectWorkspaceConnection}
+            settingsSection="registry"
+          />
         )}
 
         {activeTab === "setup-registries" && (
-          renderDashboardWorkspace("setup-registries")
+          <SettingsPage
+            currentRole={currentRole}
+            currentUser={currentUser}
+            workspaceUrl={workspaceUrl}
+            geminiApiKey={geminiApiKey}
+            schoolRegistry={schoolRegistry}
+            files={files}
+            courses={courses}
+            assignments={assignments}
+            students={students}
+            teachers={teachers}
+            googleWorkspaceAuthState={googleWorkspaceAuthState}
+            onWorkspaceUrlSave={saveWorkspaceConnection}
+            onGeminiApiKeySave={saveGeminiApiKey}
+            onRefreshData={fetchAllData}
+            onNavigateTab={setActiveTab}
+            onDisconnectWorkspace={disconnectWorkspaceConnection}
+            settingsSection="registry"
+          />
         )}
 
         {activeTab === "admin-registry-detail" && (

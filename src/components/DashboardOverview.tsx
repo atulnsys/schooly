@@ -2669,14 +2669,14 @@ export default function DashboardOverview({
             >
               Connect Google Sheets Write Access
             </button>
-            <button
-              type="button"
-              onClick={handleDisconnectGoogleWorkspaceWriteAccess}
-              className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-extrabold text-slate-700 hover:bg-slate-100"
-            >
-              Disconnect Write Access
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={handleDisconnectGoogleWorkspaceWriteAccess}
+                className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-extrabold text-slate-700 hover:bg-slate-100"
+              >
+                Disconnect Write Access
+              </button>
+            </div>
           {!googleWorkspaceAuthState.clientIdConfigured && (
             <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
               Google OAuth client ID is not configured.
