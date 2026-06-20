@@ -2077,6 +2077,16 @@ This follow-up tightens dashboard trust signals without changing the app structu
 
 ### Verification
 
+* Lay-user review: the active Settings flow now centers on Organization, Registry Connection, Registry Summary, Application, and Advanced sections instead of a separate wizard surface.
+* The active Settings route is `/settings`, and the legacy `/setup-registries` and `/school-setup` aliases still land in the Registry section of the same Settings page.
+* The registry source link and Google account hint remain editable in Settings; registry values do not silently overwrite the local draft, and write-back stays explicitly gated.
+* `Test Connection` remains read-only. It checks the live auth state, registry URL, registry catalog/source discovery, and readable registry tabs without mutating Drive or Sheets.
+* Registry Summary stays source-backed and dynamic. It shows registry identity, source file/tab, availability, and the current usable/raw/excluded count breakdown instead of hard-coded totals.
+* The Settings-to-Registry Explorer handoff still works for the listed registries, and the summary labels now avoid treating zero or unavailable sources as successful readiness.
+* The Advanced section stays collapsed by default and contains the technical diagnostics, source mapping, and reconciliation details that are not part of the ordinary setup journey.
+* The old dashboard setup/settings presentation was removed from the active render path in `DashboardOverview.tsx`; the current Settings page is now the only live setup surface.
+* Route smoke confirmed that the settings and core app routes still return `200` at `127.0.0.1:3001`.
+* Consent-dependent Google account chooser / connected-account verification was not completed in this environment and remains `PENDING MANUAL VERIFICATION`.
 * `npx tsc --noEmit --pretty false` succeeded.
 * `npm run build` succeeded with the existing Vite chunk-size warning only.
 * Browser/route smoke at `127.0.0.1:3001` succeeded for:
@@ -2095,11 +2105,13 @@ This follow-up tightens dashboard trust signals without changing the app structu
   * `/assignments`
   * `/`
   * `/search`
+* Current commit SHA placeholder: `pending`.
 * No new browser console errors were observed during the route smoke.
 
 ### Commit SHA
 
 * `c655e4b` - `feat: centralize registry settings and auth`
+* `d13fbb3` - `docs: record central settings simplification`
 
 ---
 
