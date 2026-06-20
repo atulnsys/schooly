@@ -1989,6 +1989,120 @@ This follow-up tightens dashboard trust signals without changing the app structu
 
 ---
 
+## Central Settings - Continue Authentication Work and Replace Complex Setup Wizard
+
+### Pending File Assessment
+
+* `src/App.tsx`
+  * Retained and revised.
+  * Central route/state wiring now sends `/settings` and the legacy setup routes to the new settings page.
+* `src/components/DashboardOverview.tsx`
+  * Retained and revised.
+  * The temporary tester link was removed, and the dashboard is no longer the primary settings surface.
+* `src/lib/googleWorkspaceAuth.ts`
+  * Retained and revised.
+  * The helper now exposes read/write auth flows, account hinting, token expiry, and connected-account resolution.
+* `src/components/SettingsPage.tsx`
+  * New production component.
+  * Owns the central settings experience.
+* `vite.config.ts`
+  * Not needed for the final flow and not part of the committed result.
+* `registry-access-check.html`
+  * Temporary diagnostic file removed before commit.
+* `src/registryAccessCheck.ts`
+  * Temporary diagnostic file removed before commit.
+
+### Authentication Result
+
+* Google Identity Services remains the auth foundation.
+* The registry access Google account is treated as a hint and comparison target, not a credential.
+* Read and write auth are now separated.
+* Session-scoped token handling remains in place.
+* The current origin is reported dynamically.
+* The requested authorized origins are `http://127.0.0.1:3001` and `http://localhost:3001`.
+* Connected-account resolution is now exposed in auth state.
+* Account match / mismatch is calculated and shown in the Settings page.
+* No token is logged or rendered.
+
+### Central Settings Page
+
+* Dedicated component: `src/components/SettingsPage.tsx`
+* Final sections:
+  * Organization
+  * Registry Connection
+  * Registry Summary
+  * Application
+  * Advanced
+* Organization fields are editable and can be seeded from live registry values.
+* Registry connection keeps the URL and login hint editable.
+* `Test Connection` is read-only and concise.
+* `Update Registry` requires explicit write authorization and confirmation.
+* Registry Summary uses live counts and does not hard-code registry totals.
+* Registry Explorer handoff is available from the summary cards.
+
+### Setup Flow Changes
+
+* The seven-step wizard is no longer the primary setup path.
+* `/settings` is now the central settings destination.
+* `/setup-registries` and `/school-setup` redirect into the registry section of Settings.
+* Dashboard setup affordances now open the central settings page instead of staying in a separate setup flow.
+* Advanced diagnostics remain collapsed by default.
+
+### Registry Summary and CRUD Rules
+
+* Registry Summary now shows:
+  * Students
+  * Student Enrolments
+  * Staff
+  * Teachers
+  * Classes / Sections
+  * Subjects
+  * Teacher Allocations
+  * Classroom Courses
+  * Assignments
+  * Books / Textbooks
+  * Registry Catalog
+* Counts are dynamic and derived from live state.
+* Registry Explorer remains the handoff point for registry records.
+* CRUD remains capability-gated.
+* Read-only registries stay read-only.
+* Write access is requested only for explicit write operations.
+
+### Temporary Tester Disposal
+
+* `registry-access-check.html` was removed.
+* `src/registryAccessCheck.ts` was removed.
+* The standalone tester was not retained as a production route.
+* Reusable verification logic was folded into Settings.
+
+### Verification
+
+* `npx tsc --noEmit --pretty false` succeeded.
+* `npm run build` succeeded with the existing Vite chunk-size warning only.
+* Browser/route smoke at `127.0.0.1:3001` succeeded for:
+  * `/settings`
+  * `/settings?section=organization`
+  * `/settings?section=registry`
+  * `/settings?section=summary`
+  * `/settings?section=advanced`
+  * `/setup-registries`
+  * `/school-setup`
+  * `/registries`
+  * `/students`
+  * `/staff`
+  * `/teachers`
+  * `/courses`
+  * `/assignments`
+  * `/`
+  * `/search`
+* No new browser console errors were observed during the route smoke.
+
+### Commit SHA
+
+* `c655e4b` - `feat: centralize registry settings and auth`
+
+---
+
 ## Live Registry Data and Setup Centre - Remove Mock Data and Restore Complete Wizard UI
 
 ### Runtime Mock Inventory
