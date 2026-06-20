@@ -548,7 +548,7 @@ function buildRegistryHealthSummary(
       ? `Reconnect ${sourceIssue.label}`
       : `Review ${sourceIssue.label}`)
     : privilegedRole
-      ? "Open Setup Centre"
+      ? "Open Registry Settings"
       : "No setup action required";
 
   return {

@@ -1347,7 +1347,7 @@ export default function App() {
   }, [assignments.length, courses.length, schoolRegistry, schoolRegistryLoading, students.length, tasks.length]);
   const hideRolePersonaWidget = currentRole === "Principal" || currentRole === "Manager";
 
-  const renderDashboardWorkspace = (dashboardView?: "overview" | "role-cards" | "registers" | "settings" | "data-source" | "setup" | "setup-registries" | "registry-detail") => (
+  const renderDashboardWorkspace = (dashboardView?: "overview" | "role-cards" | "registers" | "data-source" | "setup" | "registry-detail") => (
     <DashboardOverview
       files={files}
       courses={courses}
@@ -1373,10 +1373,7 @@ export default function App() {
       schoolRegistry={schoolRegistry}
       onRefreshData={fetchAllData}
       onConfigureWorkspace={openSettingsDriveSync}
-      onEditWorkspaceConnection={() => openSettingsSection("registry")}
       isWorkspaceConnectionChecking={isTestingConnection}
-      onTestWorkspaceConnection={handleTestConnection}
-      onDisconnectWorkspace={disconnectWorkspaceConnection}
       workspaceConnectionTestResult={connectionTestResult}
       registryRefreshVersion={registryRefreshVersion}
     />
