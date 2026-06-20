@@ -2,8 +2,10 @@ import React, { useState, useEffect } from "react";
 import { 
   WorkspaceFile, 
   ClassroomCourse, 
+  ClassroomAssignment,
   TaskItem, 
   StudentDetails,
+  TeacherDetails,
   TeacherPerformanceIndicator,
   MonitoringFormFeed,
   TeacherDashboardData,
@@ -76,6 +78,8 @@ import {
   getGoogleWorkspaceAuthState,
   GOOGLE_WORKSPACE_AUTH_STATE_CHANGED_EVENT
 } from "../lib/googleWorkspaceAuth";
+import LiveDataReconciliationPanel from "./LiveDataReconciliationPanel";
+import type { SchoolRegistryState } from "../lib/schoolRegistry";
 
 
 const EMPTY_REGISTRY_HEALTH_SUMMARY = {
@@ -385,8 +389,10 @@ function formatTeacherDashboardSource(source?: TeacherDashboardSourceReference |
 interface DashboardOverviewProps {
   files: WorkspaceFile[];
   courses: ClassroomCourse[];
+  assignments: ClassroomAssignment[];
   tasks: TaskItem[];
   students: StudentDetails[];
+  teachers: TeacherDetails[];
   currentUser: string;
   currentRole: string;
   onSelectFile: (file: WorkspaceFile) => void;
@@ -408,14 +414,18 @@ interface DashboardOverviewProps {
   academicYearOptions?: string[];
   onAcademicYearChange?: (academicYearLabel: string) => void;
   onOpenRegistryDataRoute?: (registryId: string) => void;
+  schoolRegistry?: SchoolRegistryState | null;
+  onRefreshData?: () => Promise<void> | void;
   dashboardView?: "overview" | "role-cards" | "registers" | "settings" | "data-source" | "setup" | "setup-registries" | "registry-detail";
 }
 
 export default function DashboardOverview({
   files,
   courses,
+  assignments,
   tasks,
   students,
+  teachers,
   currentUser,
   currentRole,
   onSelectFile,
@@ -437,6 +447,8 @@ export default function DashboardOverview({
   academicYearOptions = [],
   onAcademicYearChange,
   onOpenRegistryDataRoute,
+  schoolRegistry = null,
+  onRefreshData,
   dashboardView = "overview"
 }: DashboardOverviewProps) {
   // Widget capability & role verification helper (Phase 4 dynamic permission binding)
@@ -3613,6 +3625,17 @@ export default function DashboardOverview({
         {renderDashboardSourcePanel()}
         {renderRegistryBootstrapPreview()}
         {renderRegistryDetailPanel()}
+        <LiveDataReconciliationPanel
+          files={files}
+          courses={courses}
+          assignments={assignments}
+          students={students}
+          teachers={teachers}
+          schoolRegistry={schoolRegistry}
+          dashboardSourceState={dashboardSourceState}
+          principalDashboard={principalDashboard}
+          onRefreshSources={onRefreshData}
+        />
       </div>
     </div>
   );

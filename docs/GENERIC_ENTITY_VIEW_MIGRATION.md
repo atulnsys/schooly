@@ -83,6 +83,43 @@ Notes:
 * The registry flow now prefers discovered live sheet URLs and only preserves truthful empty or missing states when the Drive folder does not expose a usable source.
 * Classroom runtime data is no longer seeded from mock startup rows; the UI should now depend on the live Classroom or registry-backed data path.
 
+## Live Data Reconciliation - Verify KPI and List Counts Against Registries
+
+Scope:
+
+* Added a read-only reconciliation pass for the live dashboard and registry surfaces.
+* Wrote the reconciliation outputs to:
+  * `artifacts/live-data-reconciliation.json`
+  * `docs/LIVE_DATA_RECONCILIATION_REPORT.md`
+* Verified the live UI surfaces for dashboard KPIs, students, staff, teachers, classroom courses, assignments, resources, registry explorer, lesson plans, and textbooks.
+
+Verification:
+
+* `npx tsc --noEmit --pretty false`
+* `npm run build`
+* `npx tsx scripts/run-live-data-reconciliation.ts`
+
+Results:
+
+* `27` total checks
+* `25` passing
+* `0` failing
+* `0` blocked
+* `2` not applicable
+* Source refresh result: `0/11 connected`
+* Live list counts observed in this environment:
+  * `Students`: `0` rows
+  * `Teachers`: `0` rows
+  * `Classroom Courses`: `5` rows
+  * `Assignments`: `1` row
+  * `Registry Explorer`: `79` entries
+* Mismatches: none
+
+Notes:
+
+* The standalone reconciliation runner needed the live SchoolyTestDrive sheet URLs seeded before it could read the same live source set as the app.
+* In the current browser session, the registry dashboard still reports an unavailable master registry, so the reconciliation remains read-only and truthfully reflects the connected state rather than inventing fallback rows.
+
 ## Existing Generic Framework Files
 
 * `src/lib/genericEntityView.ts`

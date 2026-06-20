@@ -1,0 +1,1105 @@
+{
+  "summary": {
+    "totalChecks": 27,
+    "passing": 25,
+    "failing": 0,
+    "blocked": 0,
+    "notApplicable": 2,
+    "selectedSession": "",
+    "generatedAt": "2026-06-19T19:02:43.890Z",
+    "sourceRefreshResult": "0/11 connected"
+  },
+  "sourceDiscovery": {
+    "discoveredFiles": 4,
+    "mappedSources": 0,
+    "unmappedFiles": 4
+  },
+  "results": [
+    {
+      "id": "dashboard-active-students",
+      "category": "Dashboard KPIs",
+      "surfaceName": "Active Students",
+      "route": "/",
+      "sourceRegistryIds": [
+        "masterDataRegistryUrl"
+      ],
+      "sourceLabels": [
+        "Master Registry / Student_Directory"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "Schooly_Master_Data_Registry",
+      "sourceTab": "Student_Directory",
+      "sourceRowCount": 0,
+      "eligibleSourceRowCount": 0,
+      "expectedValue": 0,
+      "actualValue": 0,
+      "expectedIds": [],
+      "actualIds": [],
+      "notes": [
+        "Active student rows are derived from Student_Directory + Student_Enrollment."
+      ],
+      "status": "pass"
+    },
+    {
+      "id": "dashboard-active-staff",
+      "category": "Dashboard KPIs",
+      "surfaceName": "Active Staff",
+      "route": "/",
+      "sourceRegistryIds": [
+        "masterDataRegistryUrl"
+      ],
+      "sourceLabels": [
+        "Master Registry / Staff_Directory"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "Schooly_Master_Data_Registry",
+      "sourceTab": "Staff_Directory",
+      "sourceRowCount": 0,
+      "eligibleSourceRowCount": 0,
+      "expectedValue": 0,
+      "actualValue": 0,
+      "expectedIds": [],
+      "actualIds": [],
+      "notes": [
+        "Principal dashboard staff coverage is sourced from teacher performance indicators."
+      ],
+      "status": "pass"
+    },
+    {
+      "id": "dashboard-active-class-sections",
+      "category": "Dashboard KPIs",
+      "surfaceName": "Active Class Sections",
+      "route": "/",
+      "sourceRegistryIds": [
+        "masterDataRegistryUrl"
+      ],
+      "sourceLabels": [
+        "Master Registry / Classes_Sections"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "Schooly_Master_Data_Registry",
+      "sourceTab": "Classes_Sections",
+      "sourceRowCount": 0,
+      "eligibleSourceRowCount": 0,
+      "expectedValue": 0,
+      "actualValue": 0,
+      "expectedIds": [],
+      "actualIds": [],
+      "notes": [
+        "The dashboard uses the live classroom monitoring count when available."
+      ],
+      "status": "pass"
+    },
+    {
+      "id": "dashboard-teacher-allocation-coverage",
+      "category": "Dashboard KPIs",
+      "surfaceName": "Teacher Allocation Coverage",
+      "route": "/",
+      "sourceRegistryIds": [
+        "dashboardDataSourceUrl",
+        "masterDataRegistryUrl"
+      ],
+      "sourceLabels": [
+        "Dashboard Data Source / Planner_Submissions",
+        "Master Registry / Teacher_Allocations"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "Dashboard Data Source",
+      "sourceTab": "Planner_Submissions",
+      "sourceRowCount": 0,
+      "eligibleSourceRowCount": 0,
+      "expectedValue": "0%",
+      "actualValue": "0%",
+      "expectedIds": [],
+      "actualIds": [],
+      "notes": [
+        "Coverage is calculated from dashboard planner submission rows."
+      ],
+      "status": "pass"
+    },
+    {
+      "id": "dashboard-google-classroom-courses",
+      "category": "Dashboard KPIs",
+      "surfaceName": "Google Classroom Courses",
+      "route": "/",
+      "sourceRegistryIds": [
+        "classroomSyncRegistryUrl"
+      ],
+      "sourceLabels": [
+        "Google Classroom Sync Registry / Classroom_Course_Map"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "Google Classroom Sync Registry",
+      "sourceTab": "Classroom_Course_Map",
+      "sourceRowCount": 5,
+      "eligibleSourceRowCount": 5,
+      "expectedValue": 5,
+      "actualValue": 5,
+      "expectedIds": [
+        "course-x-a-eng",
+        "course-viii-a-sci",
+        "course-vii-b-math",
+        "course-ix-b-sst",
+        "course-viii-a-sci-prev"
+      ],
+      "actualIds": [
+        "course-x-a-eng",
+        "course-viii-a-sci",
+        "course-vii-b-math",
+        "course-ix-b-sst",
+        "course-viii-a-sci-prev"
+      ],
+      "notes": [
+        "The classroom course list is sourced from the live classroom feed."
+      ],
+      "status": "pass"
+    },
+    {
+      "id": "dashboard-attendance-engagement",
+      "category": "Dashboard KPIs",
+      "surfaceName": "Attendance / Engagement",
+      "route": "/",
+      "sourceRegistryIds": [
+        "dashboardDataSourceUrl"
+      ],
+      "sourceLabels": [
+        "Dashboard Data Source / Attendance_Summary"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "Dashboard Data Source",
+      "sourceTab": "Attendance_Summary",
+      "sourceRowCount": 0,
+      "eligibleSourceRowCount": 0,
+      "expectedValue": "0%",
+      "actualValue": "0%",
+      "expectedIds": [
+        "attendance-0"
+      ],
+      "actualIds": [
+        "attendance-0"
+      ],
+      "notes": [
+        "The engagement card reflects the principal classroom-monitoring source."
+      ],
+      "status": "pass"
+    },
+    {
+      "id": "dashboard-alerts",
+      "category": "Dashboard KPIs",
+      "surfaceName": "Alerts",
+      "route": "/",
+      "sourceRegistryIds": [
+        "dashboardDataSourceUrl"
+      ],
+      "sourceLabels": [
+        "Dashboard Data Source / Alert_Log"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "Dashboard Data Source",
+      "sourceTab": "Alert_Log",
+      "sourceRowCount": 0,
+      "eligibleSourceRowCount": 0,
+      "expectedValue": 0,
+      "actualValue": 0,
+      "expectedIds": [],
+      "actualIds": [],
+      "notes": [
+        "Dashboard alerts are source-driven and rendered directly from the live dashboard feed."
+      ],
+      "status": "pass"
+    },
+    {
+      "id": "dashboard-assessments",
+      "category": "Dashboard KPIs",
+      "surfaceName": "Assessments",
+      "route": "/",
+      "sourceRegistryIds": [
+        "assessmentResultRegistryUrl"
+      ],
+      "sourceLabels": [
+        "Assessment/Result Registry / Assessment_Plan"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "Assessment/Result Registry",
+      "sourceTab": "Assessment_Plan",
+      "sourceRowCount": 0,
+      "eligibleSourceRowCount": 0,
+      "expectedValue": 0,
+      "actualValue": 0,
+      "expectedIds": [
+        "assessments-0"
+      ],
+      "actualIds": [
+        "assessments-0"
+      ],
+      "notes": [
+        "Assessment KPI uses the live assessment/result registry row count."
+      ],
+      "status": "pass"
+    },
+    {
+      "id": "dashboard-lesson-workspace",
+      "category": "Dashboard KPIs",
+      "surfaceName": "Lesson Workspace",
+      "route": "/",
+      "sourceRegistryIds": [
+        "lessonWorkspaceRegistryUrl"
+      ],
+      "sourceLabels": [
+        "Lesson Workspace Registry / Lesson_Workspace_Registry"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "Lesson Workspace Registry",
+      "sourceTab": "Lesson_Workspace_Registry",
+      "sourceRowCount": 0,
+      "eligibleSourceRowCount": 0,
+      "expectedValue": 0,
+      "actualValue": 0,
+      "expectedIds": [
+        "lesson-workspace-0"
+      ],
+      "actualIds": [
+        "lesson-workspace-0"
+      ],
+      "notes": [
+        "Lesson Workspace is sourced from the live lesson registry."
+      ],
+      "status": "pass"
+    },
+    {
+      "id": "dashboard-sqaa-evidence",
+      "category": "Dashboard KPIs",
+      "surfaceName": "SQAA Evidence",
+      "route": "/",
+      "sourceRegistryIds": [
+        "qaSqaaRegistryUrl"
+      ],
+      "sourceLabels": [
+        "QA/SQAA Registry / SQAA_Evidence_Map"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "QA/SQAA Registry",
+      "sourceTab": "SQAA_Evidence_Map",
+      "sourceRowCount": 0,
+      "eligibleSourceRowCount": 0,
+      "expectedValue": 0,
+      "actualValue": 0,
+      "expectedIds": [
+        "sqaa-evidence-0"
+      ],
+      "actualIds": [
+        "sqaa-evidence-0"
+      ],
+      "notes": [
+        "SQAA evidence is counted from the live QA/SQAA registry."
+      ],
+      "status": "pass"
+    },
+    {
+      "id": "students-page",
+      "category": "Students and SIS",
+      "surfaceName": "Students",
+      "route": "/students",
+      "sourceRegistryIds": [
+        "masterDataRegistryUrl"
+      ],
+      "sourceLabels": [
+        "Master Registry / Student_Directory + Student_Enrollment"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "Schooly_Master_Data_Registry",
+      "sourceTab": "Student_Directory",
+      "sourceRowCount": 0,
+      "eligibleSourceRowCount": 0,
+      "expectedValue": 0,
+      "actualValue": 0,
+      "expectedIds": [],
+      "actualIds": [],
+      "status": "pass"
+    },
+    {
+      "id": "staff-page",
+      "category": "Staff and Teachers",
+      "surfaceName": "Staff",
+      "route": "/staff",
+      "sourceRegistryIds": [
+        "masterDataRegistryUrl"
+      ],
+      "sourceLabels": [
+        "Master Registry / Staff_Directory"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "Schooly_Master_Data_Registry",
+      "sourceTab": "Staff_Directory",
+      "sourceRowCount": 0,
+      "eligibleSourceRowCount": 0,
+      "expectedValue": 0,
+      "actualValue": 0,
+      "expectedIds": [],
+      "actualIds": [],
+      "notes": [
+        "Staff rows are rendered directly from the master registry directory."
+      ],
+      "status": "pass"
+    },
+    {
+      "id": "teachers-page",
+      "category": "Staff and Teachers",
+      "surfaceName": "Teachers",
+      "route": "/teachers",
+      "sourceRegistryIds": [
+        "masterDataRegistryUrl"
+      ],
+      "sourceLabels": [
+        "Master Registry / Staff_Directory + Teacher_Allocations"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "Schooly_Master_Data_Registry",
+      "sourceTab": "Teacher_Allocations",
+      "sourceRowCount": 0,
+      "eligibleSourceRowCount": 0,
+      "expectedValue": 0,
+      "actualValue": 0,
+      "expectedIds": [],
+      "actualIds": [],
+      "status": "pass"
+    },
+    {
+      "id": "courses-page",
+      "category": "Classroom Courses and Assignments",
+      "surfaceName": "Classroom Courses",
+      "route": "/courses",
+      "sourceRegistryIds": [
+        "classroomSyncRegistryUrl"
+      ],
+      "sourceLabels": [
+        "Google Classroom Sync Registry / Classroom_Course_Map"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "Google Classroom Sync Registry",
+      "sourceTab": "Classroom_Course_Map",
+      "sourceRowCount": 5,
+      "eligibleSourceRowCount": 5,
+      "expectedValue": 5,
+      "actualValue": 5,
+      "expectedIds": [
+        "course-x-a-eng",
+        "course-viii-a-sci",
+        "course-vii-b-math",
+        "course-ix-b-sst",
+        "course-viii-a-sci-prev"
+      ],
+      "actualIds": [
+        "course-x-a-eng",
+        "course-viii-a-sci",
+        "course-vii-b-math",
+        "course-ix-b-sst",
+        "course-viii-a-sci-prev"
+      ],
+      "status": "pass"
+    },
+    {
+      "id": "assignments-page",
+      "category": "Classroom Courses and Assignments",
+      "surfaceName": "Assignments",
+      "route": "/assignments",
+      "sourceRegistryIds": [
+        "classroomSyncRegistryUrl"
+      ],
+      "sourceLabels": [
+        "Google Classroom Sync Registry / Classroom_Assignment_Map"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "Google Classroom Sync Registry",
+      "sourceTab": "Classroom_Assignment_Map",
+      "sourceRowCount": 1,
+      "eligibleSourceRowCount": 1,
+      "expectedValue": 1,
+      "actualValue": 1,
+      "expectedIds": [
+        "cw-001"
+      ],
+      "actualIds": [
+        "cw-001"
+      ],
+      "status": "pass"
+    },
+    {
+      "id": "sis-roster",
+      "category": "Students and SIS",
+      "surfaceName": "Synced SIS Pupil Roster",
+      "route": "/students",
+      "sourceRegistryIds": [
+        "masterDataRegistryUrl",
+        "classroomSyncRegistryUrl"
+      ],
+      "sourceLabels": [
+        "Master Registry / Student_Directory",
+        "Google Classroom Sync Registry / Classroom_Submission_Sync"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "Schooly_Master_Data_Registry",
+      "sourceTab": "Student_Enrollment",
+      "sourceRowCount": 0,
+      "eligibleSourceRowCount": 0,
+      "expectedValue": 0,
+      "actualValue": 0,
+      "expectedIds": [],
+      "actualIds": [],
+      "notes": [
+        "This check uses the same live student rows that feed the Students page."
+      ],
+      "status": "pass"
+    },
+    {
+      "id": "registry-explorer",
+      "category": "Registry readiness",
+      "surfaceName": "Registry Explorer",
+      "route": "/registries",
+      "sourceRegistryIds": [
+        "registry-catalog",
+        "registry-schema"
+      ],
+      "sourceLabels": [
+        "Registry Catalog",
+        "Registry Schema"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "registryCatalog.tsx / registrySchema.ts",
+      "sourceTab": "Registry Explorer",
+      "sourceRowCount": 79,
+      "eligibleSourceRowCount": 79,
+      "expectedValue": 79,
+      "actualValue": 79,
+      "expectedIds": [
+        "students",
+        "teachers",
+        "staff",
+        "courses",
+        "assignments",
+        "classroom-roster",
+        "workspace-files",
+        "lesson-plans",
+        "textbooks",
+        "masterDataRegistryUrl__school-profile",
+        "masterDataRegistryUrl__academic-years",
+        "masterDataRegistryUrl__classes-sections",
+        "masterDataRegistryUrl__subjects",
+        "masterDataRegistryUrl__staff-directory",
+        "REG_TEACHER_ALLOCATIONS",
+        "masterDataRegistryUrl__department-scope",
+        "masterDataRegistryUrl__coordinator-scope",
+        "masterDataRegistryUrl__timetable",
+        "masterDataRegistryUrl__student-directory",
+        "masterDataRegistryUrl__student-enrollment",
+        "masterDataRegistryUrl__books-registry",
+        "masterDataRegistryUrl__book-toc-registry",
+        "masterDataRegistryUrl__registry-bootstrap-log",
+        "masterDataRegistryUrl__registry-summary",
+        "ncertRegistryUrl__ncert-book-registry",
+        "ncertRegistryUrl__ncert-chapter-registry",
+        "ncertRegistryUrl__ncert-registry-source-map",
+        "ncertRegistryUrl__ncert-registry-audit-log",
+        "ncertRegistryUrl__readme",
+        "ncertPrivateDriveMapUrl__ncert-drive-source-folders",
+        "ncertPrivateDriveMapUrl__ncert-chapter-file-map",
+        "lessonWorkspaceRegistryUrl__lesson-workspace-registry",
+        "lessonWorkspaceRegistryUrl__artifact-registry",
+        "lessonWorkspaceRegistryUrl__lesson-execution-log",
+        "lessonWorkspaceRegistryUrl__classroom-publish-log",
+        "qaSqaaRegistryUrl__qa-checklist-config",
+        "qaSqaaRegistryUrl__qa-review-log",
+        "qaSqaaRegistryUrl__sqaa-evidence-map",
+        "qaSqaaRegistryUrl__compliance-report-registry",
+        "schoolyStrategicOperationsRegistryUrl__budget-utilization",
+        "schoolyStrategicOperationsRegistryUrl__strategic-milestones",
+        "schoolyStrategicOperationsRegistryUrl__operational-checklist",
+        "hodEnrichmentOlympiadRegistryUrl__enrichment-programmes",
+        "hodEnrichmentOlympiadRegistryUrl__olympiad-registrations",
+        "hodEnrichmentOlympiadRegistryUrl__enrichment-resources",
+        "hodEnrichmentOlympiadRegistryUrl__enrichment-classroom-posts",
+        "dashboardDataSourceUrl__kpi-definitions",
+        "dashboardDataSourceUrl__dashboard-kpi-source",
+        "dashboardDataSourceUrl__curriculum-coverage",
+        "dashboardDataSourceUrl__assessment-tracking",
+        "dashboardDataSourceUrl__alert-log",
+        "dashboardDataSourceUrl__dashboard-kpi-definitions",
+        "dashboardDataSourceUrl__dashboard-metrics",
+        "dashboardDataSourceUrl__planner-submissions",
+        "dashboardDataSourceUrl__classroom-activity",
+        "dashboardDataSourceUrl__notebook-monitoring",
+        "dashboardDataSourceUrl__attendance-summary",
+        "dashboardDataSourceUrl__syllabus-coverage",
+        "dashboardDataSourceUrl__compliance-evidence-summary",
+        "dashboardDataSourceUrl__evidence-gaps",
+        "dashboardDataSourceUrl__dashboard-alerts",
+        "dashboardDataSourceUrl__dashboard-source-log",
+        "assessmentResultRegistryUrl__assessment-plan",
+        "assessmentResultRegistryUrl__exam-calendar",
+        "assessmentResultRegistryUrl__question-paper-registry",
+        "assessmentResultRegistryUrl__marks-entry",
+        "assessmentResultRegistryUrl__result-processing",
+        "assessmentResultRegistryUrl__report-card-registry",
+        "assessmentResultRegistryUrl__result-analysis",
+        "assessmentResultRegistryUrl__invigilation-olympiad-duties",
+        "classroomSyncRegistryUrl__classroom-course-map",
+        "classroomSyncRegistryUrl__classroom-assignment-map",
+        "classroomSyncRegistryUrl__classroom-submission-sync",
+        "classroomSyncRegistryUrl__classroom-sync-log",
+        "classroomSyncRegistryUrl__classroom-announcement-sync",
+        "teacherCpdRenewalRegistryUrl__teacher-cpd-status",
+        "teacherCpdRenewalRegistryUrl__mandatory-training",
+        "teacherCpdRenewalRegistryUrl__certification-renewals",
+        "teacherCpdRenewalRegistryUrl__review-action-log"
+      ],
+      "actualIds": [
+        "students",
+        "teachers",
+        "staff",
+        "courses",
+        "assignments",
+        "classroom-roster",
+        "workspace-files",
+        "lesson-plans",
+        "textbooks",
+        "masterDataRegistryUrl__school-profile",
+        "masterDataRegistryUrl__academic-years",
+        "masterDataRegistryUrl__classes-sections",
+        "masterDataRegistryUrl__subjects",
+        "masterDataRegistryUrl__staff-directory",
+        "REG_TEACHER_ALLOCATIONS",
+        "masterDataRegistryUrl__department-scope",
+        "masterDataRegistryUrl__coordinator-scope",
+        "masterDataRegistryUrl__timetable",
+        "masterDataRegistryUrl__student-directory",
+        "masterDataRegistryUrl__student-enrollment",
+        "masterDataRegistryUrl__books-registry",
+        "masterDataRegistryUrl__book-toc-registry",
+        "masterDataRegistryUrl__registry-bootstrap-log",
+        "masterDataRegistryUrl__registry-summary",
+        "ncertRegistryUrl__ncert-book-registry",
+        "ncertRegistryUrl__ncert-chapter-registry",
+        "ncertRegistryUrl__ncert-registry-source-map",
+        "ncertRegistryUrl__ncert-registry-audit-log",
+        "ncertRegistryUrl__readme",
+        "ncertPrivateDriveMapUrl__ncert-drive-source-folders",
+        "ncertPrivateDriveMapUrl__ncert-chapter-file-map",
+        "lessonWorkspaceRegistryUrl__lesson-workspace-registry",
+        "lessonWorkspaceRegistryUrl__artifact-registry",
+        "lessonWorkspaceRegistryUrl__lesson-execution-log",
+        "lessonWorkspaceRegistryUrl__classroom-publish-log",
+        "qaSqaaRegistryUrl__qa-checklist-config",
+        "qaSqaaRegistryUrl__qa-review-log",
+        "qaSqaaRegistryUrl__sqaa-evidence-map",
+        "qaSqaaRegistryUrl__compliance-report-registry",
+        "schoolyStrategicOperationsRegistryUrl__budget-utilization",
+        "schoolyStrategicOperationsRegistryUrl__strategic-milestones",
+        "schoolyStrategicOperationsRegistryUrl__operational-checklist",
+        "hodEnrichmentOlympiadRegistryUrl__enrichment-programmes",
+        "hodEnrichmentOlympiadRegistryUrl__olympiad-registrations",
+        "hodEnrichmentOlympiadRegistryUrl__enrichment-resources",
+        "hodEnrichmentOlympiadRegistryUrl__enrichment-classroom-posts",
+        "dashboardDataSourceUrl__kpi-definitions",
+        "dashboardDataSourceUrl__dashboard-kpi-source",
+        "dashboardDataSourceUrl__curriculum-coverage",
+        "dashboardDataSourceUrl__assessment-tracking",
+        "dashboardDataSourceUrl__alert-log",
+        "dashboardDataSourceUrl__dashboard-kpi-definitions",
+        "dashboardDataSourceUrl__dashboard-metrics",
+        "dashboardDataSourceUrl__planner-submissions",
+        "dashboardDataSourceUrl__classroom-activity",
+        "dashboardDataSourceUrl__notebook-monitoring",
+        "dashboardDataSourceUrl__attendance-summary",
+        "dashboardDataSourceUrl__syllabus-coverage",
+        "dashboardDataSourceUrl__compliance-evidence-summary",
+        "dashboardDataSourceUrl__evidence-gaps",
+        "dashboardDataSourceUrl__dashboard-alerts",
+        "dashboardDataSourceUrl__dashboard-source-log",
+        "assessmentResultRegistryUrl__assessment-plan",
+        "assessmentResultRegistryUrl__exam-calendar",
+        "assessmentResultRegistryUrl__question-paper-registry",
+        "assessmentResultRegistryUrl__marks-entry",
+        "assessmentResultRegistryUrl__result-processing",
+        "assessmentResultRegistryUrl__report-card-registry",
+        "assessmentResultRegistryUrl__result-analysis",
+        "assessmentResultRegistryUrl__invigilation-olympiad-duties",
+        "classroomSyncRegistryUrl__classroom-course-map",
+        "classroomSyncRegistryUrl__classroom-assignment-map",
+        "classroomSyncRegistryUrl__classroom-submission-sync",
+        "classroomSyncRegistryUrl__classroom-sync-log",
+        "classroomSyncRegistryUrl__classroom-announcement-sync",
+        "teacherCpdRenewalRegistryUrl__teacher-cpd-status",
+        "teacherCpdRenewalRegistryUrl__mandatory-training",
+        "teacherCpdRenewalRegistryUrl__certification-renewals",
+        "teacherCpdRenewalRegistryUrl__review-action-log"
+      ],
+      "notes": [
+        "Ready 13, empty 0, missing 58."
+      ],
+      "status": "pass"
+    },
+    {
+      "id": "reg-staff-directory",
+      "category": "Registry readiness",
+      "surfaceName": "REG_STAFF_DIRECTORY",
+      "route": "/registries/REG_STAFF_DIRECTORY",
+      "sourceRegistryIds": [
+        "masterDataRegistryUrl"
+      ],
+      "sourceLabels": [
+        "Master Registry / Staff_Directory"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "Schooly_Master_Data_Registry",
+      "sourceTab": "Staff_Directory",
+      "sourceRowCount": 0,
+      "eligibleSourceRowCount": 0,
+      "expectedValue": 0,
+      "actualValue": 0,
+      "expectedIds": [],
+      "actualIds": [],
+      "status": "pass"
+    },
+    {
+      "id": "reg-teacher-allocations",
+      "category": "Registry readiness",
+      "surfaceName": "REG_TEACHER_ALLOCATIONS",
+      "route": "/registries/REG_TEACHER_ALLOCATIONS",
+      "sourceRegistryIds": [
+        "masterDataRegistryUrl"
+      ],
+      "sourceLabels": [
+        "Master Registry / Teacher_Allocations"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "Schooly_Master_Data_Registry",
+      "sourceTab": "Teacher_Allocations",
+      "sourceRowCount": 0,
+      "eligibleSourceRowCount": 0,
+      "expectedValue": 0,
+      "actualValue": 0,
+      "expectedIds": [],
+      "actualIds": [],
+      "status": "pass"
+    },
+    {
+      "id": "classes-sections-registry",
+      "category": "Registry readiness",
+      "surfaceName": "Classes Sections registry",
+      "route": "/registries/REG_CLASSES_SECTIONS",
+      "sourceRegistryIds": [
+        "masterDataRegistryUrl"
+      ],
+      "sourceLabels": [
+        "Master Registry / Classes_Sections"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "Schooly_Master_Data_Registry",
+      "sourceTab": "Classes_Sections",
+      "sourceRowCount": 0,
+      "eligibleSourceRowCount": 0,
+      "expectedValue": 0,
+      "actualValue": 0,
+      "expectedIds": [],
+      "actualIds": [],
+      "status": "pass"
+    },
+    {
+      "id": "subjects-registry",
+      "category": "Registry readiness",
+      "surfaceName": "Subjects registry",
+      "route": "/registries/REG_SUBJECTS",
+      "sourceRegistryIds": [
+        "masterDataRegistryUrl"
+      ],
+      "sourceLabels": [
+        "Master Registry / Subjects"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "Schooly_Master_Data_Registry",
+      "sourceTab": "Subjects",
+      "sourceRowCount": 0,
+      "eligibleSourceRowCount": 0,
+      "expectedValue": 0,
+      "actualValue": 0,
+      "expectedIds": [],
+      "actualIds": [],
+      "status": "pass"
+    },
+    {
+      "id": "resources-page",
+      "category": "Other registry-backed pages",
+      "surfaceName": "Resources",
+      "route": "/resources",
+      "sourceRegistryIds": [
+        "workspace-files",
+        "lessonWorkspaceRegistryUrl",
+        "ncertRegistryUrl",
+        "qaSqaaRegistryUrl"
+      ],
+      "sourceLabels": [
+        "Workspace files",
+        "Lesson Workspace Registry",
+        "NCERT English Medium Registry",
+        "QA/SQAA Registry"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "workspace files",
+      "sourceTab": "resource library",
+      "sourceRowCount": 19,
+      "eligibleSourceRowCount": 19,
+      "expectedValue": 19,
+      "actualValue": 19,
+      "expectedIds": [
+        "workspace:doc-activity-sheet-viii-sci-ch01:activity_sheet",
+        "workspace:sim-mth-alg-planner-1MtSCwTyIMCg8v0b9TXuY7Oyx1F2o14a7:activity_sheet",
+        "workspace:pdf-fire-drill-cert:raw_markdown",
+        "workspace:doc-annual-plan-x-eng:activity_sheet",
+        "workspace:sim-eng-lit-planner-1MtSCwTyIMCg8v0b9TXuY7Oyx1F2o14a7:activity_sheet",
+        "workspace:doc-assess-bank-viii-sci-ch01:assessment_bank",
+        "workspace:doc-qbank-clx-chem:question_bank",
+        "workspace:sim-viii-sci-rubric-1MtSCwTyIMCg8v0b9TXuY7Oyx1F2o14a7:outline",
+        "workspace:sim-viii-sci-planner-1MtSCwTyIMCg8v0b9TXuY7Oyx1F2o14a7:activity_sheet",
+        "workspace:doc-lesson-plan-ch01-en:lesson_plan",
+        "workspace:doc-lesplan-viii-sci-ch01:lesson_plan",
+        "workspace:ppt-lecture-slides-viii-sci-ch01:slides",
+        "workspace:pdf-ptm-circ-may:raw_markdown",
+        "workspace:doc-question-bank-viii-sci-ch01:question_bank",
+        "workspace:doc-rem-eng-clx:raw_markdown",
+        "workspace:doc-rubric-viii-sci-ch01:rubric",
+        "workspace:doc-archived-003:sqaa_links",
+        "workspace:sheet-ut3-results:raw_markdown",
+        "workspace:doc-worksheet-master-viii-sci-ch01:worksheet"
+      ],
+      "actualIds": [
+        "workspace:doc-activity-sheet-viii-sci-ch01:activity_sheet",
+        "workspace:sim-mth-alg-planner-1MtSCwTyIMCg8v0b9TXuY7Oyx1F2o14a7:activity_sheet",
+        "workspace:pdf-fire-drill-cert:raw_markdown",
+        "workspace:doc-annual-plan-x-eng:activity_sheet",
+        "workspace:sim-eng-lit-planner-1MtSCwTyIMCg8v0b9TXuY7Oyx1F2o14a7:activity_sheet",
+        "workspace:doc-assess-bank-viii-sci-ch01:assessment_bank",
+        "workspace:doc-qbank-clx-chem:question_bank",
+        "workspace:sim-viii-sci-rubric-1MtSCwTyIMCg8v0b9TXuY7Oyx1F2o14a7:outline",
+        "workspace:sim-viii-sci-planner-1MtSCwTyIMCg8v0b9TXuY7Oyx1F2o14a7:activity_sheet",
+        "workspace:doc-lesson-plan-ch01-en:lesson_plan",
+        "workspace:doc-lesplan-viii-sci-ch01:lesson_plan",
+        "workspace:ppt-lecture-slides-viii-sci-ch01:slides",
+        "workspace:pdf-ptm-circ-may:raw_markdown",
+        "workspace:doc-question-bank-viii-sci-ch01:question_bank",
+        "workspace:doc-rem-eng-clx:raw_markdown",
+        "workspace:doc-rubric-viii-sci-ch01:rubric",
+        "workspace:doc-archived-003:sqaa_links",
+        "workspace:sheet-ut3-results:raw_markdown",
+        "workspace:doc-worksheet-master-viii-sci-ch01:worksheet"
+      ],
+      "status": "pass"
+    },
+    {
+      "id": "lesson-plans-page",
+      "category": "Other registry-backed pages",
+      "surfaceName": "Lesson Plans",
+      "route": "/lesson-plans",
+      "sourceRegistryIds": [
+        "lessonWorkspaceRegistryUrl"
+      ],
+      "sourceLabels": [
+        "Lesson Workspace Registry / lesson plan archive"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "Lesson Workspace Registry",
+      "sourceTab": "lesson plan archive",
+      "sourceRowCount": 0,
+      "eligibleSourceRowCount": 0,
+      "expectedValue": 0,
+      "actualValue": 0,
+      "status": "not_applicable",
+      "notes": [
+        "Lesson plan archive rows are browser-local and not guaranteed to be populated in this verification run."
+      ]
+    },
+    {
+      "id": "textbooks-page",
+      "category": "Other registry-backed pages",
+      "surfaceName": "Textbooks",
+      "route": "/textbooks",
+      "sourceRegistryIds": [
+        "ncertRegistryUrl",
+        "ncertPrivateDriveMapUrl"
+      ],
+      "sourceLabels": [
+        "NCERT English Medium Registry",
+        "NCERT Private Map"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "NCERT Registry",
+      "sourceTab": "NCERT_Book_Registry",
+      "sourceRowCount": 0,
+      "eligibleSourceRowCount": 0,
+      "expectedValue": 0,
+      "actualValue": 0,
+      "status": "not_applicable",
+      "notes": [
+        "Textbook ingestion is contextual and may not expose a stable row count without an active import session."
+      ]
+    },
+    {
+      "id": "settings-ready-count",
+      "category": "Registry readiness",
+      "surfaceName": "Settings ready count",
+      "route": "/settings?section=drive-sync",
+      "sourceRegistryIds": [
+        "masterDataRegistryUrl",
+        "ncertPrivateDriveMapUrl",
+        "lessonWorkspaceRegistryUrl",
+        "qaSqaaRegistryUrl",
+        "dashboardDataSourceUrl",
+        "assessmentResultRegistryUrl",
+        "classroomSyncRegistryUrl",
+        "teacherCpdRenewalRegistryUrl",
+        "ncertRegistryUrl",
+        "hodEnrichmentOlympiadRegistryUrl",
+        "schoolyStrategicOperationsRegistryUrl"
+      ],
+      "sourceLabels": [
+        "All configured registries"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "Dashboard Source State",
+      "sourceTab": "registry_health_summary",
+      "sourceRowCount": 11,
+      "eligibleSourceRowCount": 0,
+      "expectedValue": "0/11",
+      "actualValue": "0/11",
+      "expectedIds": [
+        "ready-0"
+      ],
+      "actualIds": [
+        "ready-0"
+      ],
+      "status": "pass"
+    },
+    {
+      "id": "setup-centre-ready-count",
+      "category": "Registry readiness",
+      "surfaceName": "Setup Centre ready count",
+      "route": "/setup-registries",
+      "sourceRegistryIds": [
+        "masterDataRegistryUrl",
+        "ncertPrivateDriveMapUrl",
+        "lessonWorkspaceRegistryUrl",
+        "qaSqaaRegistryUrl",
+        "dashboardDataSourceUrl",
+        "assessmentResultRegistryUrl",
+        "classroomSyncRegistryUrl",
+        "teacherCpdRenewalRegistryUrl",
+        "ncertRegistryUrl",
+        "hodEnrichmentOlympiadRegistryUrl",
+        "schoolyStrategicOperationsRegistryUrl"
+      ],
+      "sourceLabels": [
+        "All configured registries"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "Dashboard Source State",
+      "sourceTab": "registry_health_summary",
+      "sourceRowCount": 11,
+      "eligibleSourceRowCount": 0,
+      "expectedValue": "0/11",
+      "actualValue": "0/11",
+      "expectedIds": [
+        "ready-0"
+      ],
+      "actualIds": [
+        "ready-0"
+      ],
+      "status": "pass"
+    },
+    {
+      "id": "registry-explorer-ready-totals",
+      "category": "Registry readiness",
+      "surfaceName": "Registry Explorer ready/empty/missing totals",
+      "route": "/registries",
+      "sourceRegistryIds": [
+        "registry-catalog",
+        "registry-schema"
+      ],
+      "sourceLabels": [
+        "Registry Catalog",
+        "Registry Schema"
+      ],
+      "sourceState": "0/11 connected",
+      "sourceFile": "registryCatalog.tsx / registrySchema.ts",
+      "sourceTab": "Registry Explorer",
+      "sourceRowCount": 79,
+      "eligibleSourceRowCount": 79,
+      "expectedValue": "4/43",
+      "actualValue": "4/43",
+      "expectedIds": [
+        "students",
+        "teachers",
+        "staff",
+        "courses",
+        "assignments",
+        "classroom-roster",
+        "workspace-files",
+        "lesson-plans",
+        "textbooks",
+        "masterDataRegistryUrl__school-profile",
+        "masterDataRegistryUrl__academic-years",
+        "masterDataRegistryUrl__classes-sections",
+        "masterDataRegistryUrl__subjects",
+        "masterDataRegistryUrl__staff-directory",
+        "REG_TEACHER_ALLOCATIONS",
+        "masterDataRegistryUrl__department-scope",
+        "masterDataRegistryUrl__coordinator-scope",
+        "masterDataRegistryUrl__timetable",
+        "masterDataRegistryUrl__student-directory",
+        "masterDataRegistryUrl__student-enrollment",
+        "masterDataRegistryUrl__books-registry",
+        "masterDataRegistryUrl__book-toc-registry",
+        "masterDataRegistryUrl__registry-bootstrap-log",
+        "masterDataRegistryUrl__registry-summary",
+        "ncertRegistryUrl__ncert-book-registry",
+        "ncertRegistryUrl__ncert-chapter-registry",
+        "ncertRegistryUrl__ncert-registry-source-map",
+        "ncertRegistryUrl__ncert-registry-audit-log",
+        "ncertRegistryUrl__readme",
+        "ncertPrivateDriveMapUrl__ncert-drive-source-folders",
+        "ncertPrivateDriveMapUrl__ncert-chapter-file-map",
+        "lessonWorkspaceRegistryUrl__lesson-workspace-registry",
+        "lessonWorkspaceRegistryUrl__artifact-registry",
+        "lessonWorkspaceRegistryUrl__lesson-execution-log",
+        "lessonWorkspaceRegistryUrl__classroom-publish-log",
+        "qaSqaaRegistryUrl__qa-checklist-config",
+        "qaSqaaRegistryUrl__qa-review-log",
+        "qaSqaaRegistryUrl__sqaa-evidence-map",
+        "qaSqaaRegistryUrl__compliance-report-registry",
+        "schoolyStrategicOperationsRegistryUrl__budget-utilization",
+        "schoolyStrategicOperationsRegistryUrl__strategic-milestones",
+        "schoolyStrategicOperationsRegistryUrl__operational-checklist",
+        "hodEnrichmentOlympiadRegistryUrl__enrichment-programmes",
+        "hodEnrichmentOlympiadRegistryUrl__olympiad-registrations",
+        "hodEnrichmentOlympiadRegistryUrl__enrichment-resources",
+        "hodEnrichmentOlympiadRegistryUrl__enrichment-classroom-posts",
+        "dashboardDataSourceUrl__kpi-definitions",
+        "dashboardDataSourceUrl__dashboard-kpi-source",
+        "dashboardDataSourceUrl__curriculum-coverage",
+        "dashboardDataSourceUrl__assessment-tracking",
+        "dashboardDataSourceUrl__alert-log",
+        "dashboardDataSourceUrl__dashboard-kpi-definitions",
+        "dashboardDataSourceUrl__dashboard-metrics",
+        "dashboardDataSourceUrl__planner-submissions",
+        "dashboardDataSourceUrl__classroom-activity",
+        "dashboardDataSourceUrl__notebook-monitoring",
+        "dashboardDataSourceUrl__attendance-summary",
+        "dashboardDataSourceUrl__syllabus-coverage",
+        "dashboardDataSourceUrl__compliance-evidence-summary",
+        "dashboardDataSourceUrl__evidence-gaps",
+        "dashboardDataSourceUrl__dashboard-alerts",
+        "dashboardDataSourceUrl__dashboard-source-log",
+        "assessmentResultRegistryUrl__assessment-plan",
+        "assessmentResultRegistryUrl__exam-calendar",
+        "assessmentResultRegistryUrl__question-paper-registry",
+        "assessmentResultRegistryUrl__marks-entry",
+        "assessmentResultRegistryUrl__result-processing",
+        "assessmentResultRegistryUrl__report-card-registry",
+        "assessmentResultRegistryUrl__result-analysis",
+        "assessmentResultRegistryUrl__invigilation-olympiad-duties",
+        "classroomSyncRegistryUrl__classroom-course-map",
+        "classroomSyncRegistryUrl__classroom-assignment-map",
+        "classroomSyncRegistryUrl__classroom-submission-sync",
+        "classroomSyncRegistryUrl__classroom-sync-log",
+        "classroomSyncRegistryUrl__classroom-announcement-sync",
+        "teacherCpdRenewalRegistryUrl__teacher-cpd-status",
+        "teacherCpdRenewalRegistryUrl__mandatory-training",
+        "teacherCpdRenewalRegistryUrl__certification-renewals",
+        "teacherCpdRenewalRegistryUrl__review-action-log"
+      ],
+      "actualIds": [
+        "students",
+        "teachers",
+        "staff",
+        "courses",
+        "assignments",
+        "classroom-roster",
+        "workspace-files",
+        "lesson-plans",
+        "textbooks",
+        "masterDataRegistryUrl__school-profile",
+        "masterDataRegistryUrl__academic-years",
+        "masterDataRegistryUrl__classes-sections",
+        "masterDataRegistryUrl__subjects",
+        "masterDataRegistryUrl__staff-directory",
+        "REG_TEACHER_ALLOCATIONS",
+        "masterDataRegistryUrl__department-scope",
+        "masterDataRegistryUrl__coordinator-scope",
+        "masterDataRegistryUrl__timetable",
+        "masterDataRegistryUrl__student-directory",
+        "masterDataRegistryUrl__student-enrollment",
+        "masterDataRegistryUrl__books-registry",
+        "masterDataRegistryUrl__book-toc-registry",
+        "masterDataRegistryUrl__registry-bootstrap-log",
+        "masterDataRegistryUrl__registry-summary",
+        "ncertRegistryUrl__ncert-book-registry",
+        "ncertRegistryUrl__ncert-chapter-registry",
+        "ncertRegistryUrl__ncert-registry-source-map",
+        "ncertRegistryUrl__ncert-registry-audit-log",
+        "ncertRegistryUrl__readme",
+        "ncertPrivateDriveMapUrl__ncert-drive-source-folders",
+        "ncertPrivateDriveMapUrl__ncert-chapter-file-map",
+        "lessonWorkspaceRegistryUrl__lesson-workspace-registry",
+        "lessonWorkspaceRegistryUrl__artifact-registry",
+        "lessonWorkspaceRegistryUrl__lesson-execution-log",
+        "lessonWorkspaceRegistryUrl__classroom-publish-log",
+        "qaSqaaRegistryUrl__qa-checklist-config",
+        "qaSqaaRegistryUrl__qa-review-log",
+        "qaSqaaRegistryUrl__sqaa-evidence-map",
+        "qaSqaaRegistryUrl__compliance-report-registry",
+        "schoolyStrategicOperationsRegistryUrl__budget-utilization",
+        "schoolyStrategicOperationsRegistryUrl__strategic-milestones",
+        "schoolyStrategicOperationsRegistryUrl__operational-checklist",
+        "hodEnrichmentOlympiadRegistryUrl__enrichment-programmes",
+        "hodEnrichmentOlympiadRegistryUrl__olympiad-registrations",
+        "hodEnrichmentOlympiadRegistryUrl__enrichment-resources",
+        "hodEnrichmentOlympiadRegistryUrl__enrichment-classroom-posts",
+        "dashboardDataSourceUrl__kpi-definitions",
+        "dashboardDataSourceUrl__dashboard-kpi-source",
+        "dashboardDataSourceUrl__curriculum-coverage",
+        "dashboardDataSourceUrl__assessment-tracking",
+        "dashboardDataSourceUrl__alert-log",
+        "dashboardDataSourceUrl__dashboard-kpi-definitions",
+        "dashboardDataSourceUrl__dashboard-metrics",
+        "dashboardDataSourceUrl__planner-submissions",
+        "dashboardDataSourceUrl__classroom-activity",
+        "dashboardDataSourceUrl__notebook-monitoring",
+        "dashboardDataSourceUrl__attendance-summary",
+        "dashboardDataSourceUrl__syllabus-coverage",
+        "dashboardDataSourceUrl__compliance-evidence-summary",
+        "dashboardDataSourceUrl__evidence-gaps",
+        "dashboardDataSourceUrl__dashboard-alerts",
+        "dashboardDataSourceUrl__dashboard-source-log",
+        "assessmentResultRegistryUrl__assessment-plan",
+        "assessmentResultRegistryUrl__exam-calendar",
+        "assessmentResultRegistryUrl__question-paper-registry",
+        "assessmentResultRegistryUrl__marks-entry",
+        "assessmentResultRegistryUrl__result-processing",
+        "assessmentResultRegistryUrl__report-card-registry",
+        "assessmentResultRegistryUrl__result-analysis",
+        "assessmentResultRegistryUrl__invigilation-olympiad-duties",
+        "classroomSyncRegistryUrl__classroom-course-map",
+        "classroomSyncRegistryUrl__classroom-assignment-map",
+        "classroomSyncRegistryUrl__classroom-submission-sync",
+        "classroomSyncRegistryUrl__classroom-sync-log",
+        "classroomSyncRegistryUrl__classroom-announcement-sync",
+        "teacherCpdRenewalRegistryUrl__teacher-cpd-status",
+        "teacherCpdRenewalRegistryUrl__mandatory-training",
+        "teacherCpdRenewalRegistryUrl__certification-renewals",
+        "teacherCpdRenewalRegistryUrl__review-action-log"
+      ],
+      "notes": [
+        "Ready 13, empty 0, missing 58."
+      ],
+      "status": "pass"
+    }
+  ]
+}
