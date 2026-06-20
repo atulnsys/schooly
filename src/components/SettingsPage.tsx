@@ -22,7 +22,12 @@ import { parseGoogleSheetUrl, validateSourceLink } from "../lib/dataSourceEngine
 import { discoverRegistrySources } from "../lib/registrySourceDiscovery";
 import { getRegistryExplorerSummary } from "../lib/registryExplorerEntityDefinition";
 import { loadSeededRegistryConfig } from "../lib/seededRegistryConfig";
-import { readGoogleSheetTabRows } from "../lib/googleSheetRead";
+import { clearGoogleSheetReadCache } from "../lib/googleSheetRead";
+import {
+  validateRegistryConnection,
+  type RegistryConnectionTabResult,
+  type RegistryConnectionValidationSnapshot
+} from "../lib/registryConnectionValidation";
 import LiveDataReconciliationPanel from "./LiveDataReconciliationPanel";
 
 type SettingsSection = "organization" | "registry" | "summary" | "application" | "advanced";
@@ -39,27 +44,19 @@ interface OrganizationDraft {
   country: string;
 }
 
-interface ConnectionTestSnapshot {
-  success: boolean;
-  checkedAt: string;
-  message: string;
-  registryLocationStatus: string;
-  registryCatalogStatus: string;
-  googleAccount: string;
-  accountMatch: string;
-  registriesDiscovered: number;
-  registriesReadable: number;
-  nextAction: string;
-}
-
 interface SummaryRow {
   displayName: string;
   registryId: string;
+  sourceFamily: string;
+  sourceFile: string;
   sourceTab: string;
+  sourceMode: string;
   sourceState: string;
-  rawRecords: number;
-  usableRecords: number;
-  excludedRecords: number;
+  rawRecords: number | null;
+  usableRecords: number | null;
+  excludedRecords: number | null;
+  lastChecked: string | null;
+  detail: string;
   routeLabel: string;
 }
 
@@ -108,6 +105,52 @@ function safeLocalStorageRemove(key: string): void {
   } catch {
     // Ignore storage restrictions.
   }
+}
+
+function isActiveRegistryStatus(value: string): boolean {
+  const lowered = String(value || "").trim().toLowerCase();
+  return !lowered || lowered.includes("active") || lowered.includes("enabled") || lowered.includes("current");
+}
+
+function formatCountValue(value: number | null): string {
+  return value === null ? "—" : String(value);
+}
+
+function formatCheckedAt(value: string | null | undefined): string {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+}
+
+function formatSourceModeLabel(mode: string): string {
+  if (mode === "authenticated") return "Authenticated API";
+  if (mode === "public") return "Public GViz";
+  if (mode === "local") return "Local metadata";
+  if (mode === "runtime") return "Application runtime";
+  if (mode === "not_tested") return "Not tested";
+  return mode;
+}
+
+function formatSummaryStatusLabel(row: SummaryRow): string {
+  if (row.sourceState) return row.sourceState;
+  return row.sourceMode ? formatSourceModeLabel(row.sourceMode) : "Unknown";
+}
+
+function isCurrentValidationSnapshot(
+  snapshot: RegistryConnectionValidationSnapshot | null,
+  currentUrl: string,
+  authState: GoogleWorkspaceAuthState
+): boolean {
+  if (!snapshot) return false;
+  const normalizedCurrentUrl = String(currentUrl || "").trim();
+  const normalizedRequested = String(snapshot.requestedUrl || "").trim();
+  const normalizedConnectedAccount = String(authState.connectedAccount || authState.expectedAccount || "Not connected").trim().toLowerCase();
+  const snapshotConnectedAccount = String(snapshot.connectedAccount || "").trim().toLowerCase();
+  return normalizedCurrentUrl === normalizedRequested
+    && snapshotConnectedAccount === normalizedConnectedAccount
+    && snapshot.accountMatchStatus === authState.accountMatchStatus
+    && snapshot.authState.connected === authState.connected
+    && snapshot.authState.tokenPresent === authState.tokenPresent;
 }
 
 function loadOrganizationDraft(): OrganizationDraft {
@@ -211,7 +254,7 @@ export default function SettingsPage({
   const [organizationStatus, setOrganizationStatus] = useState<string>("");
   const [connectionStatus, setConnectionStatus] = useState<string>("");
   const [testingConnection, setTestingConnection] = useState(false);
-  const [connectionSnapshot, setConnectionSnapshot] = useState<ConnectionTestSnapshot | null>(null);
+  const [connectionValidation, setConnectionValidation] = useState<RegistryConnectionValidationSnapshot | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(settingsSection === "advanced");
   const [writeAccessPending, setWriteAccessPending] = useState(false);
   const [writeAccessStatus, setWriteAccessStatus] = useState<string>("");
@@ -240,6 +283,15 @@ export default function SettingsPage({
   }, [settingsSection]);
 
   useEffect(() => {
+    setConnectionValidation(null);
+  }, [
+    googleWorkspaceAuthState.connected,
+    googleWorkspaceAuthState.connectedAccount,
+    googleWorkspaceAuthState.accountMatchStatus,
+    googleWorkspaceAuthState.errorMessage,
+  ]);
+
+  useEffect(() => {
     const targetSection = getSettingsSectionId(activeSection);
     window.requestAnimationFrame(() => {
       const target = document.getElementById(targetSection);
@@ -260,141 +312,279 @@ export default function SettingsPage({
   const registrySourceDiscovery = useMemo(() => discoverRegistrySources(files), [files]);
   const registryCatalogSummary = useMemo(() => getRegistryExplorerSummary(), []);
   const registryMasterUrl = schoolRegistry?.config.masterDataRegistryUrl || loadSeededRegistryConfig().masterDataRegistryUrl;
+  const currentRegistryUrl = workspaceUrlDraft.trim() || workspaceUrl.trim();
   const registryLocationIsValid = validateSourceLink(workspaceUrlDraft, "google_workspace");
   const registryLocationLabel = !workspaceUrlDraft.trim()
     ? "Not configured"
     : registryLocationIsValid
       ? "Configured"
       : "Invalid link";
-  const catalogStatusLabel = schoolRegistry?.mode === "live"
-    ? `Live (${schoolRegistry.schoolProfile.length > 0 ? "found" : "empty"})`
-    : schoolRegistry?.mode === "missing"
-      ? "Unavailable"
-      : schoolRegistry?.mode === "error"
-        ? "Unavailable"
-        : "Fallback";
-  const connectedAccount = googleWorkspaceAuthState.connectedAccount || "Not connected";
+  const activeConnectionValidation = connectionValidation && isCurrentValidationSnapshot(connectionValidation, currentRegistryUrl, googleWorkspaceAuthState)
+    ? connectionValidation
+    : null;
+  const connectedAccount = googleWorkspaceAuthState.connectedAccount || googleWorkspaceAuthState.expectedAccount || "Not connected";
   const accountMatchLabel = formatMatchLabel(googleWorkspaceAuthState.accountMatchStatus);
 
   const summaryRows = useMemo<SummaryRow[]>(() => {
-    const studentRows = schoolRegistry?.studentDirectory || [];
-    const enrollmentRows = schoolRegistry?.studentEnrollment || [];
+    const studentDirectoryRows = schoolRegistry?.studentDirectory || [];
+    const studentEnrollmentRows = schoolRegistry?.studentEnrollment || [];
     const staffRows = schoolRegistry?.staffDirectory || [];
-    const teacherRows = schoolRegistry?.teacherAllocations || [];
+    const teacherAllocationRows = schoolRegistry?.teacherAllocations || [];
     const classRows = schoolRegistry?.classesSections || [];
     const subjectRows = schoolRegistry?.subjects || [];
-    const courseRows = courses || [];
-    const assignmentRows = assignments || [];
     const bookRows = schoolRegistry?.booksRegistry || [];
+    const validationTabMap = new Map<string, RegistryConnectionTabResult>((activeConnectionValidation?.tabResults || []).map((result) => [result.tabName, result] as const));
+    const getTabResult = (...tabNames: string[]): RegistryConnectionTabResult | null => tabNames.map((tabName) => validationTabMap.get(tabName)).find(Boolean) || null;
+    const isReadableTab = (tabResult: RegistryConnectionTabResult | null) => Boolean(tabResult && (tabResult.status === "readable" || tabResult.status === "empty"));
+    const getTabStateLabel = (tabResult: RegistryConnectionTabResult | null) => {
+      if (!activeConnectionValidation) return "Not tested";
+      if (!tabResult) return "Not verified";
+      if (tabResult.status === "readable") return "Authenticated read";
+      if (tabResult.status === "empty") return "No rows";
+      if (tabResult.status === "account_mismatch") return "Account mismatch";
+      if (tabResult.status === "authentication_required") return "Authentication required";
+      if (tabResult.status === "access_denied") return "Access denied";
+      if (tabResult.status === "tab_missing") return "Tab missing";
+      if (tabResult.status === "file_missing") return "Source unavailable";
+      return "Unavailable";
+    };
+    const studentTabResult = getTabResult("Student_Directory");
+    const enrollmentTabResult = getTabResult("Student_Enrollment");
+    const staffTabResult = getTabResult("Staff_Directory");
+    const teacherAllocationTabResult = getTabResult("Teacher_Allocations");
+    const classTabResult = getTabResult("Classes_Sections");
+    const subjectTabResult = getTabResult("Subjects");
+    const bookTabResult = getTabResult("Books_Registry");
+    const catalogTabResult = getTabResult("Registry_Catalog");
+    const usableStudentCount = isReadableTab(studentTabResult) ? students.length : null;
+    const usableTeacherCount = isReadableTab(staffTabResult) ? teachers.length : null;
+    const activeStudentDirectoryRows = studentDirectoryRows.filter((row) => isActiveRegistryStatus(row.status)).length;
+    const activeEnrollmentRows = studentEnrollmentRows.filter((row) => isActiveRegistryStatus(row.status)).length;
+    const activeStaffRows = staffRows.filter((row) => isActiveRegistryStatus(row.status)).length;
+    const activeTeacherAllocationRows = teacherAllocationRows.filter((row) => isActiveRegistryStatus(row.status)).length;
+    const activeClassRows = classRows.filter((row) => isActiveRegistryStatus(row.status)).length;
+    const activeSubjectRows = subjectRows.filter((row) => isActiveRegistryStatus(row.status)).length;
+    const activeBookRows = bookRows.filter((row) => isActiveRegistryStatus(row.status)).length;
 
     const items: SummaryRow[] = [
       {
         displayName: "Students",
         registryId: "students",
+        sourceFamily: "Connected Google Registry",
+        sourceFile: activeConnectionValidation?.masterWorkbook.label || "Connected workbook",
         sourceTab: "Student_Directory",
-        sourceState: schoolRegistry?.mode === "live" ? (studentRows.length > 0 ? "Ready" : "0 records") : "Unavailable",
-        rawRecords: studentRows.length,
-        ...normalizeCountRows(studentRows),
+        sourceMode: activeConnectionValidation?.masterWorkbook.sourceMode || "unavailable",
+        sourceState: getTabStateLabel(studentTabResult),
+        rawRecords: isReadableTab(studentTabResult) ? studentDirectoryRows.length : null,
+        usableRecords: usableStudentCount,
+        excludedRecords: isReadableTab(studentTabResult) ? Math.max(0, studentDirectoryRows.length - activeStudentDirectoryRows) : null,
+        lastChecked: activeConnectionValidation?.checkedAt || null,
+        detail: activeConnectionValidation
+          ? `Directory rows: ${studentDirectoryRows.length} | Enrolment rows: ${studentEnrollmentRows.length}`
+          : "Authentication required to confirm the connected student registry.",
         routeLabel: "Open in Registry Explorer"
       },
       {
         displayName: "Student Enrolments",
         registryId: "masterDataRegistryUrl__student-enrollment",
+        sourceFamily: "Connected Google Registry",
+        sourceFile: activeConnectionValidation?.masterWorkbook.label || "Connected workbook",
         sourceTab: "Student_Enrollment",
-        sourceState: schoolRegistry?.mode === "live" ? (enrollmentRows.length > 0 ? "Ready" : "0 records") : "Unavailable",
-        rawRecords: enrollmentRows.length,
-        ...normalizeCountRows(enrollmentRows),
+        sourceMode: activeConnectionValidation?.masterWorkbook.sourceMode || "unavailable",
+        sourceState: getTabStateLabel(enrollmentTabResult),
+        rawRecords: isReadableTab(enrollmentTabResult) ? studentEnrollmentRows.length : null,
+        usableRecords: isReadableTab(enrollmentTabResult) ? activeEnrollmentRows : null,
+        excludedRecords: isReadableTab(enrollmentTabResult) ? Math.max(0, studentEnrollmentRows.length - activeEnrollmentRows) : null,
+        lastChecked: activeConnectionValidation?.checkedAt || null,
+        detail: activeConnectionValidation
+          ? "Enrollment rows are joined into the usable student count."
+          : "Authentication required to confirm enrolment rows.",
         routeLabel: "Open in Registry Explorer"
       },
       {
         displayName: "Staff",
         registryId: "staff",
+        sourceFamily: "Connected Google Registry",
+        sourceFile: activeConnectionValidation?.masterWorkbook.label || "Connected workbook",
         sourceTab: "Staff_Directory",
-        sourceState: schoolRegistry?.mode === "live" ? (staffRows.length > 0 ? "Ready" : "0 records") : "Unavailable",
-        rawRecords: staffRows.length,
-        ...normalizeCountRows(staffRows),
+        sourceMode: activeConnectionValidation?.masterWorkbook.sourceMode || "unavailable",
+        sourceState: getTabStateLabel(staffTabResult),
+        rawRecords: isReadableTab(staffTabResult) ? staffRows.length : null,
+        usableRecords: isReadableTab(staffTabResult) ? activeStaffRows : null,
+        excludedRecords: isReadableTab(staffTabResult) ? Math.max(0, staffRows.length - activeStaffRows) : null,
+        lastChecked: activeConnectionValidation?.checkedAt || null,
+        detail: activeConnectionValidation
+          ? `Raw staff rows: ${staffRows.length}`
+          : "Authentication required to confirm the staff directory.",
         routeLabel: "Open in Registry Explorer"
       },
       {
         displayName: "Teachers",
         registryId: "teachers",
-        sourceTab: "Teacher_Allocations",
-        sourceState: schoolRegistry?.mode === "live" ? (teacherRows.length > 0 ? "Ready" : "0 records") : "Unavailable",
-        rawRecords: teacherRows.length,
-        ...normalizeCountRows(teacherRows),
+        sourceFamily: "Connected Google Registry",
+        sourceFile: activeConnectionValidation?.masterWorkbook.label || "Connected workbook",
+        sourceTab: "Staff_Directory + Teacher_Allocations",
+        sourceMode: activeConnectionValidation?.masterWorkbook.sourceMode || "unavailable",
+        sourceState: getTabStateLabel(staffTabResult),
+        rawRecords: isReadableTab(staffTabResult) ? staffRows.length : null,
+        usableRecords: usableTeacherCount,
+        excludedRecords: isReadableTab(staffTabResult) ? Math.max(0, staffRows.length - (usableTeacherCount || 0)) : null,
+        lastChecked: activeConnectionValidation?.checkedAt || null,
+        detail: activeConnectionValidation
+          ? `Derived from staff + allocation logic. Allocation rows: ${teacherAllocationRows.length}${teacherAllocationTabResult && !isReadableTab(teacherAllocationTabResult) ? " | Allocation tab not fully verified." : ""}`
+          : "Authentication required to confirm the derived teacher count.",
         routeLabel: "Open in Registry Explorer"
       },
       {
         displayName: "Classes / Sections",
         registryId: "courses",
+        sourceFamily: "Connected Google Registry",
+        sourceFile: activeConnectionValidation?.masterWorkbook.label || "Connected workbook",
         sourceTab: "Classes_Sections",
-        sourceState: schoolRegistry?.mode === "live" ? (classRows.length > 0 ? "Ready" : "0 records") : "Unavailable",
-        rawRecords: classRows.length,
-        ...normalizeCountRows(classRows),
+        sourceMode: activeConnectionValidation?.masterWorkbook.sourceMode || "unavailable",
+        sourceState: getTabStateLabel(classTabResult),
+        rawRecords: isReadableTab(classTabResult) ? classRows.length : null,
+        usableRecords: isReadableTab(classTabResult) ? activeClassRows : null,
+        excludedRecords: isReadableTab(classTabResult) ? Math.max(0, classRows.length - activeClassRows) : null,
+        lastChecked: activeConnectionValidation?.checkedAt || null,
+        detail: activeConnectionValidation
+          ? `Active class rows: ${activeClassRows}`
+          : "Authentication required to confirm classes and sections.",
         routeLabel: "Open in Registry Explorer"
       },
       {
         displayName: "Subjects",
         registryId: "masterDataRegistryUrl__subjects",
+        sourceFamily: "Connected Google Registry",
+        sourceFile: activeConnectionValidation?.masterWorkbook.label || "Connected workbook",
         sourceTab: "Subjects",
-        sourceState: schoolRegistry?.mode === "live" ? (subjectRows.length > 0 ? "Ready" : "0 records") : "Unavailable",
-        rawRecords: subjectRows.length,
-        ...normalizeCountRows(subjectRows),
+        sourceMode: activeConnectionValidation?.masterWorkbook.sourceMode || "unavailable",
+        sourceState: getTabStateLabel(subjectTabResult),
+        rawRecords: isReadableTab(subjectTabResult) ? subjectRows.length : null,
+        usableRecords: isReadableTab(subjectTabResult) ? activeSubjectRows : null,
+        excludedRecords: isReadableTab(subjectTabResult) ? Math.max(0, subjectRows.length - activeSubjectRows) : null,
+        lastChecked: activeConnectionValidation?.checkedAt || null,
+        detail: activeConnectionValidation
+          ? `Active subject rows: ${activeSubjectRows}`
+          : "Authentication required to confirm subject rows.",
         routeLabel: "Open in Registry Explorer"
       },
       {
         displayName: "Teacher Allocations",
         registryId: "REG_TEACHER_ALLOCATIONS",
+        sourceFamily: "Connected Google Registry",
+        sourceFile: activeConnectionValidation?.masterWorkbook.label || "Connected workbook",
         sourceTab: "Teacher_Allocations",
-        sourceState: schoolRegistry?.mode === "live" ? (teacherRows.length > 0 ? "Ready" : "0 records") : "Unavailable",
-        rawRecords: teacherRows.length,
-        ...normalizeCountRows(teacherRows),
+        sourceMode: activeConnectionValidation?.masterWorkbook.sourceMode || "unavailable",
+        sourceState: getTabStateLabel(teacherAllocationTabResult),
+        rawRecords: isReadableTab(teacherAllocationTabResult) ? teacherAllocationRows.length : null,
+        usableRecords: isReadableTab(teacherAllocationTabResult) ? activeTeacherAllocationRows : null,
+        excludedRecords: isReadableTab(teacherAllocationTabResult) ? Math.max(0, teacherAllocationRows.length - activeTeacherAllocationRows) : null,
+        lastChecked: activeConnectionValidation?.checkedAt || null,
+        detail: activeConnectionValidation
+          ? "Teacher allocations are tracked separately from teacher headcount."
+          : "Authentication required to confirm allocation rows.",
         routeLabel: "Open in Registry Explorer"
       },
       {
         displayName: "Classroom Courses",
         registryId: "classroom-courses",
+        sourceFamily: "Application Runtime — source not verified",
+        sourceFile: "Schooly runtime data",
         sourceTab: "Classroom API",
-        sourceState: courseRows.length > 0 ? "Ready" : "0 records",
-        rawRecords: courseRows.length,
-        ...normalizeCountRows(courseRows),
+        sourceMode: "runtime",
+        sourceState: courses.length > 0 ? "Application runtime — source not verified" : "Source unavailable",
+        rawRecords: courses.length > 0 ? courses.length : null,
+        usableRecords: courses.length > 0 ? courses.length : null,
+        excludedRecords: courses.length > 0 ? 0 : null,
+        lastChecked: null,
+        detail: courses.length > 0
+          ? "Classroom rows come from application runtime data and are not proof of registry-sheet access."
+          : "No classroom course rows are currently loaded.",
         routeLabel: "Open in Registry Explorer"
       },
       {
         displayName: "Assignments",
         registryId: "assignments",
+        sourceFamily: "Application Runtime — source not verified",
+        sourceFile: "Schooly runtime data",
         sourceTab: "Classroom API",
-        sourceState: assignmentRows.length > 0 ? "Ready" : "0 records",
-        rawRecords: assignmentRows.length,
-        ...normalizeCountRows(assignmentRows),
+        sourceMode: "runtime",
+        sourceState: assignments.length > 0 ? "Application runtime — source not verified" : "Source unavailable",
+        rawRecords: assignments.length > 0 ? assignments.length : null,
+        usableRecords: assignments.length > 0 ? assignments.length : null,
+        excludedRecords: assignments.length > 0 ? 0 : null,
+        lastChecked: null,
+        detail: assignments.length > 0
+          ? "Assignment rows come from application runtime data and are not proof of registry-sheet access."
+          : "No assignment rows are currently loaded.",
         routeLabel: "Open in Registry Explorer"
       },
       {
         displayName: "Books / Textbooks",
         registryId: "textbooks",
+        sourceFamily: "Connected Google Registry",
+        sourceFile: activeConnectionValidation?.masterWorkbook.label || "Connected workbook",
         sourceTab: "Books_Registry",
-        sourceState: schoolRegistry?.mode === "live" ? (bookRows.length > 0 ? "Ready" : "0 records") : "Unavailable",
-        rawRecords: bookRows.length,
-        ...normalizeCountRows(bookRows),
+        sourceMode: activeConnectionValidation?.masterWorkbook.sourceMode || "unavailable",
+        sourceState: getTabStateLabel(bookTabResult),
+        rawRecords: isReadableTab(bookTabResult) ? bookRows.length : null,
+        usableRecords: isReadableTab(bookTabResult) ? activeBookRows : null,
+        excludedRecords: isReadableTab(bookTabResult) ? Math.max(0, bookRows.length - activeBookRows) : null,
+        lastChecked: activeConnectionValidation?.checkedAt || null,
+        detail: activeConnectionValidation
+          ? `Book rows read from the connected registry: ${bookRows.length}`
+          : "Authentication required to confirm textbook rows.",
         routeLabel: "Open in Registry Explorer"
       },
       {
-        displayName: "Registry Catalog",
+        displayName: "Application Registry Catalog",
         registryId: "registry-catalog",
-        sourceTab: "Registry Catalog",
-        sourceState: "Ready",
+        sourceFamily: "Schooly Application Catalog",
+        sourceFile: "Schooly application metadata",
+        sourceTab: "Registry catalog",
+        sourceMode: "local",
+        sourceState: "Local metadata",
         rawRecords: registryCatalogSummary.totalEntries,
         usableRecords: registryCatalogSummary.totalEntries,
         excludedRecords: 0,
+        lastChecked: null,
+        detail: "This is the application catalog used for navigation and metadata. It does not prove connected registry access.",
+        routeLabel: "Open in Registry Explorer"
+      },
+      {
+        displayName: "Connected Registry Catalog",
+        registryId: "connected-registry-catalog",
+        sourceFamily: "Connected Google Registry",
+        sourceFile: activeConnectionValidation?.connectedRegistryCatalog.label || "Connected workbook",
+        sourceTab: "Registry_Catalog",
+        sourceMode: activeConnectionValidation?.connectedRegistryCatalog.sourceMode || "unavailable",
+        sourceState: activeConnectionValidation
+          ? getTabStateLabel(catalogTabResult)
+          : "Not verified",
+        rawRecords: isReadableTab(catalogTabResult)
+          ? Number(catalogTabResult?.rowCount || 0)
+          : null,
+        usableRecords: isReadableTab(catalogTabResult)
+          ? Number(catalogTabResult?.rowCount || 0)
+          : null,
+        excludedRecords: isReadableTab(catalogTabResult)
+          ? 0
+          : null,
+        lastChecked: activeConnectionValidation?.connectedRegistryCatalog.checkedAt || null,
+        detail: activeConnectionValidation
+          ? catalogTabResult?.status === "readable"
+            ? "Connected registry catalog rows were read with authenticated access."
+            : catalogTabResult?.status === "empty"
+              ? "The connected registry catalog was reachable, but no rows were returned."
+              : "The connected registry catalog is not yet verified."
+          : "Not verified against a connected Google registry yet.",
         routeLabel: "Open in Registry Explorer"
       }
     ];
 
-    return items.map((item) => ({
-      ...item,
-      sourceState: googleWorkspaceAuthState.accountMatchStatus === "mismatch" ? "Account mismatch" : item.sourceState
-    }));
-  }, [assignments, courses, googleWorkspaceAuthState.accountMatchStatus, schoolRegistry, registryCatalogSummary.totalEntries]);
+    return items;
+  }, [activeConnectionValidation, assignments.length, courses.length, registryCatalogSummary.totalEntries, schoolRegistry, students.length, teachers.length]);
 
   const handleSaveOrganization = () => {
     saveOrganizationDraft(organizationDraft);
@@ -414,9 +604,11 @@ export default function SettingsPage({
       setConnectionStatus("Add a registry link before saving.");
       return;
     }
+    clearGoogleSheetReadCache();
     onWorkspaceUrlSave(trimmedUrl);
     safeLocalStorageSet(REGISTRY_ACCOUNT_STORAGE_KEY, registryAccountDraft.trim());
     setGoogleWorkspaceAccountHint(registryAccountDraft.trim() || null);
+    setConnectionValidation(null);
     setConnectionStatus("Connection details saved.");
   };
 
@@ -425,6 +617,8 @@ export default function SettingsPage({
     try {
       setGoogleWorkspaceAccountHint(registryAccountDraft.trim() || null);
       await connectGoogleWorkspaceReadAccess(registryAccountDraft.trim() || null);
+      clearGoogleSheetReadCache();
+      setConnectionValidation(null);
       setConnectionStatus("Google account connected for read access.");
       void onRefreshData();
     } catch (error) {
@@ -449,76 +643,35 @@ export default function SettingsPage({
   };
 
   const handleDisconnect = () => {
+    clearGoogleSheetReadCache();
     disconnectGoogleWorkspaceAccess();
     onDisconnectWorkspace();
     setConnectionStatus("Disconnected.");
-    setConnectionSnapshot(null);
+    setConnectionValidation(null);
   };
 
   const handleTestConnection = async () => {
-    const trimmedUrl = workspaceUrlDraft.trim();
-    if (!trimmedUrl) {
-      setConnectionSnapshot({
-        success: false,
-        checkedAt: new Date().toISOString(),
-        message: "Add a registry link first.",
-        registryLocationStatus: "Not configured",
-        registryCatalogStatus: "Unavailable",
-        googleAccount: googleWorkspaceAuthState.connectedAccount || "Not connected",
-        accountMatch: formatMatchLabel(googleWorkspaceAuthState.accountMatchStatus),
-        registriesDiscovered: 0,
-        registriesReadable: 0,
-        nextAction: "Save a registry link"
-      });
-      return;
-    }
-
     setTestingConnection(true);
     try {
+      clearGoogleSheetReadCache();
       const authState = getGoogleWorkspaceAuthState();
-      const sourceDiscovery = discoverRegistrySources(files);
-      const registryUrl = registryMasterUrl || loadSeededRegistryConfig().masterDataRegistryUrl;
-      const parsed = parseGoogleSheetUrl(registryUrl);
-      const keyTabs = ["School_Profile", "Staff_Directory", "Student_Directory"];
-      const results = await Promise.allSettled(
-        parsed
-          ? keyTabs.map((tabName) => readGoogleSheetTabRows(registryUrl, tabName))
-          : []
-      );
-      const readableRegistries = results.filter((entry) => entry.status === "fulfilled").length;
-      const registryCatalogStatus = schoolRegistry?.mode === "live" ? "Found" : "Unavailable";
-      const connectionOk = Boolean(parsed) && Boolean(authState.clientIdConfigured) && authState.accountMatchStatus !== "mismatch" && readableRegistries > 0;
-      setConnectionSnapshot({
-        success: connectionOk,
-        checkedAt: new Date().toISOString(),
-        message: connectionOk
-          ? "Registry connection looks ready."
-          : "One or more registry checks need attention.",
-        registryLocationStatus: registryLocationIsValid ? "Configured" : "Invalid link",
-        registryCatalogStatus,
-        googleAccount: authState.connectedAccount || authState.expectedAccount || "Not connected",
-        accountMatch: formatMatchLabel(authState.accountMatchStatus),
-        registriesDiscovered: sourceDiscovery.discoveredRegistryFiles.length,
-        registriesReadable: readableRegistries,
-        nextAction: authState.accountMatchStatus === "mismatch"
-          ? "Use the matching Google account"
-          : readableRegistries === 0
-            ? "Reconnect or review the registry link"
-            : "Open Registry Explorer"
+      const snapshot = await validateRegistryConnection({
+        currentUrl: currentRegistryUrl,
+        expectedAccount: registryAccountDraft.trim() || authState.expectedAccount || null,
+        authState,
+        files,
+        fallbackRegistryUrl: registryMasterUrl
       });
+      setConnectionValidation(snapshot);
+      const connectionOk = snapshot.status === "readable" || snapshot.status === "empty";
+      setConnectionStatus(snapshot.message);
+      if (connectionOk) {
+        clearGoogleSheetReadCache();
+        void onRefreshData();
+      }
     } catch (error) {
-      setConnectionSnapshot({
-        success: false,
-        checkedAt: new Date().toISOString(),
-        message: error instanceof Error ? error.message : "Registry connection test failed.",
-        registryLocationStatus: registryLocationIsValid ? "Configured" : "Invalid link",
-        registryCatalogStatus: schoolRegistry?.mode === "live" ? "Found" : "Unavailable",
-        googleAccount: googleWorkspaceAuthState.connectedAccount || googleWorkspaceAuthState.expectedAccount || "Not connected",
-        accountMatch: formatMatchLabel(googleWorkspaceAuthState.accountMatchStatus),
-        registriesDiscovered: registrySourceDiscovery.discoveredRegistryFiles.length,
-        registriesReadable: 0,
-        nextAction: "Review the link and try again"
-      });
+      setConnectionValidation(null);
+      setConnectionStatus(error instanceof Error ? error.message : "Registry connection test failed.");
     } finally {
       setTestingConnection(false);
     }
@@ -736,8 +889,8 @@ export default function SettingsPage({
           {[
             ["Connected Google Account", connectedAccount],
             ["Account Match", accountMatchLabel],
-            ["Authentication Status", googleWorkspaceAuthState.connected ? "Connected" : "Not connected"],
-            ["Registry Location Status", registryLocationLabel]
+            ["Access Mode", activeConnectionValidation ? formatSourceModeLabel(activeConnectionValidation.accessMode) : (googleWorkspaceAuthState.connected ? "Connected" : "Not connected")],
+            ["Registry Source Tested", activeConnectionValidation ? activeConnectionValidation.sourceMetadata.label : (currentRegistryUrl ? "Not tested" : "No registry link configured")]
           ].map(([label, value]) => (
             <div key={String(label)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
               <div className="text-[10px] uppercase tracking-wider font-mono text-slate-400 font-bold">{label}</div>
@@ -746,10 +899,11 @@ export default function SettingsPage({
           ))}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {[
-            ["Registry Catalog Status", catalogStatusLabel],
-            ["Last Tested", connectionSnapshot?.checkedAt ? new Date(connectionSnapshot.checkedAt).toLocaleString() : "Not tested"]
+            ["Test Result", activeConnectionValidation ? activeConnectionValidation.message : "Not tested"],
+            ["Last Checked", activeConnectionValidation ? formatCheckedAt(activeConnectionValidation.checkedAt) : "Not tested"],
+            ["Next Action", activeConnectionValidation ? activeConnectionValidation.nextAction : "Connect Google Workspace and test the source"]
           ].map(([label, value]) => (
             <div key={String(label)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
               <div className="text-[10px] uppercase tracking-wider font-mono text-slate-400 font-bold">{label}</div>
@@ -798,22 +952,22 @@ export default function SettingsPage({
           </div>
         )}
 
-        {connectionSnapshot && (
-          <div className={`rounded-2xl border px-4 py-3 space-y-2 ${connectionSnapshot.success ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+        {activeConnectionValidation && (
+          <div className={`rounded-2xl border px-4 py-3 space-y-2 ${activeConnectionValidation.status === "readable" || activeConnectionValidation.status === "empty" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
             <div className="flex items-center justify-between gap-3">
-              <div className="text-sm font-extrabold">{connectionSnapshot.message}</div>
-              <span className="text-[10px] font-black uppercase tracking-wider">{connectionSnapshot.success ? "Ready" : "Needs attention"}</span>
+              <div className="text-sm font-extrabold">{activeConnectionValidation.message}</div>
+              <span className="text-[10px] font-black uppercase tracking-wider">{activeConnectionValidation.status === "readable" || activeConnectionValidation.status === "empty" ? "Ready" : "Needs attention"}</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 text-xs">
               {[
-                ["Google account", connectionSnapshot.googleAccount],
-                ["Account match", connectionSnapshot.accountMatch],
-                ["Registry location", connectionSnapshot.registryLocationStatus],
-                ["Registry catalog", connectionSnapshot.registryCatalogStatus],
-                ["Registries discovered", String(connectionSnapshot.registriesDiscovered)],
-                ["Registries readable", String(connectionSnapshot.registriesReadable)],
-                ["Last checked", new Date(connectionSnapshot.checkedAt).toLocaleString()],
-                ["Next action", connectionSnapshot.nextAction]
+                ["Source family", activeConnectionValidation.sourceMetadata.family],
+                ["Source detail", activeConnectionValidation.sourceMetadata.detail],
+                ["Master workbook", activeConnectionValidation.masterWorkbook.note],
+                ["Connected catalog", activeConnectionValidation.connectedRegistryCatalog.note],
+                ["Discovered registries", String(activeConnectionValidation.discoveredRegistryCount)],
+                ["Authenticated tabs", String(activeConnectionValidation.authenticatedReadableRegistryCount)],
+                ["Public tabs", String(activeConnectionValidation.publicReadableRegistryCount)],
+                ["Last checked", formatCheckedAt(activeConnectionValidation.checkedAt)]
               ].map(([label, value]) => (
                 <div key={String(label)} className="rounded-xl border border-white/70 bg-white/80 px-3 py-2">
                   <div className="text-[10px] uppercase tracking-wider font-mono text-slate-400 font-bold">{label}</div>
@@ -849,11 +1003,28 @@ export default function SettingsPage({
                 <div className="min-w-0">
                   <div className="text-sm font-extrabold text-slate-900 truncate">{row.displayName}</div>
                   <div className="text-[11px] text-blue-700 font-semibold truncate">Registry ID: {row.registryId}</div>
+                  <div className="text-[11px] text-slate-500 truncate">{row.sourceFamily}</div>
+                  <div className="text-[11px] text-slate-500 truncate">Source: {row.sourceFile}</div>
                   <div className="text-[11px] text-slate-500 truncate">Source tab: {row.sourceTab}</div>
                 </div>
-                <span className={`text-[10px] font-black uppercase tracking-wider rounded-full border px-2.5 py-1 ${row.sourceState === "Ready" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : row.sourceState === "Account mismatch" ? "border-rose-200 bg-rose-50 text-rose-700" : row.sourceState === "0 records" ? "border-amber-200 bg-amber-50 text-amber-700" : "border-slate-200 bg-white text-slate-700"}`}>
+                <span className={`text-[10px] font-black uppercase tracking-wider rounded-full border px-2.5 py-1 ${/authenticated read|local metadata/i.test(row.sourceState) ? "border-emerald-200 bg-emerald-50 text-emerald-700" : /no rows|empty/i.test(row.sourceState) ? "border-amber-200 bg-amber-50 text-amber-700" : /account mismatch|authentication required|access denied/i.test(row.sourceState) ? "border-rose-200 bg-rose-50 text-rose-700" : "border-slate-200 bg-white text-slate-700"}`}>
                   {row.sourceState}
                 </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] text-slate-600">
+                <div className="rounded-xl border border-white bg-white px-3 py-2">
+                  <div className="text-[9px] uppercase tracking-wider font-mono text-slate-400 font-bold">Access mode</div>
+                  <div className="mt-1 font-semibold text-slate-900">{formatSourceModeLabel(row.sourceMode)}</div>
+                </div>
+                <div className="rounded-xl border border-white bg-white px-3 py-2">
+                  <div className="text-[9px] uppercase tracking-wider font-mono text-slate-400 font-bold">Last checked</div>
+                  <div className="mt-1 font-semibold text-slate-900">{formatCheckedAt(row.lastChecked)}</div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-white bg-white px-3 py-2 text-[11px] text-slate-600">
+                {row.detail}
               </div>
 
               <div className="grid grid-cols-3 gap-2 text-xs">
@@ -864,7 +1035,7 @@ export default function SettingsPage({
                 ].map(([label, value]) => (
                   <div key={String(label)} className="rounded-xl border border-white bg-white px-3 py-2">
                     <div className="text-[9px] uppercase tracking-wider font-mono text-slate-400 font-bold">{label}</div>
-                    <div className="mt-1 font-bold text-slate-900">{String(value)}</div>
+                    <div className="mt-1 font-bold text-slate-900">{formatCountValue(value as number | null)}</div>
                   </div>
                 ))}
               </div>

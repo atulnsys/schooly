@@ -1989,6 +1989,36 @@ This follow-up tightens dashboard trust signals without changing the app structu
 
 ---
 
+# Authenticated Registry Loading - Truthful Source States and Counts
+
+## Registry Connection Rules
+
+* Settings now uses authenticated-required validation for Test Connection.
+* The configured link is treated as the primary source of truth, but the validator can fall back to the seeded master registry only when that fallback is explicitly available.
+* Public-sheet fallback is no longer treated as proof of a connected registry connection.
+* Connected-account state is shown alongside account-match status so the UI can explain why a registry read is accepted or blocked.
+
+## Source Truthfulness
+
+* Registry Summary now distinguishes application catalog data from connected registry data.
+* Application Runtime rows such as Classroom Courses and Assignments are labeled as runtime data, not registry proof.
+* Connected Registry Catalog is reported separately from the local Application Registry Catalog.
+* Unavailable or unauthenticated sources now keep their counts blank instead of rendering misleading zeroes.
+
+## Validation Detail
+
+* Test Connection records the source that was actually read, the auth mode, the current account, and the next action when a read is blocked.
+* The validation snapshot preserves per-tab status so partially readable workbooks do not collapse into a single misleading success or failure label.
+* Settings can reuse the same validation snapshot to show truthful counts for Students, Staff, Teachers, registry catalog rows, and other source-backed summary cards.
+
+## Verification Result
+
+* `npx tsc --noEmit --pretty false` still needs to be rerun after the final source pass.
+* `npm run build` still needs to be rerun after the final source pass.
+* Route smoke and live account verification still need to be refreshed after the current edits are finalized.
+
+---
+
 ## Central Settings - Continue Authentication Work and Replace Complex Setup Wizard
 
 ### Pending File Assessment

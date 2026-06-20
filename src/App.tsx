@@ -1278,10 +1278,10 @@ export default function App() {
   };
 
   const liveRegisterCards = useMemo(() => {
-    const teacherCount = [...new Set((schoolRegistry?.teacherAllocations || []).map((allocation) => allocation.teacher_name || allocation.teacher_email).filter(Boolean))].length;
+    const teacherCount = teachers.length;
     const subjectCount = schoolRegistry?.subjects.length ?? 0;
     const classCount = schoolRegistry?.classesSections.length ?? 0;
-    const studentCount = schoolRegistry?.studentDirectory.length ?? 0;
+    const studentCount = students.length;
     const staffCount = schoolRegistry?.staffDirectory.length ?? 0;
     const assignmentCount = assignments.length;
     const taskCount = tasks.length;
@@ -1344,7 +1344,7 @@ export default function App() {
         drillTarget: { kind: "tab", tab: "dashboard-data-source" as const }
       }
     ];
-  }, [assignments.length, courses.length, schoolRegistry, schoolRegistryLoading, students.length, tasks.length]);
+  }, [assignments.length, courses.length, schoolRegistry, schoolRegistryLoading, students.length, tasks.length, teachers.length]);
   const hideRolePersonaWidget = currentRole === "Principal" || currentRole === "Manager";
 
   const renderDashboardWorkspace = (dashboardView?: "overview" | "role-cards" | "registers" | "data-source" | "setup" | "registry-detail") => (

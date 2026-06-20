@@ -1,8 +1,24 @@
 import { compareClassLabels } from "./classSort";
 import { loadSeededRegistryConfig, saveSeededRegistryConfig } from "./seededRegistryConfig";
-import { readGoogleSheetTabRows } from "./googleSheetRead";
+import {
+  GoogleSheetReadError,
+  type GoogleSheetReadPolicy,
+  readGoogleSheetTabRows
+} from "./googleSheetRead";
+import { getGoogleWorkspaceAuthState } from "./googleWorkspaceAuth";
 
 export type SchoolRegistryMode = "missing" | "live" | "error" | "fallback";
+export type SchoolRegistrySourceMode = "authenticated" | "public" | "mixed" | "unavailable";
+export type SchoolRegistryTabStatus =
+  | "not_tested"
+  | "authentication_required"
+  | "account_mismatch"
+  | "readable"
+  | "empty"
+  | "tab_missing"
+  | "file_missing"
+  | "access_denied"
+  | "error";
 
 export const DEMO_SCHOOL_ID = "SCHOOLY_TEST_SCHOOL";
 
@@ -183,9 +199,11 @@ export interface RegistrySummaryRow {
 export interface SchoolRegistryState {
   mode: SchoolRegistryMode;
   sourceLabel: string;
+  sourceMode: SchoolRegistrySourceMode;
   warnings: string[];
   loadedAt: string | null;
   config: SchoolRegistryConfig;
+  tabDiagnostics: Record<string, SchoolRegistryTabDiagnostic>;
   schoolProfile: SchoolProfileRow[];
   academicYears: AcademicYearRow[];
   classesSections: ClassSectionRow[];
@@ -200,6 +218,19 @@ export interface SchoolRegistryState {
   registryBootstrapLog: RegistryBootstrapLogRow[];
   registrySummary: RegistrySummaryRow[];
   dataSourceStatus: DataSourceStatusRow[];
+}
+
+export interface SchoolRegistryTabDiagnostic {
+  tabName: string;
+  status: SchoolRegistryTabStatus;
+  sourceMode: "authenticated" | "public" | "unavailable";
+  readPolicy: GoogleSheetReadPolicy;
+  rowCount: number;
+  headers: string[];
+  checkedAt: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  source: "google-sheets-api" | "gviz-public" | "not_tested";
 }
 
 const MASTER_REGISTRY_TABS = [
@@ -273,24 +304,127 @@ function parseGvizTable(text: string): Record<string, string>[] {
     .filter((row: Record<string, string>) => Object.values(row).some((value) => value.trim() !== ""));
 }
 
-async function fetchTabs(sheetUrl: string, tabNames: string[]) {
+function classifyTabReadFailure(tabName: string, error: unknown, readPolicy: GoogleSheetReadPolicy): SchoolRegistryTabDiagnostic {
+  const message = error instanceof Error ? error.message : String(error || "");
+  const code = error instanceof GoogleSheetReadError ? error.code : null;
+  if (code === "AUTH_REQUIRED" || /connection required|sign in|reconnect/i.test(message)) {
+    return {
+      tabName,
+      status: "authentication_required",
+      sourceMode: "unavailable",
+      readPolicy,
+      rowCount: 0,
+      headers: [],
+      checkedAt: new Date().toISOString(),
+      errorCode: code || "AUTH_REQUIRED",
+      errorMessage: message,
+      source: "not_tested"
+    };
+  }
+  if (code === "TOKEN_EXPIRED" || /expired/i.test(message)) {
+    return {
+      tabName,
+      status: "access_denied",
+      sourceMode: "unavailable",
+      readPolicy,
+      rowCount: 0,
+      headers: [],
+      checkedAt: new Date().toISOString(),
+      errorCode: code || "TOKEN_EXPIRED",
+      errorMessage: message,
+      source: "not_tested"
+    };
+  }
+  if (code === "ACCESS_DENIED" || /denied|forbidden/i.test(message)) {
+    return {
+      tabName,
+      status: "access_denied",
+      sourceMode: "unavailable",
+      readPolicy,
+      rowCount: 0,
+      headers: [],
+      checkedAt: new Date().toISOString(),
+      errorCode: code || "ACCESS_DENIED",
+      errorMessage: message,
+      source: "not_tested"
+    };
+  }
+  if (code === "INVALID_URL" || /not configured|invalid/i.test(message)) {
+    return {
+      tabName,
+      status: "file_missing",
+      sourceMode: "unavailable",
+      readPolicy,
+      rowCount: 0,
+      headers: [],
+      checkedAt: new Date().toISOString(),
+      errorCode: code || "INVALID_URL",
+      errorMessage: message,
+      source: "not_tested"
+    };
+  }
+  if (/tab .* not found|range .* not found|sheet .* not found|requested entity was not found/i.test(message)) {
+    return {
+      tabName,
+      status: "tab_missing",
+      sourceMode: "unavailable",
+      readPolicy,
+      rowCount: 0,
+      headers: [],
+      checkedAt: new Date().toISOString(),
+      errorCode: code || "UNKNOWN",
+      errorMessage: message,
+      source: "not_tested"
+    };
+  }
+  return {
+    tabName,
+    status: "error",
+    sourceMode: "unavailable",
+    readPolicy,
+    rowCount: 0,
+    headers: [],
+    checkedAt: new Date().toISOString(),
+    errorCode: code || "UNKNOWN",
+    errorMessage: message,
+    source: "not_tested"
+  };
+}
+
+async function fetchTabs(sheetUrl: string, tabNames: string[], readPolicy: GoogleSheetReadPolicy = "authenticated-preferred") {
   const warnings: string[] = [];
   const tabs: Record<string, Record<string, string>[]> = {};
+  const diagnostics: Record<string, SchoolRegistryTabDiagnostic> = {};
   const settled = await Promise.allSettled(
-    tabNames.map(async (tabName) => [tabName, await readGoogleSheetTabRows(sheetUrl, tabName)] as const)
+    tabNames.map(async (tabName) => [tabName, await readGoogleSheetTabRows(sheetUrl, tabName, { policy: readPolicy })] as const)
   );
 
   settled.forEach((result, index) => {
     const tabName = tabNames[index];
     if (result.status === "fulfilled") {
-      tabs[tabName] = result.value[1].rows;
+      const value = result.value[1];
+      tabs[tabName] = value.rows;
+      diagnostics[tabName] = {
+        tabName,
+        status: value.rows.length > 0 ? "readable" : "empty",
+        sourceMode: value.accessMode,
+        readPolicy: value.readPolicy,
+        rowCount: value.rows.length,
+        headers: value.headers,
+        checkedAt: value.checkedAt,
+        errorCode: null,
+        errorMessage: null,
+        source: value.source
+      };
     } else {
       tabs[tabName] = [];
-      warnings.push(result.reason instanceof Error ? result.reason.message : String(result.reason));
+      const diagnostic = classifyTabReadFailure(tabName, result.reason, readPolicy);
+      diagnostics[tabName] = diagnostic;
+      warnings.push(diagnostic.errorMessage || String(result.reason));
     }
   });
 
-  return { tabs, warnings };
+  return { tabs, warnings, diagnostics };
 }
 
 function pick(row: Record<string, string>, keys: string[], fallback = ""): string {
@@ -428,9 +562,11 @@ export async function loadSchoolRegistry(config = loadSchoolRegistryConfig()): P
     return {
       mode: "missing",
       sourceLabel: "Master data registry missing - live setup required",
+      sourceMode: "unavailable",
       warnings: ["Configure Schooly_Master_Data_Registry to use live classes, subjects, staff, and teacher allocations."],
       loadedAt: null,
       config,
+      tabDiagnostics: {},
       schoolProfile: [],
       academicYears: [],
       classesSections: [],
@@ -449,13 +585,26 @@ export async function loadSchoolRegistry(config = loadSchoolRegistryConfig()): P
   }
 
   try {
-    const { tabs, warnings } = await fetchTabs(url, MASTER_REGISTRY_TABS);
+    const authState = getGoogleWorkspaceAuthState();
+    const { tabs, warnings, diagnostics } = await fetchTabs(url, MASTER_REGISTRY_TABS);
+    const successModes = new Set(
+      Object.values(diagnostics)
+        .filter((diagnostic) => diagnostic.sourceMode === "authenticated" || diagnostic.sourceMode === "public")
+        .map((diagnostic) => diagnostic.sourceMode)
+    );
+    const sourceMode: SchoolRegistrySourceMode = successModes.size === 0
+      ? "unavailable"
+      : successModes.size === 1
+        ? Array.from(successModes)[0]
+        : "mixed";
     const state: SchoolRegistryState = {
       mode: "live",
       sourceLabel: "Live master data registry - Google Sheets",
+      sourceMode: authState.connected ? (authState.accountMatchStatus === "mismatch" ? "mixed" : sourceMode) : sourceMode,
       warnings,
       loadedAt: new Date().toISOString(),
       config,
+      tabDiagnostics: diagnostics,
       schoolProfile: (tabs.School_Profile || []).map((row) => ({
         school_id: pick(row, ["school_id", "id"], ""),
         school_name: pick(row, ["school_name", "name"], ""),
@@ -562,9 +711,11 @@ export async function loadSchoolRegistry(config = loadSchoolRegistryConfig()): P
     return {
       mode: "error",
       sourceLabel: "Master data registry fetch failed - live setup required",
+      sourceMode: "unavailable",
       warnings: [error?.message || String(error)],
       loadedAt: null,
       config,
+      tabDiagnostics: {},
       schoolProfile: [],
       academicYears: [],
       classesSections: [],

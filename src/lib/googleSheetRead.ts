@@ -2,11 +2,41 @@ import { parseGoogleSheetUrl } from "./dataSourceEngine";
 import { getGoogleWorkspaceAccessToken, getGoogleWorkspaceAuthState } from "./googleWorkspaceAuth";
 
 export type GoogleSheetRow = Record<string, string>;
+export type GoogleSheetReadPolicy = "authenticated-required" | "authenticated-preferred" | "public-only";
+export type GoogleSheetReadSourceMode = "authenticated" | "public";
+export type GoogleSheetReadErrorCode =
+  | "AUTH_REQUIRED"
+  | "TOKEN_EXPIRED"
+  | "ACCESS_DENIED"
+  | "INVALID_URL"
+  | "UNKNOWN";
 
 export interface GoogleSheetTabResult {
   headers: string[];
   rows: GoogleSheetRow[];
   source: "google-sheets-api" | "gviz-public";
+  accessMode: GoogleSheetReadSourceMode;
+  readPolicy: GoogleSheetReadPolicy;
+  checkedAt: string;
+}
+
+export class GoogleSheetReadError extends Error {
+  code: GoogleSheetReadErrorCode;
+  source: "google-sheets-api" | "gviz-public" | "auth";
+  status?: number;
+
+  constructor(
+    message: string,
+    code: GoogleSheetReadErrorCode,
+    source: "google-sheets-api" | "gviz-public" | "auth",
+    status?: number,
+  ) {
+    super(message);
+    this.name = "GoogleSheetReadError";
+    this.code = code;
+    this.source = source;
+    this.status = status;
+  }
 }
 
 const inFlightReads = new Map<string, Promise<GoogleSheetTabResult>>();
@@ -85,11 +115,11 @@ function parseGvizTable(text: string): { headers: string[]; rows: GoogleSheetRow
   return { headers, rows };
 }
 
-function buildCacheKey(sheetId: string, tabName: string, sourceMode: "auth" | "public"): string {
-  return `${sheetId}::${normalizeKey(tabName)}::${sourceMode}`;
+function buildCacheKey(sheetId: string, tabName: string, sourceMode: GoogleSheetReadSourceMode, policy: GoogleSheetReadPolicy): string {
+  return `${sheetId}::${normalizeKey(tabName)}::${sourceMode}::${policy}`;
 }
 
-async function readTabWithGoogleSheetsApi(sheetId: string, tabName: string, token: string): Promise<GoogleSheetTabResult> {
+async function readTabWithGoogleSheetsApi(sheetId: string, tabName: string, token: string, policy: GoogleSheetReadPolicy): Promise<GoogleSheetTabResult> {
   const range = encodeURIComponent(tabName);
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?majorDimension=ROWS`;
   const response = await fetch(url, {
@@ -100,57 +130,93 @@ async function readTabWithGoogleSheetsApi(sheetId: string, tabName: string, toke
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    if (response.status === 401 || response.status === 403) {
-      throw new Error("Google Sheets access expired or was denied. Reconnect Workspace and retry.");
+    if (response.status === 401) {
+      throw new GoogleSheetReadError("Google Sheets access expired. Reconnect Workspace and retry.", "TOKEN_EXPIRED", "google-sheets-api", response.status);
     }
-    throw new Error(detail || `Tab '${tabName}' returned ${response.status}.`);
+    if (response.status === 403) {
+      throw new GoogleSheetReadError("Google Sheets access was denied. Verify the connected account and sheet permissions.", "ACCESS_DENIED", "google-sheets-api", response.status);
+    }
+    throw new GoogleSheetReadError(detail || `Tab '${tabName}' returned ${response.status}.`, "UNKNOWN", "google-sheets-api", response.status);
   }
 
   const payload = await response.json() as { values?: unknown[][] };
   const { headers, rows } = parseValuesTable(payload.values || []);
-  return { headers, rows, source: "google-sheets-api" };
+  return {
+    headers,
+    rows,
+    source: "google-sheets-api",
+    accessMode: "authenticated",
+    readPolicy: policy,
+    checkedAt: new Date().toISOString()
+  };
 }
 
-async function readTabWithPublicGviz(sheetId: string, tabName: string): Promise<GoogleSheetTabResult> {
+async function readTabWithPublicGviz(sheetId: string, tabName: string, policy: GoogleSheetReadPolicy): Promise<GoogleSheetTabResult> {
   const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(tabName)}`;
   const response = await fetch(url, { headers: { Accept: "text/plain, */*" } });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new Error(detail || `Tab '${tabName}' returned ${response.status}.`);
+    throw new GoogleSheetReadError(detail || `Tab '${tabName}' returned ${response.status}.`, "UNKNOWN", "gviz-public", response.status);
   }
   const { headers, rows } = parseGvizTable(await response.text());
-  return { headers, rows, source: "gviz-public" };
+  return {
+    headers,
+    rows,
+    source: "gviz-public",
+    accessMode: "public",
+    readPolicy: policy,
+    checkedAt: new Date().toISOString()
+  };
 }
 
 export function clearGoogleSheetReadCache(): void {
   inFlightReads.clear();
 }
 
-export async function readGoogleSheetTabRows(sheetUrl: string, tabName: string): Promise<GoogleSheetTabResult> {
+export async function readGoogleSheetTabRows(
+  sheetUrl: string,
+  tabName: string,
+  options: { policy?: GoogleSheetReadPolicy } = {}
+): Promise<GoogleSheetTabResult> {
+  const policy = options.policy || "authenticated-preferred";
   const parsed = parseGoogleSheetUrl(sheetUrl);
   if (!parsed) {
-    throw new Error("Google Sheets URL is not configured or invalid.");
+    throw new GoogleSheetReadError("Google Sheets URL is not configured or invalid.", "INVALID_URL", "auth");
   }
 
-  const authState = getGoogleWorkspaceAuthState();
   const token = getGoogleWorkspaceAccessToken();
-  const sourceMode = token ? "auth" : "public";
-  const cacheKey = buildCacheKey(parsed.sheetId, tabName, sourceMode);
+  const sourceMode: GoogleSheetReadSourceMode = policy === "public-only"
+    ? "public"
+    : token
+      ? "authenticated"
+      : "public";
+  const cacheKey = buildCacheKey(parsed.sheetId, tabName, sourceMode, policy);
 
   const inFlight = inFlightReads.get(cacheKey);
   if (inFlight) return inFlight;
 
   const promise = (async () => {
     try {
+      if (policy === "public-only") {
+        return await readTabWithPublicGviz(parsed.sheetId, tabName, policy);
+      }
+
+      if (policy === "authenticated-required") {
+        if (!token) {
+          const authState = getGoogleWorkspaceAuthState();
+          if (authState.errorMessage && /expired/i.test(authState.errorMessage)) {
+            throw new GoogleSheetReadError(authState.errorMessage, "TOKEN_EXPIRED", "auth");
+          }
+          throw new GoogleSheetReadError("Google account connection required. Connect Google Workspace and retry.", "AUTH_REQUIRED", "auth");
+        }
+        return await readTabWithGoogleSheetsApi(parsed.sheetId, tabName, token, policy);
+      }
+
       if (token) {
-        return await readTabWithGoogleSheetsApi(parsed.sheetId, tabName, token);
+        return await readTabWithGoogleSheetsApi(parsed.sheetId, tabName, token, policy);
       }
 
-      if (authState.errorMessage && /expired|reconnect|denied|access/i.test(authState.errorMessage)) {
-        throw new Error(authState.errorMessage);
-      }
-
-      return await readTabWithPublicGviz(parsed.sheetId, tabName);
+      return await readTabWithPublicGviz(parsed.sheetId, tabName, policy);
     } finally {
       inFlightReads.delete(cacheKey);
     }
