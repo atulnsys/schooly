@@ -6,6 +6,9 @@ import { isActiveValue, isTeacherStaffRow } from "../lib/liveSchoolEntityBuilder
 interface StaffRegistryPageProps {
   staffRows: StaffDirectoryRow[];
   currentRole: string;
+  sourceDisplayLabel?: string | null;
+  sourceLastSyncedAt?: string | null;
+  sourceLastCheckedAt?: string | null;
 }
 
 function normalizeIdentity(value: string): string {
@@ -25,7 +28,7 @@ function StaffKpiCard({ label, value }: { label: string; value: number | string 
   );
 }
 
-export default function StaffRegistryPage({ staffRows, currentRole }: StaffRegistryPageProps) {
+export default function StaffRegistryPage({ staffRows, currentRole, sourceDisplayLabel, sourceLastSyncedAt, sourceLastCheckedAt }: StaffRegistryPageProps) {
   const [selectedStaff, setSelectedStaff] = useState<StaffDirectoryRow | null>(null);
 
   const staffKpis = useMemo(() => {
@@ -80,6 +83,9 @@ export default function StaffRegistryPage({ staffRows, currentRole }: StaffRegis
         onSelectRow={setSelectedStaff}
         permissionContext={{ currentRole }}
         showCapabilityMetadata={false}
+        sourceDisplayLabel={sourceDisplayLabel}
+        sourceLastSyncedAt={sourceLastSyncedAt}
+        sourceLastCheckedAt={sourceLastCheckedAt}
       />
     </div>
   );

@@ -31,6 +31,7 @@ import {
 import LiveDataReconciliationPanel from "./LiveDataReconciliationPanel";
 
 type SettingsSection = "organization" | "registry" | "application" | "advanced";
+const SETTINGS_SECTION_VALUES = new Set<SettingsSection>(["organization", "registry", "application", "advanced"]);
 
 interface OrganizationDraft {
   organizationName: string;
@@ -225,6 +226,12 @@ function getSettingsSectionId(section: SettingsSection): string {
   return `settings-section-${section}`;
 }
 
+function normalizeSettingsSection(section: string | null | undefined): SettingsSection {
+  if (section === "summary") return "registry";
+  if (section && SETTINGS_SECTION_VALUES.has(section as SettingsSection)) return section as SettingsSection;
+  return "organization";
+}
+
 export default function SettingsPage({
   currentRole,
   currentUser,
@@ -257,7 +264,7 @@ export default function SettingsPage({
   const [writeAccessPending, setWriteAccessPending] = useState(false);
   const [writeAccessStatus, setWriteAccessStatus] = useState<string>("");
 
-  const activeSection = ((settingsSection === "summary" ? "registry" : settingsSection) as SettingsSection | null) || "organization";
+  const activeSection = normalizeSettingsSection(settingsSection);
 
   useEffect(() => {
     setWorkspaceUrlDraft(workspaceUrl);
@@ -900,6 +907,7 @@ export default function SettingsPage({
           {[
             ["Test Result", activeConnectionValidation ? activeConnectionValidation.message : "Not tested"],
             ["Last Checked", activeConnectionValidation ? formatCheckedAt(activeConnectionValidation.checkedAt) : "Not tested"],
+            ["Last successful sync", schoolRegistry?.loadedAt ? formatCheckedAt(schoolRegistry.loadedAt) : "Not yet synced"],
             ["Next Action", activeConnectionValidation ? activeConnectionValidation.nextAction : "Connect Google Workspace and test the source"]
           ].map(([label, value]) => (
             <div key={String(label)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">

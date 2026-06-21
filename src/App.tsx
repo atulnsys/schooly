@@ -413,6 +413,8 @@ const ROUTE_TABS = new Set([
   "textbooks",
 ]);
 
+const SETTINGS_SECTIONS = new Set(["organization", "registry", "application", "advanced"]);
+
 interface RouteState {
   tab: string;
   registryId: string | null;
@@ -423,8 +425,12 @@ function getRouteStateFromLocation(pathname: string, search: string = ""): Route
   const path = String(pathname || "").replace(/^\/+/, "");
   const params = new URLSearchParams(String(search || ""));
   const section = params.get("section");
-  const normalizedSection = section === "summary" ? "registry" : section;
-  const settingsSection = path === "settings" ? (normalizedSection || null) : null;
+  const normalizedSection = section === "summary"
+    ? "registry"
+    : section && SETTINGS_SECTIONS.has(section)
+      ? section
+      : null;
+  const settingsSection = path === "settings" ? normalizedSection : null;
   if (!path) return { tab: "overview", registryId: null, settingsSection: null };
 
   const [firstSegment, ...rest] = path.split("/");
@@ -472,7 +478,7 @@ function getPathnameFromRouteState(tab: string, registryId: string | null, setti
     return registryId ? `/registries/${encodeURIComponent(registryId)}` : "/registries";
   }
   const basePath = `/${tab}`;
-  if (tab === "settings" && settingsSection) {
+  if (tab === "settings" && settingsSection && SETTINGS_SECTIONS.has(settingsSection)) {
     return `${basePath}?section=${encodeURIComponent(settingsSection)}`;
   }
   return basePath;
@@ -1295,6 +1301,7 @@ export default function App() {
         sourceState: getRegistryCardSourceState(studentCount, "master"),
         detail: "Open the live student registry",
         source: "Master Registry / Student_Directory",
+        lastSyncedAt: schoolRegistry?.loadedAt || null,
         drillTarget: { kind: "page", registryId: "students" as const }
       },
       {
@@ -1303,6 +1310,7 @@ export default function App() {
         sourceState: getRegistryCardSourceState(teacherCount, "master"),
         detail: "Open the derived teacher view",
         source: "Master Registry / Teacher_Allocations",
+        lastSyncedAt: schoolRegistry?.loadedAt || null,
         drillTarget: { kind: "page", registryId: "teachers" as const }
       },
       {
@@ -1311,6 +1319,7 @@ export default function App() {
         sourceState: getRegistryCardSourceState(classCount, "master"),
         detail: "Open the classroom course page",
         source: "Master Registry / Classes_Sections",
+        lastSyncedAt: schoolRegistry?.loadedAt || null,
         drillTarget: { kind: "page", registryId: "courses" as const }
       },
       {
@@ -1319,6 +1328,7 @@ export default function App() {
         sourceState: getRegistryCardSourceState(staffCount, "master"),
         detail: "Open the canonical staff directory",
         source: "Master Registry / Staff_Directory",
+        lastSyncedAt: schoolRegistry?.loadedAt || null,
         drillTarget: { kind: "page", registryId: "staff" as const }
       },
       {
@@ -1327,6 +1337,7 @@ export default function App() {
         sourceState: getRegistryCardSourceState(subjectCount, "master"),
         detail: "Open the master registry subject tab",
         source: "Master Registry / Subjects",
+        lastSyncedAt: schoolRegistry?.loadedAt || null,
         drillTarget: { kind: "data", registryId: "masterDataRegistryUrl__subjects" as const }
       },
       {
@@ -1415,7 +1426,15 @@ export default function App() {
           />
         );
       case "staff":
-        return <StaffRegistryPage staffRows={schoolRegistry?.staffDirectory || []} currentRole={currentRole} />;
+        return (
+          <StaffRegistryPage
+            staffRows={schoolRegistry?.staffDirectory || []}
+            currentRole={currentRole}
+            sourceDisplayLabel={schoolRegistry?.sourceLabel || "Live master data registry"}
+            sourceLastSyncedAt={schoolRegistry?.loadedAt || null}
+            sourceLastCheckedAt={schoolRegistry?.tabDiagnostics?.Staff_Directory?.checkedAt || null}
+          />
+        );
       case "courses":
         return <ClassroomCoursesRegistryPage courses={courses} currentRole={currentRole} />;
       case "assignments":
@@ -1912,6 +1931,9 @@ export default function App() {
           <StaffRegistryPage
             staffRows={schoolRegistry?.staffDirectory || []}
             currentRole={currentRole}
+            sourceDisplayLabel={schoolRegistry?.sourceLabel || "Live master data registry"}
+            sourceLastSyncedAt={schoolRegistry?.loadedAt || null}
+            sourceLastCheckedAt={schoolRegistry?.tabDiagnostics?.Staff_Directory?.checkedAt || null}
           />
         )}
 

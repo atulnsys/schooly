@@ -170,6 +170,7 @@ function ModalDropdownFilter({
   onChange,
   disabled = false,
   helperText,
+  loadedAt,
 }: {
   label: string;
   value: string;
@@ -177,7 +178,15 @@ function ModalDropdownFilter({
   onChange: (value: string) => void;
   disabled?: boolean;
   helperText?: string;
+  loadedAt?: string | null;
 }) {
+  const lastSyncedLabel = loadedAt
+    ? (() => {
+        const parsed = new Date(loadedAt);
+        return Number.isNaN(parsed.getTime()) ? String(loadedAt) : parsed.toLocaleString();
+      })()
+    : null;
+
   return (
     <label className="space-y-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
       <span>{label}</span>
@@ -196,6 +205,11 @@ function ModalDropdownFilter({
       </select>
       {helperText && disabled && (
         <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-600">{helperText}</div>
+      )}
+      {lastSyncedLabel && (
+        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-600">
+          Last synced {lastSyncedLabel}
+        </div>
       )}
     </label>
   );
@@ -1482,16 +1496,16 @@ export default function AcademicResourceLibraryPage({
                   <CompactSelectFilter label="Class" value={filterDraft.classFilter} options={classOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, classFilter: value }))} />
                   <CompactSelectFilter label="Section" value={filterDraft.sectionFilter} options={sectionOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, sectionFilter: value }))} />
                   <CompactSelectFilter label="Subject" value={filterDraft.subjectFilter} options={subjectOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, subjectFilter: value }))} />
-                  <ModalDropdownFilter label="Lesson Plan Registry" value={filterDraft.lessonPlanIdFilter || "all"} options={lessonPlanOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, lessonPlanIdFilter: value === "all" ? "" : value }))} disabled={lessonPlanAvailability !== "ready"} helperText={lessonPlanAvailability === "empty" ? "No lesson workspace rows found" : lessonPlanAvailability === "loading" ? "Loading lesson workspace rows..." : lessonPlanAvailability === "ready" ? undefined : "Lesson Plan Registry unavailable"} />
-                  <ModalDropdownFilter label="NCERT Textbook" value={filterDraft.bookFilter} options={bookOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, bookFilter: value }))} disabled={ncertTextbookAvailability !== "ready"} helperText={ncertTextbookAvailability === "empty" ? "No NCERT textbooks found" : ncertTextbookAvailability === "loading" ? "Loading NCERT registry..." : ncertTextbookAvailability === "ready" ? undefined : "NCERT Registry unavailable"} />
-                  <ModalDropdownFilter label="NCERT Chapter" value={filterDraft.chapterFilter} options={draftChapterOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, chapterFilter: value }))} disabled={ncertChapterAvailability !== "ready"} helperText={ncertChapterAvailability === "empty" ? "No NCERT chapters found" : ncertChapterAvailability === "loading" ? "Loading NCERT registry..." : ncertChapterAvailability === "ready" ? undefined : "NCERT Registry unavailable"} />
+                  <ModalDropdownFilter label="Lesson Plan Registry" value={filterDraft.lessonPlanIdFilter || "all"} options={lessonPlanOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, lessonPlanIdFilter: value === "all" ? "" : value }))} disabled={lessonPlanAvailability !== "ready"} helperText={lessonPlanAvailability === "empty" ? "No lesson workspace rows found" : lessonPlanAvailability === "loading" ? "Loading lesson workspace rows..." : lessonPlanAvailability === "ready" ? undefined : "Lesson Plan Registry unavailable"} loadedAt={dropdownSources.lessonPlanRegistry.loadedAt} />
+                  <ModalDropdownFilter label="NCERT Textbook" value={filterDraft.bookFilter} options={bookOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, bookFilter: value }))} disabled={ncertTextbookAvailability !== "ready"} helperText={ncertTextbookAvailability === "empty" ? "No NCERT textbooks found" : ncertTextbookAvailability === "loading" ? "Loading NCERT registry..." : ncertTextbookAvailability === "ready" ? undefined : "NCERT Registry unavailable"} loadedAt={dropdownSources.ncertTextbooks.loadedAt} />
+                  <ModalDropdownFilter label="NCERT Chapter" value={filterDraft.chapterFilter} options={draftChapterOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, chapterFilter: value }))} disabled={ncertChapterAvailability !== "ready"} helperText={ncertChapterAvailability === "empty" ? "No NCERT chapters found" : ncertChapterAvailability === "loading" ? "Loading NCERT registry..." : ncertChapterAvailability === "ready" ? undefined : "NCERT Registry unavailable"} loadedAt={dropdownSources.ncertChapters.loadedAt} />
                 </div>
               </section>
 
               <section className="space-y-3">
                 <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">People and ownership</div>
                 <div className="grid gap-3 md:grid-cols-2">
-                  <ModalDropdownFilter label="Staff" value={filterDraft.staffFilter || "all"} options={staffOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, staffFilter: value === "all" ? "" : value }))} disabled={staffRegistryAvailability !== "ready"} helperText={staffRegistryAvailability === "empty" ? "No active staff rows found" : staffRegistryAvailability === "loading" ? "Loading staff directory..." : staffRegistryAvailability === "ready" ? undefined : "Staff Directory unavailable"} />
+                  <ModalDropdownFilter label="Staff" value={filterDraft.staffFilter || "all"} options={staffOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, staffFilter: value === "all" ? "" : value }))} disabled={staffRegistryAvailability !== "ready"} helperText={staffRegistryAvailability === "empty" ? "No active staff rows found" : staffRegistryAvailability === "loading" ? "Loading staff directory..." : staffRegistryAvailability === "ready" ? undefined : "Staff Directory unavailable"} loadedAt={staffRegistrySource.loadedAt} />
                   <CompactSelectFilter label="Audience" value={filterDraft.audienceFilter} options={audienceOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, audienceFilter: value }))} />
                 </div>
               </section>

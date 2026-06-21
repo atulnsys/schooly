@@ -29,6 +29,9 @@ interface RegistryPageShellProps<T extends object> {
   showCapabilityMetadata?: boolean;
   isLoading?: boolean;
   errorMessage?: string | null;
+  sourceDisplayLabel?: string | null;
+  sourceLastSyncedAt?: string | null;
+  sourceLastCheckedAt?: string | null;
 }
 
 type RegistrySourceState = "Ready" | "Empty" | "Missing" | "Incomplete" | "Fallback" | "Unknown";
@@ -41,7 +44,21 @@ interface RegistryHeaderSummary {
   guidance?: string;
 }
 
-function renderRegistryHeader(entry: RegistryCatalogEntry, currentRole: string, summary: RegistryHeaderSummary, showCapabilityMetadata: boolean) {
+function formatRegistryTimestamp(value: string | null | undefined): string {
+  if (!value) return "Not yet synced";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
+}
+
+function renderRegistryHeader(
+  entry: RegistryCatalogEntry,
+  currentRole: string,
+  summary: RegistryHeaderSummary,
+  showCapabilityMetadata: boolean,
+  sourceDisplayLabel?: string | null,
+  sourceLastSyncedAt?: string | null,
+  sourceLastCheckedAt?: string | null,
+) {
   const Icon = entry.iconComponent;
   const sourceStateClass = summary.sourceState === "Ready"
     ? "bg-emerald-50 text-emerald-700 border-emerald-100"
@@ -104,6 +121,23 @@ function renderRegistryHeader(entry: RegistryCatalogEntry, currentRole: string, 
             Data source: <span className="font-mono font-bold text-slate-700">{entry.sourceLabel}</span>.
             {entry.status === "deferred" ? ` ${entry.statusReason || entry.emptyStateDescription}` : " If this feed is empty, the registry will show the generic empty state instead of synthetic rows."}
           </p>
+          {sourceDisplayLabel !== undefined && (
+            <p className="break-words">
+              Live source: <span className="font-mono font-bold text-slate-700">{sourceDisplayLabel}</span>.
+            </p>
+          )}
+          {(sourceDisplayLabel !== undefined || sourceLastSyncedAt !== undefined || sourceLastCheckedAt !== undefined) && (
+            <div className="flex flex-wrap gap-2">
+              <span className="text-[10px] font-black px-2 py-1 rounded-lg border bg-emerald-50 text-emerald-700 border-emerald-100">
+                Last successful sync: {formatRegistryTimestamp(sourceLastSyncedAt)}
+              </span>
+              {sourceLastCheckedAt && (
+                <span className="text-[10px] font-black px-2 py-1 rounded-lg border bg-slate-50 text-slate-600 border-slate-200">
+                  Last checked: {formatRegistryTimestamp(sourceLastCheckedAt)}
+                </span>
+              )}
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${mandatoryStateClass}`}>
               {summary.mandatoryFieldLabel}
@@ -324,6 +358,9 @@ export default function RegistryPageShell<T extends object>({
   showCapabilityMetadata = true,
   isLoading = false,
   errorMessage = null,
+  sourceDisplayLabel,
+  sourceLastSyncedAt,
+  sourceLastCheckedAt,
 }: RegistryPageShellProps<T>) {
   const entry = useMemo(() => getRegistryCatalogEntry(registryId), [registryId]);
   const definition = useMemo(
@@ -419,7 +456,7 @@ export default function RegistryPageShell<T extends object>({
 
   return (
     <div className="space-y-6 animate-fade-in outline-none" id={`${registryId}-registry-page`} data-testid={`${registryId}-registry-page`} tabIndex={-1}>
-      {renderRegistryHeader(entry, currentRole, summary, showCapabilityMetadata)}
+      {renderRegistryHeader(entry, currentRole, summary, showCapabilityMetadata, sourceDisplayLabel, sourceLastSyncedAt, sourceLastCheckedAt)}
 
       {errorMessage && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">

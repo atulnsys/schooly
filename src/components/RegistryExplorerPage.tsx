@@ -20,6 +20,7 @@ interface RegistryExplorerPageProps {
     sourceState?: LiveRegisterCardSourceState;
     detail: string;
     source: string;
+    lastSyncedAt?: string | null;
     drillTarget:
       | { kind: "page"; registryId: string }
       | { kind: "data"; registryId: string }
@@ -75,6 +76,12 @@ export default function RegistryExplorerPage({
     Fallback: "Fallback data",
     Unknown: "Metadata only",
   };
+
+  function formatTimestamp(value: string | null | undefined): string {
+    if (!value) return "Not yet synced";
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
+  }
 
   const countLabel = (count: number, state?: LiveRegisterCardSourceState) => {
     switch (state) {
@@ -174,6 +181,11 @@ export default function RegistryExplorerPage({
                     {countLabel(card.count, card.sourceState)}
                   </span>
                   <span className="text-[10px] font-semibold text-slate-500">{card.source}</span>
+                  {card.lastSyncedAt !== undefined && (
+                    <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100">
+                      Last synced {formatTimestamp(card.lastSyncedAt)}
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs font-semibold text-slate-600">{card.detail}</div>
               </div>
