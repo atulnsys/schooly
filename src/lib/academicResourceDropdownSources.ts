@@ -250,25 +250,40 @@ export async function loadNcertDropdownState(): Promise<{ textbooks: RegistryDro
   }
 
   try {
-    const [booksResult, chaptersResult] = await Promise.all([
+    const [booksResult, chaptersResult] = await Promise.allSettled([
       readGoogleSheetTabRows(config.ncertRegistryUrl, "NCERT_Book_Registry", { policy: "authenticated-required" }),
       readGoogleSheetTabRows(config.ncertRegistryUrl, "NCERT_Chapter_Registry", { policy: "authenticated-required" }),
     ]);
-    const bookOptions = uniqueByStableKey(booksResult.rows.map(buildNcertBookOption).filter(Boolean) as RegistryDropdownOption[]);
-    const chapterOptions = uniqueByStableKey(chaptersResult.rows.map(buildNcertChapterOption).filter(Boolean) as RegistryDropdownOption[]);
+
+    const booksState: RegistryDropdownState = booksResult.status === "fulfilled"
+      ? (() => {
+          const bookOptions = uniqueByStableKey(booksResult.value.rows.map(buildNcertBookOption).filter(Boolean) as RegistryDropdownOption[]);
+          const availability = bookOptions.length > 0 ? "ready" : "empty";
+          return {
+            availability,
+            loadedAt: booksResult.value.checkedAt,
+            message: buildAvailabilityMessage(availability, bookOptions.length > 0 ? "NCERT textbooks loaded." : "No NCERT textbooks found."),
+            options: bookOptions,
+          };
+        })()
+      : empty(mapReadError(booksResult.reason?.code, authState), booksResult.reason?.message || "NCERT textbooks unavailable.");
+
+    const chaptersState: RegistryDropdownState = chaptersResult.status === "fulfilled"
+      ? (() => {
+          const chapterOptions = uniqueByStableKey(chaptersResult.value.rows.map(buildNcertChapterOption).filter(Boolean) as RegistryDropdownOption[]);
+          const availability = chapterOptions.length > 0 ? "ready" : "empty";
+          return {
+            availability,
+            loadedAt: chaptersResult.value.checkedAt,
+            message: buildAvailabilityMessage(availability, chapterOptions.length > 0 ? "NCERT chapters loaded." : "No NCERT chapters found."),
+            options: chapterOptions,
+          };
+        })()
+      : empty(mapReadError(chaptersResult.reason?.code, authState), chaptersResult.reason?.message || "NCERT chapters unavailable.");
+
     return {
-      textbooks: {
-        availability: bookOptions.length > 0 ? "ready" : "empty",
-        loadedAt: booksResult.checkedAt,
-        message: buildAvailabilityMessage(bookOptions.length > 0 ? "ready" : "empty", bookOptions.length > 0 ? "NCERT textbooks loaded." : "No NCERT textbooks found."),
-        options: bookOptions,
-      },
-      chapters: {
-        availability: chapterOptions.length > 0 ? "ready" : "empty",
-        loadedAt: chaptersResult.checkedAt,
-        message: buildAvailabilityMessage(chapterOptions.length > 0 ? "ready" : "empty", chapterOptions.length > 0 ? "NCERT chapters loaded." : "No NCERT chapters found."),
-        options: chapterOptions,
-      },
+      textbooks: booksState,
+      chapters: chaptersState,
     };
   } catch (error: any) {
     const availability = mapReadError(error?.code, authState);

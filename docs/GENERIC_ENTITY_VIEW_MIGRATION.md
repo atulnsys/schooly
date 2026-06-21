@@ -2032,6 +2032,7 @@ This follow-up tightens dashboard trust signals without changing the app structu
 * `npm run build` succeeded with the existing Vite chunk-size warning only.
 * Local route smoke returned `200` for `/settings`, `/settings?section=registry`, `/settings?section=summary`, `/settings?section=advanced`, `/setup-registries`, `/school-setup`, `/registries`, `/students`, `/staff`, `/teachers`, `/courses`, and `/assignments`.
 * Commit SHA placeholder: `pending`.
+* Related audit docs: [PRODUCT_UI_QUALITY_CHECKLIST.md](./PRODUCT_UI_QUALITY_CHECKLIST.md) and [SCHOOLY_PRODUCT_UI_QUALITY_TRACKER.md](./SCHOOLY_PRODUCT_UI_QUALITY_TRACKER.md).
 
 ---
 

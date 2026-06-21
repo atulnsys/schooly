@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, ExternalLink, Filter, LibraryBig, Search } from "lucide-react";
 import GenericEntityPage from "./generic/GenericEntityPage";
 import type { GenericEntityDefinition } from "../lib/genericEntityView";
@@ -199,6 +199,22 @@ function ModalDropdownFilter({
       )}
     </label>
   );
+}
+
+function getFocusableModalElements(root: HTMLElement | null): HTMLElement[] {
+  if (!root) return [];
+  return Array.from(
+    root.querySelectorAll<HTMLElement>(
+      [
+        "button:not([disabled])",
+        "a[href]",
+        "input:not([disabled])",
+        "select:not([disabled])",
+        "textarea:not([disabled])",
+        '[tabindex]:not([tabindex="-1"])',
+      ].join(", "),
+    ),
+  ).filter((element) => !element.hasAttribute("disabled") && element.tabIndex !== -1);
 }
 
 function getResourceFilterPresetFromLocation(): ResourceFilterPreset {
@@ -848,6 +864,8 @@ export default function AcademicResourceLibraryPage({
   const [classroomLinkFilter, setClassroomLinkFilter] = useState<ResourceLinkFilter>(initialFilterPreset.classroomLinkFilter);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [filterDraft, setFilterDraft] = useState<ResourceFilterPreset & { staffFilter: string }>(() => ({ ...initialFilterPreset }));
+  const filterModalPanelRef = useRef<HTMLDivElement | null>(null);
+  const filterModalTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [dropdownSources, setDropdownSources] = useState<AcademicResourceDropdownSources>({
     lessonPlanRegistry: { availability: "loading", loadedAt: null, message: "Loading...", options: [] },
     ncertTextbooks: { availability: "loading", loadedAt: null, message: "Loading...", options: [] },
@@ -1194,15 +1212,10 @@ export default function AcademicResourceLibraryPage({
   useEffect(() => {
     if (!filterModalOpen) return;
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        closeFilterModal();
-      }
+    getFocusableModalElements(filterModalPanelRef.current)[0]?.focus();
+    return () => {
+      filterModalTriggerRef.current?.focus();
     };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [filterModalOpen]);
 
   const renderDetailBeforeSections = (row: AcademicResourceRow) => (
@@ -1368,6 +1381,7 @@ export default function AcademicResourceLibraryPage({
         renderToolbarActions={() => (
           <button
             type="button"
+            ref={filterModalTriggerRef}
             onClick={openFilterModal}
             className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[10.5px] font-bold transition-colors cursor-pointer ${
               hasActiveFilters
@@ -1403,7 +1417,31 @@ export default function AcademicResourceLibraryPage({
           onClick={closeFilterModal}
         >
           <div
+            ref={filterModalPanelRef}
             className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
+            tabIndex={-1}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                closeFilterModal();
+                return;
+              }
+              if (event.key !== "Tab") return;
+
+              const focusables = getFocusableModalElements(filterModalPanelRef.current);
+              if (focusables.length === 0) {
+                event.preventDefault();
+                return;
+              }
+
+              const currentIndex = focusables.indexOf(document.activeElement as HTMLElement);
+              const nextIndex = event.shiftKey
+                ? (currentIndex <= 0 ? focusables.length - 1 : currentIndex - 1)
+                : (currentIndex === -1 || currentIndex === focusables.length - 1 ? 0 : currentIndex + 1);
+
+              event.preventDefault();
+              focusables[nextIndex]?.focus();
+            }}
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
