@@ -5,12 +5,12 @@
 | Field | Value |
 | --- | --- |
 | Repository | `C:\Projects\schooly` |
-| Branch | `codex-ui-tracker-followup` |
+| Branch | `codex-ui-quality-wave-2` |
 | Target branch | `import/enhanced-codebase` |
 | Audit date | `2026-06-21` |
 | Baseline commit | `ca4f4fe` |
-| Reviewed through commit | `93b23d4` |
-| Verification performed | Lint passed: `npm run lint` (`tsc --noEmit`); no test script is configured in `package.json`; build passed: `npm run build`; route smoke on key pages; browser smoke at default, ~1024px, and narrow mobile widths, including invalid settings section fallback, back/forward restore, registry/staff freshness labels, and the resources filter modal; Git-lock handling was operationally resolved by stopping stale Git processes, not by treating VS Code watcher exclusions as a repository-wide fix. |
+| Reviewed through commit | `4d00974` |
+| Verification performed | Lint passed: `npm run lint` (`tsc --noEmit`); `package.json` has no test script; build passed: `npm run build`; route smoke on key pages; browser smoke at default, ~1024px, and narrow mobile widths, including the skip link, resources filter modal, invalid settings section fallback, registry/staff freshness labels, and a delayed Settings connection test that exposed the pending label; Git-lock handling was operationally resolved by stopping stale Git processes, not by treating VS Code watcher exclusions as a repository-wide fix. |
 
 ## Coverage Summary
 
@@ -18,8 +18,8 @@
 | --- | --- |
 | Canonical requirements | 347 |
 | Tracker rows | 347 |
-| Reviewed requirements | 24 |
-| Unreviewed requirements | 323 |
+| Reviewed requirements | 34 |
+| Unreviewed requirements | 313 |
 
 ## Priority Summary
 
@@ -35,11 +35,11 @@
 
 | Status | Count |
 | --- | --- |
-| PASS | 20 |
+| PASS | 30 |
 | PARTIAL | 4 |
 | FAIL | 0 |
 | BLOCKED | 0 |
-| NOT TESTED | 323 |
+| NOT TESTED | 313 |
 | NOT APPLICABLE | 0 |
 
 ## Recommended Next Sprint
@@ -283,11 +283,11 @@
 | `OVERLAY-02` | P2 | Use drawers for contextual workflows needing more space. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
 | `OVERLAY-03` | P2 | Use popovers only for lightweight related information or actions. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
 | `OVERLAY-04` | P2 | Provide a clear title, backdrop, and explicit action labels. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `OVERLAY-05` | P2 | Trap focus, move focus into the overlay, and return focus to the trigger. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `OVERLAY-06` | P2 | Support Escape for non-destructive dialogs. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
+| `OVERLAY-05` | P2 | Trap focus, move focus into the overlay, and return focus to the trigger. | PASS | The Academic Resource filter modal opens focus on the first control, keeps Tab and Shift+Tab inside the dialog, and returns focus to the trigger on close. | None in the audited dialog. | Preserve the shared dialog focus trap for future overlays. | Browser keyboard checks on `/resources` plus DOM inspection of the dialog focus order. | `4d00974` | `2026-06-21` |
+| `OVERLAY-06` | P2 | Support Escape for non-destructive dialogs. | PASS | Pressing Escape closes the Academic Resource filter dialog from the keyboard. | None in the audited dialog. | Keep Escape close behavior on non-destructive dialogs. | Browser keyboard check on `/resources`. | `4d00974` | `2026-06-21` |
 | `OVERLAY-07` | P2 | Prevent accidental backdrop dismissal for destructive or partially completed work. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
 | `OVERLAY-08` | P2 | Keep primary and secondary actions consistently positioned. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `OVERLAY-09` | P2 | Constrain height and keep long content scrollable with visible header and footer. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
+| `OVERLAY-09` | P2 | Constrain height and keep long content scrollable with visible header and footer. | PASS | The filter dialog uses a `max-h-[90vh]` shell with an internal scrolling body, while the header and footer stay visible on wide and narrow browser checks. | No mobile clipping was observed in the sampled modal shell. | Preserve the scrollable dialog shell and visible action areas. | DOM inspection plus browser checks at default and mobile widths on `/resources`. | `4d00974` | `2026-06-21` |
 | `OVERLAY-10` | P2 | Avoid nested modals. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
 | `OVERLAY-11` | P2 | Use full-screen or drawer treatment on mobile when needed. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
 | `OVERLAY-12` | P2 | Keep menus inside the viewport and close them appropriately. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
@@ -298,7 +298,7 @@
 | `STATE-03` | P2 | Use scoped progress indicators and avoid blocking unrelated page sections. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
 | `STATE-04` | P2 | Keep existing data visible during safe background refreshes. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
 | `STATE-05` | P2 | Disable only controls affected by an operation. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `STATE-06` | P2 | Provide feedback for operations taking more than a moment. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
+| `STATE-06` | P2 | Provide feedback for operations taking more than a moment. | PASS | Settings connection testing now exposes a visible `Testing...` pending label, and the registry/settings surfaces keep section-level status text visible while work is in progress. | The delayed settings test completed before the final status message settled, but the in-flight pending label was observed. | Keep per-control pending text and status feedback for any longer operation. | Direct DOM browser sample on `/settings` with a delayed test-connection response. | `4d00974` | `2026-06-21` |
 | `STATE-07` | P2 | Do not leave loading indicators running indefinitely without timeout or error handling. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
 | `STATE-08` | P2 | Use plain user-facing error language. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
 | `STATE-09` | P2 | Provide Retry, Configure, Connect, or other recovery actions where relevant. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
@@ -314,7 +314,7 @@
 | `FEEDBACK-07` | P2 | Pause dismissal while the user interacts where supported. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
 | `FEEDBACK-08` | P2 | Provide a recovery action where one exists. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
 | `FEEDBACK-09` | P2 | Prevent duplicate notifications from stacking. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `FEEDBACK-10` | P2 | Announce important feedback through an appropriate live region. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
+| `FEEDBACK-10` | P2 | Announce important feedback through an appropriate live region. | PASS | The generic list view exposes a polite status region for result counts, empty-state changes, and page ranges, while Settings and Registry shells expose status text for connection and loading feedback. | None in the audited dynamic-feedback surfaces. | Keep concise live-region updates and avoid duplicate announcements. | Browser DOM inspection on `/resources`, `/settings`, and `/registries`. | `4d00974` | `2026-06-21` |
 | `CONTENT-01` | P2 | Use terminology familiar to users and consistent across the application. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
 | `CONTENT-02` | P2 | Use specific domain labels instead of generic â€œItem,â€ â€œObject,â€ or unexplained â€œStatus.â€ | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
 | `CONTENT-03` | P2 | Use action-oriented button labels. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
@@ -341,17 +341,17 @@
 | `RESP-08` | P2 | Test intermediate widths, landscape, portrait, and browser zoom. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
 | `A11Y-01` | P2 | Use semantic HTML before ARIA. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
 | `A11Y-02` | P2 | Maintain a logical heading hierarchy. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `A11Y-03` | P2 | Make all functionality keyboard accessible. | PASS | The Resources filter modal opens from the toolbar, supports Escape, and remains keyboard reachable. | No screen-reader test was run. | Keep keyboard handling on new overlays and dialogs. | Browser keyboard checks on the resources modal. | `94a34b8` | `2026-06-21` |
-| `A11Y-04` | P2 | Provide visible focus states and natural focus order. | PASS | The filter modal focuses the close button on open and returns focus to the trigger on close. | None in the audited modal. | Preserve focus restoration for future overlays. | Browser focus checks on the resources filter modal. | `94a34b8` | `2026-06-21` |
-| `A11Y-05` | P2 | Provide a skip-to-content mechanism for complex shells. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
+| `A11Y-03` | P2 | Make all functionality keyboard accessible. | PASS | The shell skip link, the resources filter trigger, the generic list actions, and the resources modal all work from the keyboard without needing a mouse. | No screen-reader test was run. | Keep keyboard handling on new overlays, buttons, and list actions. | Browser keyboard checks on `/`, `/resources`, and the generic list controls. | `4d00974` | `2026-06-21` |
+| `A11Y-04` | P2 | Provide visible focus states and natural focus order. | PASS | The shell skip link shows a visible focus ring, the modal trap respects tab order, and focus returns to the trigger after close. | None in the audited focus flows. | Preserve focus restoration and the shared visible focus treatment for future overlays. | Browser focus checks on `/` and `/resources`. | `4d00974` | `2026-06-21` |
+| `A11Y-05` | P2 | Provide a skip-to-content mechanism for complex shells. | PASS | The app shell now exposes `Skip to main content`, and activating it moves focus to `#viewport-workspace` without adding another main landmark. | None in the audited shell. | Keep the skip link as the first meaningful focusable control in the shell. | Browser keyboard activation on a fresh `/` load. | `4d00974` | `2026-06-21` |
 | `A11Y-06` | P2 | Associate labels, helper text, errors, and controls. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `A11Y-07` | P2 | Provide accessible names for buttons, links, inputs, cards, icons, and tables. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
+| `A11Y-07` | P2 | Provide accessible names for buttons, links, inputs, cards, icons, and tables. | PASS | The mobile menu, filter trigger, row actions, pagination controls, close buttons, and display toggles now expose explicit accessible names instead of relying on hover text. | None in the audited controls. | Keep naming icon-only and action-oriented controls explicitly. | DOM inspection on `/`, `/resources`, `/staff`, and `/registries`. | `4d00974` | `2026-06-21` |
 | `A11Y-08` | P2 | Associate table headers correctly with cells. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
 | `A11Y-09` | P2 | Expose current sort direction programmatically. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
 | `A11Y-10` | P2 | Make column menus, resizing, reordering, visibility, and view management keyboard operable. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
 | `A11Y-11` | P2 | Provide keyboard alternatives to drag-and-drop. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
 | `A11Y-12` | P2 | Do not make controls discoverable only through hover. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `A11Y-13` | P2 | Announce important filter, sort, loading, result-count, and status changes appropriately. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
+| `A11Y-13` | P2 | Announce important filter, sort, loading, result-count, and status changes appropriately. | PASS | The generic list view announces result counts and empty states, the Settings page announces connection status, and the registry shell announces loading state. | No screen-reader pass was run, so the evidence is DOM-based rather than assistive-technology-based. | Preserve concise live-region updates and avoid duplicate announcements. | Browser DOM inspection on `/resources`, `/settings`, and `/registries`. | `4d00974` | `2026-06-21` |
 | `A11Y-14` | P2 | Meet approved text and interface contrast. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
 | `A11Y-15` | P2 | Do not communicate meaning through colour alone. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
 | `A11Y-16` | P2 | Provide alternatives for meaningful images and charts. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
