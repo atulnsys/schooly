@@ -18,8 +18,6 @@ interface RegistryPageShellProps<T extends object> {
   registryId: string;
   rows: T[];
   currentRole: string;
-  selectedRow?: T | null;
-  onSelectRow?: (row: T | null) => void;
   permissionContext?: GenericEntityPermissionContext;
   className?: string;
   showSearch?: boolean;
@@ -362,8 +360,6 @@ export default function RegistryPageShell<T extends object>({
   registryId,
   rows,
   currentRole,
-  selectedRow,
-  onSelectRow,
   permissionContext,
   className = "",
   showSearch,
@@ -498,15 +494,14 @@ export default function RegistryPageShell<T extends object>({
         <GenericEntityPage
           definition={viewDefinition}
           rows={rows}
-          selectedRow={selectedRow}
-          onSelectRow={onSelectRow ?? undefined}
+          stateNamespace={registryId}
           permissionContext={permissionContext ?? { currentRole }}
           showSearch={controls.showSearch}
           showFilters={controls.showFilters}
           showSort={controls.showSort}
           showDisplayModeToggle={controls.showDisplayModeToggle}
           showPagination={controls.showPagination}
-          renderDetailBeforeSections={selectedRow ? (row) => renderRegistryDetailSummary(row, definition) : undefined}
+          renderDetailBeforeSections={(row) => renderRegistryDetailSummary(row, definition)}
           className={className}
         />
       )}

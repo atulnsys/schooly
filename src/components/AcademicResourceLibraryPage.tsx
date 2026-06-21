@@ -277,6 +277,8 @@ function getResourceFilterPresetFromLocation(): ResourceFilterPreset {
   const sourceRegistryIdParam = params.get("sourceRegistryId");
   const evidenceStatusParam = params.get("evidenceStatus");
   const sourceConfidenceParam = params.get("sourceConfidence");
+  const driveLinkParam = params.get("driveLink");
+  const classroomLinkParam = params.get("classroomLink");
 
   const sourceFilterMap: Record<string, AcademicResourceSourceFamily> = {
     "lesson-plans": "LessonPlanner",
@@ -315,9 +317,43 @@ function getResourceFilterPresetFromLocation(): ResourceFilterPreset {
     sourceRegistryIdFilter: sourceRegistryIdParam || "",
     evidenceStatusFilter: evidenceStatusParam || "all",
     sourceConfidenceFilter: sourceConfidenceParam || "all",
-    driveLinkFilter: "all",
-    classroomLinkFilter: "all",
+    driveLinkFilter: driveLinkParam === "linked" || driveLinkParam === "missing" ? (driveLinkParam as ResourceLinkFilter) : "all",
+    classroomLinkFilter: classroomLinkParam === "linked" || classroomLinkParam === "missing" ? (classroomLinkParam as ResourceLinkFilter) : "all",
   };
+}
+
+function writeResourceFilterPresetToLocation(preset: ResourceFilterPreset) {
+  if (typeof window === "undefined") return;
+
+  const params = new URLSearchParams(window.location.search);
+  const setOrDelete = (key: string, value: string) => {
+    if (!value || value === "all") {
+      params.delete(key);
+      return;
+    }
+    params.set(key, value);
+  };
+
+  setOrDelete("source", preset.sourceFilter === "all" ? "" : preset.sourceFilter);
+  setOrDelete("status", preset.statusFilter === "all" ? "" : preset.statusFilter);
+  setOrDelete("resourceType", preset.resourceTypeFilter === "all" ? "" : preset.resourceTypeFilter);
+  setOrDelete("category", preset.categoryFilter === "all" ? "" : preset.categoryFilter);
+  setOrDelete("audience", preset.audienceFilter === "all" ? "" : preset.audienceFilter);
+  setOrDelete("staff", preset.staffFilter);
+  setOrDelete("class", preset.classFilter === "all" ? "" : preset.classFilter);
+  setOrDelete("section", preset.sectionFilter === "all" ? "" : preset.sectionFilter);
+  setOrDelete("subject", preset.subjectFilter === "all" ? "" : preset.subjectFilter);
+  setOrDelete("book", preset.bookFilter === "all" ? "" : preset.bookFilter);
+  setOrDelete("chapter", preset.chapterFilter === "all" ? "" : preset.chapterFilter);
+  setOrDelete("lessonPlanId", preset.lessonPlanIdFilter);
+  setOrDelete("sourceRegistryId", preset.sourceRegistryIdFilter);
+  setOrDelete("evidenceStatus", preset.evidenceStatusFilter === "all" ? "" : preset.evidenceStatusFilter);
+  setOrDelete("sourceConfidence", preset.sourceConfidenceFilter === "all" ? "" : preset.sourceConfidenceFilter);
+  setOrDelete("driveLink", preset.driveLinkFilter === "all" ? "" : preset.driveLinkFilter);
+  setOrDelete("classroomLink", preset.classroomLinkFilter === "all" ? "" : preset.classroomLinkFilter);
+
+  const nextUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}${window.location.hash}`;
+  window.history.pushState({}, "", nextUrl);
 }
 
 const SOURCE_FAMILY_LABELS: Record<AcademicResourceSourceFamily, string> = {
@@ -1150,23 +1186,44 @@ export default function AcademicResourceLibraryPage({
   const hasActiveFilters = activeFilterCount > 0;
 
   const resetResourceFilters = () => {
-    setSourceFilter("all");
-    setStatusFilter("all");
-    setResourceTypeFilter("all");
-    setCategoryFilter("all");
-    setAudienceFilter("all");
-    setStaffFilter("");
-    setClassFilter("all");
-    setSectionFilter("all");
-    setSubjectFilter("all");
-    setBookFilter("all");
-    setChapterFilter("all");
-    setLessonPlanIdFilter("");
-    setSourceRegistryIdFilter("");
-    setEvidenceStatusFilter("all");
-    setSourceConfidenceFilter("all");
-    setDriveLinkFilter("all");
-    setClassroomLinkFilter("all");
+    const resetPreset: ResourceFilterPreset = {
+      sourceFilter: "all",
+      statusFilter: "all",
+      resourceTypeFilter: "all",
+      categoryFilter: "all",
+      audienceFilter: "all",
+      staffFilter: "",
+      classFilter: "all",
+      sectionFilter: "all",
+      subjectFilter: "all",
+      bookFilter: "all",
+      chapterFilter: "all",
+      lessonPlanIdFilter: "",
+      sourceRegistryIdFilter: "",
+      evidenceStatusFilter: "all",
+      sourceConfidenceFilter: "all",
+      driveLinkFilter: "all",
+      classroomLinkFilter: "all",
+    };
+    setSourceFilter(resetPreset.sourceFilter);
+    setStatusFilter(resetPreset.statusFilter);
+    setResourceTypeFilter(resetPreset.resourceTypeFilter);
+    setCategoryFilter(resetPreset.categoryFilter);
+    setAudienceFilter(resetPreset.audienceFilter);
+    setStaffFilter(resetPreset.staffFilter);
+    setClassFilter(resetPreset.classFilter);
+    setSectionFilter(resetPreset.sectionFilter);
+    setSubjectFilter(resetPreset.subjectFilter);
+    setBookFilter(resetPreset.bookFilter);
+    setChapterFilter(resetPreset.chapterFilter);
+    setLessonPlanIdFilter(resetPreset.lessonPlanIdFilter);
+    setSourceRegistryIdFilter(resetPreset.sourceRegistryIdFilter);
+    setEvidenceStatusFilter(resetPreset.evidenceStatusFilter);
+    setSourceConfidenceFilter(resetPreset.sourceConfidenceFilter);
+    setDriveLinkFilter(resetPreset.driveLinkFilter);
+    setClassroomLinkFilter(resetPreset.classroomLinkFilter);
+    setFilterDraft({ ...resetPreset });
+    writeResourceFilterPresetToLocation(resetPreset);
   };
 
   const getCurrentFilterSnapshot = (): ResourceFilterPreset => ({
@@ -1216,8 +1273,38 @@ export default function AcademicResourceLibraryPage({
     setSourceConfidenceFilter(filterDraft.sourceConfidenceFilter);
     setDriveLinkFilter(filterDraft.driveLinkFilter);
     setClassroomLinkFilter(filterDraft.classroomLinkFilter);
+    writeResourceFilterPresetToLocation(filterDraft);
     setFilterModalOpen(false);
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handlePopState = () => {
+      const preset = getResourceFilterPresetFromLocation();
+      setSourceFilter(preset.sourceFilter);
+      setStatusFilter(preset.statusFilter);
+      setResourceTypeFilter(preset.resourceTypeFilter);
+      setCategoryFilter(preset.categoryFilter);
+      setAudienceFilter(preset.audienceFilter);
+      setStaffFilter(preset.staffFilter);
+      setClassFilter(preset.classFilter);
+      setSectionFilter(preset.sectionFilter);
+      setSubjectFilter(preset.subjectFilter);
+      setBookFilter(preset.bookFilter);
+      setChapterFilter(preset.chapterFilter);
+      setLessonPlanIdFilter(preset.lessonPlanIdFilter);
+      setSourceRegistryIdFilter(preset.sourceRegistryIdFilter);
+      setEvidenceStatusFilter(preset.evidenceStatusFilter);
+      setSourceConfidenceFilter(preset.sourceConfidenceFilter);
+      setDriveLinkFilter(preset.driveLinkFilter);
+      setClassroomLinkFilter(preset.classroomLinkFilter);
+      setFilterDraft({ ...preset });
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   const clearFilterDraft = () => {
     setFilterDraft({
@@ -1416,6 +1503,7 @@ export default function AcademicResourceLibraryPage({
       <GenericEntityPage
         definition={ACADEMIC_RESOURCE_DEFINITION}
         rows={filteredRows}
+        stateNamespace="academic-resources"
         permissionContext={permissionContext}
         renderDetailBeforeSections={renderDetailBeforeSections}
         renderDetailAfterSections={renderDetailAfterSections}

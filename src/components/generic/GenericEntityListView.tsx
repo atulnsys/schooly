@@ -41,6 +41,15 @@ interface GenericEntityListViewProps<T extends object> {
   filterValues?: GenericEntityFilterState;
   onFilterChange?: (value: GenericEntityFilterState) => void;
 
+  sortState?: GenericEntitySortState | null;
+  onSortChange?: (value: GenericEntitySortState | null) => void;
+
+  page?: number;
+  onPageChange?: (value: number) => void;
+
+  pageSize?: number;
+  onPageSizeChange?: (value: number) => void;
+
   permissionContext?: GenericEntityPermissionContext;
 
   showSearch?: boolean;
@@ -142,6 +151,12 @@ export default function GenericEntityListView<T extends object>({
   renderToolbarActions,
   displayMode,
   onDisplayModeChange,
+  sortState: controlledSortState,
+  onSortChange,
+  page: controlledPage,
+  onPageChange,
+  pageSize: controlledPageSize,
+  onPageSizeChange,
   className = "",
   maxVisibleFields = 5,
 }: GenericEntityListViewProps<T>) {
@@ -152,16 +167,19 @@ export default function GenericEntityListView<T extends object>({
   const [localDisplayMode, setLocalDisplayMode] = useState<GenericEntityDisplayMode>(
     definition.defaultDisplayMode ?? "cards",
   );
-  const [sortState, setSortState] = useState<GenericEntitySortState | null>(
+  const [localSortState, setLocalSortState] = useState<GenericEntitySortState | null>(
     definition.defaultSort ?? null,
   );
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(definition.defaultPageSize ?? 20);
+  const [localPage, setLocalPage] = useState(1);
+  const [localPageSize, setLocalPageSize] = useState(definition.defaultPageSize ?? 20);
   const [announcement, setAnnouncement] = useState("");
 
   const activeSearch = searchValue ?? localSearch;
   const activeFilters = filterValues ?? localFilters;
   const activeDisplayMode = displayMode ?? localDisplayMode;
+  const activeSortState = controlledSortState ?? localSortState;
+  const activePage = controlledPage ?? localPage;
+  const activePageSize = controlledPageSize ?? localPageSize;
 
   const filterableFields = getVisibleGenericFields(null, definition.fields, "list", permissionContext)
     .filter((field) => field.filterable);
@@ -177,21 +195,28 @@ export default function GenericEntityListView<T extends object>({
 
   const visibleRows = useMemo(() => {
     const filtered = filterGenericRows(rows, definition, activeSearch, activeFilters, permissionContext);
-    return sortGenericRows(filtered, definition, sortState);
-  }, [rows, definition, activeSearch, activeFilters, permissionContext, sortState]);
+    return sortGenericRows(filtered, definition, activeSortState);
+  }, [rows, definition, activeSearch, activeFilters, permissionContext, activeSortState]);
 
-  const totalPages = Math.max(1, Math.ceil(visibleRows.length / pageSize));
-  const safePage = Math.min(page, totalPages);
+  const totalPages = Math.max(1, Math.ceil(visibleRows.length / activePageSize));
+  const safePage = Math.min(activePage, totalPages);
 
   const pagedRows = showPagination
-    ? visibleRows.slice((safePage - 1) * pageSize, safePage * pageSize)
+    ? visibleRows.slice((safePage - 1) * activePageSize, safePage * activePageSize)
     : visibleRows;
 
   const selectedId = selectedRow ? definition.getId(selectedRow) : null;
 
   useEffect(() => {
-    setPage(1);
-  }, [activeSearch, JSON.stringify(activeFilters), pageSize]);
+    if (controlledPage !== undefined && controlledPage !== safePage) {
+      onPageChange?.(safePage);
+      return;
+    }
+
+    if (controlledPage === undefined && localPage !== safePage) {
+      setLocalPage(safePage);
+    }
+  }, [controlledPage, localPage, onPageChange, safePage]);
 
   const updateSearch = (value: string) => {
     if (onSearchChange) onSearchChange(value);
@@ -209,15 +234,38 @@ export default function GenericEntityListView<T extends object>({
     else setLocalDisplayMode(mode);
   };
 
+  const updateSortState = (value: GenericEntitySortState | null) => {
+    if (onSortChange) onSortChange(value);
+    else setLocalSortState(value);
+  };
+
+  const updatePage = (value: number) => {
+    if (onPageChange) onPageChange(value);
+    else setLocalPage(value);
+  };
+
+  const updatePageSize = (value: number) => {
+    if (onPageSizeChange) onPageSizeChange(value);
+    else setLocalPageSize(value);
+  };
+
   const clearControls = () => {
     updateSearch("");
-    if (onFilterChange) onFilterChange({});
-    else setLocalFilters({});
-    setSortState(definition.defaultSort ?? null);
+    if (onFilterChange) onFilterChange(definition.defaultFilters ?? {});
+    else setLocalFilters(definition.defaultFilters ?? {});
+    updateSortState(definition.defaultSort ?? null);
+    updatePage(1);
   };
 
   const hasActiveFilters = Object.values(activeFilters).some((value) => value && value !== "All");
-  const hasActiveControls = Boolean(activeSearch.trim()) || hasActiveFilters || Boolean(sortState);
+  const defaultSort = definition.defaultSort ?? null;
+  const hasActiveSort =
+    Boolean(activeSortState) &&
+    (!defaultSort ||
+      defaultSort.fieldKey !== activeSortState.fieldKey ||
+      defaultSort.direction !== activeSortState.direction);
+  const hasActiveControls = Boolean(activeSearch.trim()) || hasActiveFilters || hasActiveSort;
+  const activeFilterCount = Object.entries(activeFilters).filter(([, value]) => value && value !== "All").length;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -230,9 +278,9 @@ export default function GenericEntityListView<T extends object>({
         return;
       }
 
-      if (showPagination && visibleRows.length > pageSize) {
-        const start = (safePage - 1) * pageSize + 1;
-        const end = Math.min(visibleRows.length, safePage * pageSize);
+      if (showPagination && visibleRows.length > activePageSize) {
+        const start = (safePage - 1) * activePageSize + 1;
+        const end = Math.min(visibleRows.length, safePage * activePageSize);
         setAnnouncement(`Showing records ${start} to ${end} of ${visibleRows.length}.`);
         return;
       }
@@ -241,7 +289,7 @@ export default function GenericEntityListView<T extends object>({
     }, 180);
 
     return () => window.clearTimeout(timer);
-  }, [definition.emptyTitle, hasActiveControls, pageSize, safePage, showPagination, visibleRows.length]);
+  }, [activePageSize, definition.emptyTitle, hasActiveControls, safePage, showPagination, visibleRows.length]);
 
   const renderActions = (row: T) => (
     <div className="flex items-center gap-1 shrink-0">
@@ -484,6 +532,7 @@ export default function GenericEntityListView<T extends object>({
           <div className="flex flex-wrap items-center gap-2">
             <div className="text-[10px] text-slate-500 font-mono font-bold uppercase">
               Showing {visibleRows.length} of {rows.length}
+              {activeFilterCount > 0 && ` · ${activeFilterCount} filter${activeFilterCount === 1 ? "" : "s"} active`}
             </div>
 
             {renderToolbarActions?.()}
@@ -542,7 +591,7 @@ export default function GenericEntityListView<T extends object>({
                 <>
                   <div className="flex items-center gap-1 text-slate-400 font-mono text-[10px]">
                     <Filter size={12} />
-                    <span>Filters:</span>
+                    <span>Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}:</span>
                   </div>
 
                   {filterableFields.map((field) => {
@@ -569,18 +618,18 @@ export default function GenericEntityListView<T extends object>({
                 </>
               )}
 
-              {showSort && sortableFields.length > 0 && (
-                <>
+            {showSort && sortableFields.length > 0 && (
+              <>
                   <div className="flex items-center gap-1 text-slate-400 font-mono text-[10px] ml-0 sm:ml-2">
                     <ChevronsUpDown size={12} />
                     <span>Sort:</span>
                   </div>
 
                   <select
-                    value={sortState?.fieldKey ?? ""}
+                    value={activeSortState?.fieldKey ?? ""}
                     onChange={(event) => {
                       const fieldKey = event.target.value;
-                      setSortState(fieldKey ? { fieldKey, direction: sortState?.direction ?? "asc" } : null);
+                      updateSortState(fieldKey ? { fieldKey, direction: activeSortState?.direction ?? "asc" } : null);
                     }}
                     className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-[10.5px] text-slate-650 font-semibold focus:outline-hidden"
                     aria-label={`Sort ${definition.entityNamePlural}`}
@@ -593,19 +642,19 @@ export default function GenericEntityListView<T extends object>({
                     ))}
                   </select>
 
-                  {sortState && (
+                  {activeSortState && (
                     <button
                       type="button"
                       onClick={() =>
-                        setSortState({
-                          fieldKey: sortState.fieldKey,
-                          direction: sortState.direction === "asc" ? "desc" : "asc",
+                        updateSortState({
+                          fieldKey: activeSortState.fieldKey,
+                          direction: activeSortState.direction === "asc" ? "desc" : "asc",
                         })
                       }
                       className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
-                      aria-label={`Sort direction ${sortState.direction === "asc" ? "ascending" : "descending"}`}
+                      aria-label={`Sort direction ${activeSortState.direction === "asc" ? "ascending" : "descending"}`}
                     >
-                      {sortState.direction === "asc" ? "Asc" : "Desc"}
+                      {activeSortState.direction === "asc" ? "Asc" : "Desc"}
                     </button>
                   )}
                 </>
@@ -622,23 +671,84 @@ export default function GenericEntityListView<T extends object>({
                 </button>
               )}
             </div>
+
+            {hasActiveFilters && (
+              <div className="flex flex-wrap items-center gap-2">
+                {Object.entries(activeFilters)
+                  .filter(([, value]) => value && value !== "All")
+                  .map(([fieldKey, value]) => {
+                    const field = filterableFields.find((item) => String(item.key) === fieldKey);
+                    const label = field ? `${field.label}: ${value}` : `${fieldKey}: ${value}`;
+                    return (
+                      <button
+                        key={fieldKey}
+                        type="button"
+                        onClick={() => updateFilter(fieldKey, "All")}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-bold text-blue-700 hover:bg-blue-100 cursor-pointer"
+                        aria-label={`Remove filter ${label}`}
+                        title={`Remove ${label}`}
+                      >
+                        <span className="max-w-[160px] truncate">{label}</span>
+                        <X size={10} />
+                      </button>
+                    );
+                  })}
+                <button
+                  type="button"
+                  onClick={clearControls}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Clear All
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {visibleRows.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="p-12 text-center text-slate-400 space-y-2">
           <Search size={32} className="mx-auto text-slate-350" />
           <p className="text-sm font-semibold text-slate-600">
-            {hasActiveControls
-              ? "No matching records for the current filters."
-              : definition.emptyTitle ?? "No rows available yet."}
+            {definition.emptyTitle ?? `No ${definition.entityNamePlural.toLowerCase()} are available.`}
           </p>
           <p className="text-xs text-slate-400">
-            {hasActiveControls
-              ? "Clear filters or search terms to broaden the results."
-              : definition.emptyDescription ?? "This source has not returned live rows yet."}
+            {definition.emptyDescription ?? "This source has not returned live rows yet."}
           </p>
+        </div>
+      ) : visibleRows.length === 0 ? (
+        <div className="p-12 text-center text-slate-400 space-y-3">
+          <Search size={32} className="mx-auto text-slate-350" />
+          <div className="space-y-1.5">
+            <p className="text-sm font-semibold text-slate-600">
+              No records match the current search and filters.
+            </p>
+            <p className="text-xs text-slate-400">
+              Clear one filter, clear all filters, or adjust the search terms to widen the results.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {Boolean(activeSearch.trim()) && (
+              <button
+                type="button"
+                onClick={() => updateSearch("")}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[10.5px] font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                <X size={11} />
+                Clear Search
+              </button>
+            )}
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearControls}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[10.5px] font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                <X size={11} />
+                Clear Filters
+              </button>
+            )}
+          </div>
         </div>
       ) : activeDisplayMode === "table" ? (
         renderTable()
@@ -648,16 +758,21 @@ export default function GenericEntityListView<T extends object>({
         </div>
       )}
 
-      {showPagination && visibleRows.length > pageSize && (
+      {showPagination && visibleRows.length > activePageSize && (
         <div className="p-3 border-t border-slate-100 bg-slate-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="text-[10px] text-slate-500 font-mono">
-            Page {safePage} of {totalPages}
+          <div className="space-y-0.5">
+            <div className="text-[10px] text-slate-500 font-mono">
+              Showing {visibleRows.length === 0 ? 0 : (safePage - 1) * activePageSize + 1}-{Math.min(visibleRows.length, safePage * activePageSize)} of {visibleRows.length}
+            </div>
+            <div className="text-[10px] text-slate-400 font-mono">
+              Page {safePage} of {totalPages}
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
             <select
-              value={pageSize}
-              onChange={(event) => setPageSize(Number(event.target.value))}
+              value={activePageSize}
+              onChange={(event) => updatePageSize(Number(event.target.value))}
               className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-[10.5px] text-slate-650 font-semibold focus:outline-hidden"
               aria-label="Rows per page"
             >
@@ -671,7 +786,7 @@ export default function GenericEntityListView<T extends object>({
             <button
               type="button"
               disabled={safePage <= 1}
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              onClick={() => updatePage(Math.max(1, safePage - 1))}
               className="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 cursor-pointer"
               aria-label="Previous page"
             >
@@ -681,7 +796,7 @@ export default function GenericEntityListView<T extends object>({
             <button
               type="button"
               disabled={safePage >= totalPages}
-              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+              onClick={() => updatePage(Math.min(totalPages, safePage + 1))}
               className="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 cursor-pointer"
               aria-label="Next page"
             >

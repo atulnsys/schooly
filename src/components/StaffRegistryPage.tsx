@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import type { StaffDirectoryRow } from "../lib/schoolRegistry";
 import RegistryPageShell from "./RegistryPageShell";
 import { isActiveValue, isTeacherStaffRow } from "../lib/liveSchoolEntityBuilders";
@@ -30,8 +30,6 @@ function StaffKpiCard({ label, value }: { label: string; value: number | string 
 }
 
 export default function StaffRegistryPage({ staffRows, currentRole, sourceDisplayLabel, sourceLastSyncedAt, sourceLastCheckedAt, sourceStatus }: StaffRegistryPageProps) {
-  const [selectedStaff, setSelectedStaff] = useState<StaffDirectoryRow | null>(null);
-
   const staffKpis = useMemo(() => {
     const uniqueRows = new Map<string, StaffDirectoryRow>();
     staffRows.forEach((row) => {
@@ -60,12 +58,6 @@ export default function StaffRegistryPage({ staffRows, currentRole, sourceDispla
     };
   }, [staffRows]);
 
-  useEffect(() => {
-    if (selectedStaff && !staffRows.some((row) => normalizeIdentity(getStaffIdentity(row)) === normalizeIdentity(getStaffIdentity(selectedStaff)))) {
-      setSelectedStaff(null);
-    }
-  }, [staffRows, selectedStaff]);
-
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -80,8 +72,6 @@ export default function StaffRegistryPage({ staffRows, currentRole, sourceDispla
         registryId="staff"
         rows={staffRows}
         currentRole={currentRole}
-        selectedRow={selectedStaff}
-        onSelectRow={setSelectedStaff}
         permissionContext={{ currentRole }}
         showCapabilityMetadata={false}
         sourceDisplayLabel={sourceDisplayLabel}

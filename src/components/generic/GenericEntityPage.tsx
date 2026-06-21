@@ -1,18 +1,16 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   GenericEntityDefinition,
-  GenericEntityDisplayMode,
   GenericEntityPermissionContext,
 } from "../../lib/genericEntityView";
 import GenericEntityDetailView from "./GenericEntityDetailView";
 import GenericEntityListView from "./GenericEntityListView";
+import { useGenericEntityListState } from "./useGenericEntityListState";
 
 interface GenericEntityPageProps<T extends object> {
   definition: GenericEntityDefinition<T>;
   rows: T[];
-
-  selectedRow?: T | null;
-  onSelectRow?: (row: T | null) => void;
+  stateNamespace?: string;
 
   permissionContext?: GenericEntityPermissionContext;
 
@@ -31,8 +29,7 @@ interface GenericEntityPageProps<T extends object> {
 export default function GenericEntityPage<T extends object>({
   definition,
   rows,
-  selectedRow,
-  onSelectRow,
+  stateNamespace,
   permissionContext,
   className = "",
   showSearch = true,
@@ -44,17 +41,12 @@ export default function GenericEntityPage<T extends object>({
   renderDetailBeforeSections,
   renderDetailAfterSections,
 }: GenericEntityPageProps<T>) {
-  const [internalSelectedRow, setInternalSelectedRow] = useState<T | null>(null);
-  const [displayMode, setDisplayMode] = useState<GenericEntityDisplayMode>(
-    definition.defaultDisplayMode ?? "cards",
-  );
-
-  const activeSelectedRow = selectedRow !== undefined ? selectedRow : internalSelectedRow;
-
-  const handleSelectRow = (row: T | null) => {
-    if (onSelectRow) onSelectRow(row);
-    else setInternalSelectedRow(row);
-  };
+  const listState = useGenericEntityListState({
+    namespace: stateNamespace,
+    definition,
+    rows,
+    enabled: Boolean(stateNamespace),
+  });
 
   return (
     <div className={`grid grid-cols-1 lg:grid-cols-3 gap-6 ${className}`}>
@@ -62,8 +54,18 @@ export default function GenericEntityPage<T extends object>({
         <GenericEntityListView
           definition={definition}
           rows={rows}
-          selectedRow={activeSelectedRow}
-          onSelectRow={(row) => handleSelectRow(row)}
+          selectedRow={listState.selectedRow}
+          onSelectRow={listState.selectRow}
+          searchValue={listState.searchValue}
+          onSearchChange={listState.setSearchValue}
+          filterValues={listState.filterValues}
+          onFilterChange={listState.setFilterValues}
+          sortState={listState.sortState}
+          onSortChange={listState.setSortState}
+          page={listState.page}
+          onPageChange={listState.setPage}
+          pageSize={listState.pageSize}
+          onPageSizeChange={listState.setPageSize}
           permissionContext={permissionContext}
           showSearch={showSearch}
           showFilters={showFilters}
@@ -71,22 +73,22 @@ export default function GenericEntityPage<T extends object>({
           showDisplayModeToggle={showDisplayModeToggle}
           showPagination={showPagination}
           renderToolbarActions={renderToolbarActions}
-          displayMode={displayMode}
-          onDisplayModeChange={setDisplayMode}
+          displayMode={listState.displayMode}
+          onDisplayModeChange={listState.setDisplayMode}
         />
       </div>
 
       <div className="space-y-4">
         <GenericEntityDetailView
           definition={definition}
-          row={activeSelectedRow}
-          onClearSelection={() => handleSelectRow(null)}
+          row={listState.selectedRow}
+          onClearSelection={() => listState.selectRow(null)}
           permissionContext={permissionContext}
           childrenBeforeSections={
-            activeSelectedRow ? renderDetailBeforeSections?.(activeSelectedRow) : null
+            listState.selectedRow ? renderDetailBeforeSections?.(listState.selectedRow) : null
           }
           childrenAfterSections={
-            activeSelectedRow ? renderDetailAfterSections?.(activeSelectedRow) : null
+            listState.selectedRow ? renderDetailAfterSections?.(listState.selectedRow) : null
           }
         />
       </div>

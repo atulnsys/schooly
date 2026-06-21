@@ -1,10 +1,9 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import GenericEntityPage from "./generic/GenericEntityPage";
 import {
   createRegistryExplorerEntityDefinition,
   getRegistryExplorerRows,
   getRegistryExplorerSummary,
-  type RegistryExplorerRow,
 } from "../lib/registryExplorerEntityDefinition";
 
 type LiveRegisterCardSourceState = "Ready" | "Empty" | "Missing" | "Incomplete" | "Fallback" | "Stale" | "Unknown";
@@ -37,7 +36,6 @@ export default function RegistryExplorerPage({
 }: RegistryExplorerPageProps) {
   const rows = useMemo(() => getRegistryExplorerRows(), []);
   const summary = useMemo(() => getRegistryExplorerSummary(rows), [rows]);
-  const [selectedRow, setSelectedRow] = useState<RegistryExplorerRow | null>(null);
 
   const openLiveRegisterCard = (target: NonNullable<RegistryExplorerPageProps["liveRegisterCards"]>[number]["drillTarget"]) => {
     if (target.kind === "page") {
@@ -201,10 +199,7 @@ export default function RegistryExplorerPage({
       <GenericEntityPage
         definition={definition}
         rows={rows}
-        selectedRow={selectedRow}
-        onSelectRow={(row) => {
-          setSelectedRow(row);
-        }}
+        stateNamespace="registry-explorer"
         permissionContext={{ currentRole }}
         showSearch={true}
         showFilters={true}
