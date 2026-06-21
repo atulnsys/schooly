@@ -5,9 +5,11 @@ function normalizeToken(value: string): string {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ");
 }
 
-function isActiveValue(value: string): boolean {
+export function isActiveValue(value: string): boolean {
   const lowered = normalizeToken(value);
-  return !lowered || lowered.includes("active") || lowered.includes("current") || lowered.includes("enabled") || lowered.includes("enrolled");
+  if (!lowered) return true;
+  if (/(^|\s)(inactive|archived|deleted|removed)(\s|$)/.test(lowered)) return false;
+  return /(^|\s)(active|current|enabled|enrolled)(\s|$)/.test(lowered);
 }
 
 function isTruthyTeacherFlag(value: string): boolean | null {

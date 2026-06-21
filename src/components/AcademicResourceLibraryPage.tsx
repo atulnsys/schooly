@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { BookOpen, ExternalLink, Filter, LibraryBig, Search } from "lucide-react";
 import GenericEntityPage from "./generic/GenericEntityPage";
 import type { GenericEntityDefinition } from "../lib/genericEntityView";
@@ -8,15 +8,26 @@ import {
   summarizeAcademicResourceRows,
   type AcademicResourceRow,
 } from "../lib/academicResourceLibrary";
+import {
+  buildStaffDropdownOptions,
+  loadLessonPlanRegistryDropdownState,
+  loadNcertDropdownState,
+  type AcademicResourceDropdownSources,
+  type RegistryDropdownAvailability,
+  type RegistryDropdownOption,
+  type RegistryDropdownState,
+} from "../lib/academicResourceDropdownSources";
 import type { AcademicResourceSourceFamily } from "../lib/academicResourceTypes";
+import type { SchoolRegistryState } from "../lib/schoolRegistry";
 import type { WorkspaceFile } from "../types";
 
 interface AcademicResourceLibraryPageProps {
   files: WorkspaceFile[];
   currentRole: string;
   setActiveTab?: (tab: string) => void;
+  schoolRegistry?: SchoolRegistryState | null;
+  registryRefreshVersion?: number;
 }
-
 type ResourceStatusFilter = "all" | "linked" | "metadata" | "sourceUnavailable" | "evidenceMapped";
 type ResourceSourceFilter = "all" | AcademicResourceSourceFamily;
 type ResourceLinkFilter = "all" | "linked" | "missing";
@@ -27,6 +38,7 @@ interface ResourceFilterPreset {
   resourceTypeFilter: string;
   categoryFilter: string;
   audienceFilter: string;
+  staffFilter: string;
   classFilter: string;
   sectionFilter: string;
   subjectFilter: string;
@@ -39,7 +51,6 @@ interface ResourceFilterPreset {
   driveLinkFilter: ResourceLinkFilter;
   classroomLinkFilter: ResourceLinkFilter;
 }
-
 interface FilterOption {
   value: string;
   label: string;
@@ -60,6 +71,22 @@ function matchesFilterValue(candidate: string | undefined, selected: string): bo
     normalizedCandidate.includes(normalizedSelected) ||
     normalizedSelected.includes(normalizedCandidate)
   );
+}
+
+function matchesAnyFilterValue(candidates: Array<string | undefined>, selectedValues: Array<string | undefined>): boolean {
+  const resolvedSelected = selectedValues.map((value) => String(value || "").trim()).filter(Boolean);
+  if (resolvedSelected.length === 0) return true;
+  return resolvedSelected.some((selected) => candidates.some((candidate) => matchesFilterValue(candidate, selected)));
+}
+
+function findRegistryOptionByValue(options: RegistryDropdownOption[], value: string): RegistryDropdownOption | null {
+  const normalized = normalizeFilterValue(value);
+  if (!normalized) return null;
+  return options.find((option) =>
+    normalizeFilterValue(option.value) === normalized ||
+    normalizeFilterValue(option.label) === normalized ||
+    normalizeFilterValue(option.secondaryLabel) === normalized,
+  ) || null;
 }
 
 function uniqueFilterOptions(rows: AcademicResourceRow[], getValue: (row: AcademicResourceRow) => string | undefined, labelResolver?: (value: string) => string): FilterOption[] {
@@ -132,6 +159,48 @@ function CompactTextFilter({
   );
 }
 
+function formatRegistryOptionLabel(option: RegistryDropdownOption): string {
+  return option.secondaryLabel ? `${option.label} Â· ${option.secondaryLabel}` : option.label;
+}
+
+function ModalDropdownFilter({
+  label,
+  value,
+  options,
+  onChange,
+  disabled = false,
+  helperText,
+}: {
+  label: string;
+  value: string;
+  options: RegistryDropdownOption[];
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  helperText?: string;
+}) {
+  return (
+    <label className="space-y-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
+      <span>{label}</span>
+      <select
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10.5px] font-semibold text-slate-700 shadow-sm focus:outline-hidden focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
+      >
+        <option value="all">{disabled ? helperText || `${label} unavailable` : `${label}: All`}</option>
+        {options.map((option) => (
+          <option key={option.stableKey} value={option.value}>
+            {formatRegistryOptionLabel(option)}
+          </option>
+        ))}
+      </select>
+      {helperText && disabled && (
+        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-600">{helperText}</div>
+      )}
+    </label>
+  );
+}
+
 function getResourceFilterPresetFromLocation(): ResourceFilterPreset {
   if (typeof window === "undefined") {
     return {
@@ -140,6 +209,7 @@ function getResourceFilterPresetFromLocation(): ResourceFilterPreset {
       resourceTypeFilter: "all",
       categoryFilter: "all",
       audienceFilter: "all",
+      staffFilter: "",
       classFilter: "all",
       sectionFilter: "all",
       subjectFilter: "all",
@@ -160,6 +230,7 @@ function getResourceFilterPresetFromLocation(): ResourceFilterPreset {
   const resourceTypeParam = params.get("resourceType") || params.get("type");
   const categoryParam = params.get("category");
   const audienceParam = params.get("audience");
+  const staffParam = params.get("staff");
   const classParam = params.get("class");
   const sectionParam = params.get("section");
   const subjectParam = params.get("subject");
@@ -197,6 +268,7 @@ function getResourceFilterPresetFromLocation(): ResourceFilterPreset {
     resourceTypeFilter: resourceTypeParam || "all",
     categoryFilter: categoryParam || "all",
     audienceFilter: audienceParam || "all",
+    staffFilter: staffParam || "",
     classFilter: classParam || "all",
     sectionFilter: sectionParam || "all",
     subjectFilter: subjectParam || "all",
@@ -747,6 +819,8 @@ export default function AcademicResourceLibraryPage({
   files,
   currentRole,
   setActiveTab,
+  schoolRegistry = null,
+  registryRefreshVersion = 0,
 }: AcademicResourceLibraryPageProps) {
   const initialFilterPreset = useMemo(() => getResourceFilterPresetFromLocation(), []);
   const savedLessonPlanArchiveRows = useMemo(() => loadSavedLessonPlanArchiveRows(), []);
@@ -760,6 +834,7 @@ export default function AcademicResourceLibraryPage({
   const [resourceTypeFilter, setResourceTypeFilter] = useState(initialFilterPreset.resourceTypeFilter);
   const [categoryFilter, setCategoryFilter] = useState(initialFilterPreset.categoryFilter);
   const [audienceFilter, setAudienceFilter] = useState(initialFilterPreset.audienceFilter);
+  const [staffFilter, setStaffFilter] = useState(initialFilterPreset.staffFilter);
   const [classFilter, setClassFilter] = useState(initialFilterPreset.classFilter);
   const [sectionFilter, setSectionFilter] = useState(initialFilterPreset.sectionFilter);
   const [subjectFilter, setSubjectFilter] = useState(initialFilterPreset.subjectFilter);
@@ -771,6 +846,13 @@ export default function AcademicResourceLibraryPage({
   const [sourceConfidenceFilter, setSourceConfidenceFilter] = useState(initialFilterPreset.sourceConfidenceFilter);
   const [driveLinkFilter, setDriveLinkFilter] = useState<ResourceLinkFilter>(initialFilterPreset.driveLinkFilter);
   const [classroomLinkFilter, setClassroomLinkFilter] = useState<ResourceLinkFilter>(initialFilterPreset.classroomLinkFilter);
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const [filterDraft, setFilterDraft] = useState<ResourceFilterPreset & { staffFilter: string }>(() => ({ ...initialFilterPreset }));
+  const [dropdownSources, setDropdownSources] = useState<AcademicResourceDropdownSources>({
+    lessonPlanRegistry: { availability: "loading", loadedAt: null, message: "Loading...", options: [] },
+    ncertTextbooks: { availability: "loading", loadedAt: null, message: "Loading...", options: [] },
+    ncertChapters: { availability: "loading", loadedAt: null, message: "Loading...", options: [] },
+  });
 
   const rowsAfterSourceFilter = useMemo(() => {
     return resourceRows.filter((row) => sourceFilter === "all" || row.sourceFamily === sourceFilter);
@@ -786,7 +868,18 @@ export default function AcademicResourceLibraryPage({
     });
   }, [rowsAfterSourceFilter, statusFilter]);
 
+  const staffRegistrySource = useMemo(() => buildStaffDropdownOptions(schoolRegistry), [schoolRegistry]);
+  const staffOptions = useMemo(() => staffRegistrySource.options, [staffRegistrySource.options]);
+  const bookOptions = useMemo(() => dropdownSources.ncertTextbooks.options, [dropdownSources.ncertTextbooks.options]);
+  const chapterOptions = useMemo(() => dropdownSources.ncertChapters.options, [dropdownSources.ncertChapters.options]);
+  const lessonPlanOptions = useMemo(() => dropdownSources.lessonPlanRegistry.options, [dropdownSources.lessonPlanRegistry.options]);
+
   const filteredRows = useMemo(() => {
+    const selectedLessonPlanOption = findRegistryOptionByValue(lessonPlanOptions, lessonPlanIdFilter);
+    const selectedStaffOption = findRegistryOptionByValue(staffOptions, staffFilter);
+    const selectedBookOption = findRegistryOptionByValue(bookOptions, bookFilter);
+    const selectedChapterOption = findRegistryOptionByValue(chapterOptions, chapterFilter);
+
     return rowsAfterStatusFilter.filter((row) => {
       if (resourceTypeFilter !== "all" && !matchesFilterValue(row.resourceTypeId, resourceTypeFilter) && !matchesFilterValue(row.resourceTypeLabel, resourceTypeFilter)) {
         return false;
@@ -812,15 +905,19 @@ export default function AcademicResourceLibraryPage({
         return false;
       }
 
-      if (bookFilter !== "all" && !matchesFilterValue(row.bookName, bookFilter)) {
+      if (staffFilter && !matchesAnyFilterValue([row.owner, row.sourceNotes, row.sourceRecordId], [selectedStaffOption?.value, selectedStaffOption?.label, selectedStaffOption?.secondaryLabel, staffFilter])) {
         return false;
       }
 
-      if (chapterFilter !== "all" && !matchesFilterValue(row.chapter, chapterFilter)) {
+      if (bookFilter !== "all" && !matchesAnyFilterValue([row.bookName, row.sourceRegistryId, row.sourceRecordId], [selectedBookOption?.value, selectedBookOption?.label, selectedBookOption?.secondaryLabel, bookFilter])) {
         return false;
       }
 
-      if (lessonPlanIdFilter && !matchesFilterValue(row.lessonPlanId, lessonPlanIdFilter)) {
+      if (chapterFilter !== "all" && !matchesAnyFilterValue([row.chapter, row.sourceRegistryId, row.sourceRecordId], [selectedChapterOption?.value, selectedChapterOption?.label, selectedChapterOption?.secondaryLabel, chapterFilter])) {
+        return false;
+      }
+
+      if (lessonPlanIdFilter && !matchesAnyFilterValue([row.lessonPlanId, row.sourceRecordId, row.sourceRegistryId], [selectedLessonPlanOption?.value, selectedLessonPlanOption?.label, selectedLessonPlanOption?.secondaryLabel, lessonPlanIdFilter])) {
         return false;
       }
 
@@ -859,12 +956,17 @@ export default function AcademicResourceLibraryPage({
     resourceTypeFilter,
     categoryFilter,
     audienceFilter,
+    staffFilter,
     classFilter,
     sectionFilter,
     subjectFilter,
     bookFilter,
     chapterFilter,
     lessonPlanIdFilter,
+    lessonPlanOptions,
+    staffOptions,
+    bookOptions,
+    chapterOptions,
     sourceRegistryIdFilter,
     evidenceStatusFilter,
     sourceConfidenceFilter,
@@ -880,6 +982,25 @@ export default function AcademicResourceLibraryPage({
     [currentRole],
   );
 
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all([
+      loadLessonPlanRegistryDropdownState(),
+      loadNcertDropdownState(),
+    ]).then(([lessonPlanRegistry, ncertDropdowns]) => {
+      if (cancelled) return;
+      setDropdownSources({
+        lessonPlanRegistry,
+        ncertTextbooks: ncertDropdowns.textbooks,
+        ncertChapters: ncertDropdowns.chapters,
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [registryRefreshVersion]);
+
   const resourceTypeOptions = useMemo(
     () => uniqueFilterOptions(resourceRows, (row) => row.resourceTypeId, (value) => {
       const match = resourceRows.find((row) => row.resourceTypeId === value);
@@ -892,8 +1013,32 @@ export default function AcademicResourceLibraryPage({
   const classOptions = useMemo(() => uniqueFilterOptions(resourceRows, (row) => row.className), [resourceRows]);
   const sectionOptions = useMemo(() => uniqueFilterOptions(resourceRows, (row) => row.section), [resourceRows]);
   const subjectOptions = useMemo(() => uniqueFilterOptions(resourceRows, (row) => row.subject), [resourceRows]);
-  const bookOptions = useMemo(() => uniqueFilterOptions(resourceRows, (row) => row.bookName), [resourceRows]);
-  const chapterOptions = useMemo(() => uniqueFilterOptions(resourceRows, (row) => row.chapter), [resourceRows]);
+  const lessonPlanAvailability = dropdownSources.lessonPlanRegistry.availability;
+  const ncertTextbookAvailability = dropdownSources.ncertTextbooks.availability;
+  const ncertChapterAvailability = dropdownSources.ncertChapters.availability;
+  const staffRegistryAvailability = staffRegistrySource.availability;
+  const filteredChapterOptions = useMemo(
+    () => {
+      if (bookFilter === "all") return chapterOptions;
+      const selectedBook = normalizeFilterValue(bookFilter);
+      return chapterOptions.filter((option) => {
+        const sourceBook = normalizeFilterValue(option.secondaryLabel);
+        return sourceBook === selectedBook || sourceBook.includes(selectedBook) || selectedBook.includes(sourceBook);
+      });
+    },
+    [bookFilter, chapterOptions],
+  );
+  const draftChapterOptions = useMemo(
+    () => {
+      if (filterDraft.bookFilter === "all") return chapterOptions;
+      const selectedBook = normalizeFilterValue(filterDraft.bookFilter);
+      return chapterOptions.filter((option) => {
+        const sourceBook = normalizeFilterValue(option.secondaryLabel);
+        return sourceBook === selectedBook || sourceBook.includes(selectedBook) || selectedBook.includes(sourceBook);
+      });
+    },
+    [chapterOptions, filterDraft.bookFilter],
+  );
   const sourceRegistryIdOptions = useMemo(() => uniqueFilterOptions(resourceRows, (row) => row.sourceRegistryId), [resourceRows]);
 
   const sourceFamilyCounts = useMemo(() => {
@@ -932,23 +1077,27 @@ export default function AcademicResourceLibraryPage({
     return counts;
   }, [rowsAfterSourceFilter]);
 
-  const hasActiveFilters =
-    sourceFilter !== "all" ||
-    statusFilter !== "all" ||
-    resourceTypeFilter !== "all" ||
-    categoryFilter !== "all" ||
-    audienceFilter !== "all" ||
-    classFilter !== "all" ||
-    sectionFilter !== "all" ||
-    subjectFilter !== "all" ||
-    bookFilter !== "all" ||
-    chapterFilter !== "all" ||
-    Boolean(lessonPlanIdFilter.trim()) ||
-    Boolean(sourceRegistryIdFilter.trim()) ||
-    evidenceStatusFilter !== "all" ||
-    sourceConfidenceFilter !== "all" ||
-    driveLinkFilter !== "all" ||
-    classroomLinkFilter !== "all";
+  const activeFilterCount = [
+    sourceFilter !== "all",
+    statusFilter !== "all",
+    resourceTypeFilter !== "all",
+    categoryFilter !== "all",
+    audienceFilter !== "all",
+    Boolean(staffFilter.trim()),
+    classFilter !== "all",
+    sectionFilter !== "all",
+    subjectFilter !== "all",
+    bookFilter !== "all",
+    chapterFilter !== "all",
+    Boolean(lessonPlanIdFilter.trim()),
+    Boolean(sourceRegistryIdFilter.trim()),
+    evidenceStatusFilter !== "all",
+    sourceConfidenceFilter !== "all",
+    driveLinkFilter !== "all",
+    classroomLinkFilter !== "all",
+  ].filter(Boolean).length;
+
+  const hasActiveFilters = activeFilterCount > 0;
 
   const resetResourceFilters = () => {
     setSourceFilter("all");
@@ -956,6 +1105,7 @@ export default function AcademicResourceLibraryPage({
     setResourceTypeFilter("all");
     setCategoryFilter("all");
     setAudienceFilter("all");
+    setStaffFilter("");
     setClassFilter("all");
     setSectionFilter("all");
     setSubjectFilter("all");
@@ -969,26 +1119,91 @@ export default function AcademicResourceLibraryPage({
     setClassroomLinkFilter("all");
   };
 
-  const activeContextItems = [
-    sourceFilter !== "all" ? { label: "Source", value: SOURCE_FAMILY_LABELS[sourceFilter] } : null,
-    statusFilter !== "all" ? { label: "Status", value: STATUS_FILTER_LABELS[statusFilter] } : null,
-    resourceTypeFilter !== "all"
-      ? { label: "Resource type", value: resourceTypeOptions.find((option) => option.value === resourceTypeFilter)?.label || resourceTypeFilter }
-      : null,
-    categoryFilter !== "all" ? { label: "Category", value: categoryFilter } : null,
-    audienceFilter !== "all" ? { label: "Audience", value: audienceFilter } : null,
-    classFilter !== "all" ? { label: "Class", value: classFilter } : null,
-    sectionFilter !== "all" ? { label: "Section", value: sectionFilter } : null,
-    subjectFilter !== "all" ? { label: "Subject", value: subjectFilter } : null,
-    bookFilter !== "all" ? { label: "Book", value: bookFilter } : null,
-    chapterFilter !== "all" ? { label: "Chapter", value: chapterFilter } : null,
-    lessonPlanIdFilter ? { label: "Lesson plan ID", value: lessonPlanIdFilter } : null,
-    sourceRegistryIdFilter ? { label: "Source registry ID", value: sourceRegistryIdFilter } : null,
-    evidenceStatusFilter !== "all" ? { label: "Evidence status", value: evidenceStatusFilter } : null,
-    sourceConfidenceFilter !== "all" ? { label: "Confidence", value: sourceConfidenceFilter } : null,
-    driveLinkFilter !== "all" ? { label: "Drive link", value: driveLinkFilter } : null,
-    classroomLinkFilter !== "all" ? { label: "Classroom link", value: classroomLinkFilter } : null,
-  ].filter(Boolean) as Array<{ label: string; value: string }>;
+  const getCurrentFilterSnapshot = (): ResourceFilterPreset => ({
+    sourceFilter,
+    statusFilter,
+    resourceTypeFilter,
+    categoryFilter,
+    audienceFilter,
+    staffFilter,
+    classFilter,
+    sectionFilter,
+    subjectFilter,
+    bookFilter,
+    chapterFilter,
+    lessonPlanIdFilter,
+    sourceRegistryIdFilter,
+    evidenceStatusFilter,
+    sourceConfidenceFilter,
+    driveLinkFilter,
+    classroomLinkFilter,
+  });
+
+  const openFilterModal = () => {
+    setFilterDraft(getCurrentFilterSnapshot());
+    setFilterModalOpen(true);
+  };
+
+  const closeFilterModal = () => {
+    setFilterModalOpen(false);
+  };
+
+  const applyFilterDraft = () => {
+    setSourceFilter(filterDraft.sourceFilter);
+    setStatusFilter(filterDraft.statusFilter);
+    setResourceTypeFilter(filterDraft.resourceTypeFilter);
+    setCategoryFilter(filterDraft.categoryFilter);
+    setAudienceFilter(filterDraft.audienceFilter);
+    setStaffFilter(filterDraft.staffFilter);
+    setClassFilter(filterDraft.classFilter);
+    setSectionFilter(filterDraft.sectionFilter);
+    setSubjectFilter(filterDraft.subjectFilter);
+    setBookFilter(filterDraft.bookFilter);
+    setChapterFilter(filterDraft.chapterFilter);
+    setLessonPlanIdFilter(filterDraft.lessonPlanIdFilter);
+    setSourceRegistryIdFilter(filterDraft.sourceRegistryIdFilter);
+    setEvidenceStatusFilter(filterDraft.evidenceStatusFilter);
+    setSourceConfidenceFilter(filterDraft.sourceConfidenceFilter);
+    setDriveLinkFilter(filterDraft.driveLinkFilter);
+    setClassroomLinkFilter(filterDraft.classroomLinkFilter);
+    setFilterModalOpen(false);
+  };
+
+  const clearFilterDraft = () => {
+    setFilterDraft({
+      sourceFilter: "all",
+      statusFilter: "all",
+      resourceTypeFilter: "all",
+      categoryFilter: "all",
+      audienceFilter: "all",
+      staffFilter: "",
+      classFilter: "all",
+      sectionFilter: "all",
+      subjectFilter: "all",
+      bookFilter: "all",
+      chapterFilter: "all",
+      lessonPlanIdFilter: "",
+      sourceRegistryIdFilter: "",
+      evidenceStatusFilter: "all",
+      sourceConfidenceFilter: "all",
+      driveLinkFilter: "all",
+      classroomLinkFilter: "all",
+    });
+  };
+
+  useEffect(() => {
+    if (!filterModalOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeFilterModal();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [filterModalOpen]);
 
   const renderDetailBeforeSections = (row: AcademicResourceRow) => (
     <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-[10.5px] leading-relaxed text-slate-600 space-y-2">
@@ -1137,179 +1352,7 @@ export default function AcademicResourceLibraryPage({
             description="Rows inferred from metadata rather than live source links."
           />
         </div>
-
-        <div className="mt-4 space-y-4 rounded-2xl border border-slate-100 bg-white/70 p-4">
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
-            <Filter size={12} />
-            Compact filters
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Source</span>
-              <FilterChip active={sourceFilter === "all"} label="All sources" count={sourceFamilyCounts.all} onClick={() => setSourceFilter("all")} />
-              {(Object.keys(SOURCE_FAMILY_LABELS) as AcademicResourceSourceFamily[]).map((family) => (
-                <React.Fragment key={family}>
-                  <FilterChip
-                    active={sourceFilter === family}
-                    label={SOURCE_FAMILY_LABELS[family]}
-                    count={sourceFamilyCounts[family]}
-                    onClick={() => setSourceFilter(family)}
-                  />
-                </React.Fragment>
-              ))}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Status</span>
-              {(Object.keys(STATUS_FILTER_LABELS) as ResourceStatusFilter[]).map((status) => (
-                <React.Fragment key={status}>
-                  <FilterChip
-                    active={statusFilter === status}
-                    label={STATUS_FILTER_LABELS[status]}
-                    count={statusCounts[status]}
-                    onClick={() => setStatusFilter(status)}
-                  />
-                </React.Fragment>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <CompactSelectFilter
-              label="Resource type"
-              value={resourceTypeFilter}
-              options={resourceTypeOptions}
-              onChange={setResourceTypeFilter}
-            />
-            <CompactSelectFilter
-              label="Category"
-              value={categoryFilter}
-              options={categoryOptions}
-              onChange={setCategoryFilter}
-            />
-            <CompactSelectFilter
-              label="Audience"
-              value={audienceFilter}
-              options={audienceOptions}
-              onChange={setAudienceFilter}
-            />
-            <CompactSelectFilter
-              label="Class"
-              value={classFilter}
-              options={classOptions}
-              onChange={setClassFilter}
-            />
-            <CompactSelectFilter
-              label="Section"
-              value={sectionFilter}
-              options={sectionOptions}
-              onChange={setSectionFilter}
-            />
-            <CompactSelectFilter
-              label="Subject"
-              value={subjectFilter}
-              options={subjectOptions}
-              onChange={setSubjectFilter}
-            />
-            <CompactSelectFilter
-              label="Book"
-              value={bookFilter}
-              options={bookOptions}
-              onChange={setBookFilter}
-            />
-            <CompactSelectFilter
-              label="Chapter"
-              value={chapterFilter}
-              options={chapterOptions}
-              onChange={setChapterFilter}
-            />
-            <CompactSelectFilter
-              label="Source registry ID"
-              value={sourceRegistryIdFilter || "all"}
-              options={sourceRegistryIdOptions}
-              onChange={(value) => setSourceRegistryIdFilter(value === "all" ? "" : value)}
-            />
-            <CompactTextFilter
-              label="Lesson plan ID"
-              value={lessonPlanIdFilter}
-              placeholder="Filter by lessonPlanId"
-              onChange={setLessonPlanIdFilter}
-            />
-            <CompactSelectFilter
-              label="Evidence status"
-              value={evidenceStatusFilter}
-              options={[
-                { value: "mapped", label: "Mapped" },
-                { value: "review only", label: "Review only" },
-                { value: "unavailable", label: "Unavailable" },
-              ]}
-              onChange={setEvidenceStatusFilter}
-            />
-            <CompactSelectFilter
-              label="Source confidence"
-              value={sourceConfidenceFilter}
-              options={[
-                { value: "high", label: "High" },
-                { value: "medium", label: "Medium" },
-                { value: "low", label: "Low" },
-              ]}
-              onChange={setSourceConfidenceFilter}
-            />
-            <CompactSelectFilter
-              label="Drive link"
-              value={driveLinkFilter}
-              options={[
-                { value: "linked", label: "Linked" },
-                { value: "missing", label: "Missing" },
-              ]}
-              onChange={(value) => setDriveLinkFilter(value as ResourceLinkFilter)}
-            />
-            <CompactSelectFilter
-              label="Classroom link"
-              value={classroomLinkFilter}
-              options={[
-                { value: "linked", label: "Linked" },
-                { value: "missing", label: "Missing" },
-              ]}
-              onChange={(value) => setClassroomLinkFilter(value as ResourceLinkFilter)}
-            />
-          </div>
-
-          {activeContextItems.length > 0 && (
-            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Active query context</div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {activeContextItems.map((item) => (
-                  <span
-                    key={`${item.label}:${item.value}`}
-                    className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600"
-                  >
-                    {item.label}: {item.value}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-            <div className="text-[10.5px] leading-relaxed text-slate-500">
-              Source note: this page is derived from existing Workspace files and lesson-plan archive rows. It does not write back to Drive, Classroom, Sheets, or the registry catalog. Evidence tags are inferred from current metadata and shown only for review.
-            </div>
-
-            {hasActiveFilters && (
-              <button
-                type="button"
-                onClick={resetResourceFilters}
-                className="inline-flex items-center justify-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-[10.5px] font-bold text-blue-700 cursor-pointer hover:bg-blue-100 shrink-0"
-              >
-                Reset filters
-              </button>
-            )}
-          </div>
-        </div>
       </div>
-
       {resourceRows.length > 0 && filteredRows.length === 0 && (
         <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-[11px] leading-relaxed text-amber-900 shadow-sm">
           No academic resources matched the current filters or query context. Clear the filters above or search with a broader term to widen the view.
@@ -1322,6 +1365,27 @@ export default function AcademicResourceLibraryPage({
         permissionContext={permissionContext}
         renderDetailBeforeSections={renderDetailBeforeSections}
         renderDetailAfterSections={renderDetailAfterSections}
+        renderToolbarActions={() => (
+          <button
+            type="button"
+            onClick={openFilterModal}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[10.5px] font-bold transition-colors cursor-pointer ${
+              hasActiveFilters
+                ? "border-blue-200 bg-blue-600 text-white shadow-sm hover:bg-blue-700"
+                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+            }`}
+            aria-label="Filter Academic Resources"
+            title="Filter Academic Resources"
+          >
+            <Filter size={12} />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[9px] font-black">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+        )}
         showSearch
         showFilters={false}
         showSort
@@ -1329,6 +1393,114 @@ export default function AcademicResourceLibraryPage({
         showPagination
         className="items-start"
       />
+
+      {filterModalOpen && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/45 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="resource-filter-modal-title"
+          onClick={closeFilterModal}
+        >
+          <div
+            className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
+              <div className="space-y-1">
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-700">Academic Resource Filters</div>
+                <h2 id="resource-filter-modal-title" className="text-lg font-black tracking-tight text-slate-950">
+                  Filter Academic Resources
+                </h2>
+                <p className="max-w-3xl text-xs leading-relaxed text-slate-500">
+                  Adjust filters without changing the live list until you apply them. Registry-backed dropdowns stay tied to their canonical sources.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeFilterModal}
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-slate-500 hover:bg-slate-50"
+                aria-label="Close filter dialog"
+                title="Close"
+              >
+                <Filter size={14} className="rotate-45" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+              <section className="space-y-3">
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Source and status</div>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <CompactSelectFilter label="Source family" value={filterDraft.sourceFilter} options={(Object.keys(SOURCE_FAMILY_LABELS) as AcademicResourceSourceFamily[]).map((family) => ({ value: family, label: SOURCE_FAMILY_LABELS[family] }))} onChange={(value) => setFilterDraft((current) => ({ ...current, sourceFilter: value as ResourceSourceFilter }))} />
+                  <CompactSelectFilter label="Status" value={filterDraft.statusFilter} options={(Object.keys(STATUS_FILTER_LABELS) as ResourceStatusFilter[]).map((status) => ({ value: status, label: STATUS_FILTER_LABELS[status] }))} onChange={(value) => setFilterDraft((current) => ({ ...current, statusFilter: value as ResourceStatusFilter }))} />
+                  <CompactSelectFilter label="Resource type" value={filterDraft.resourceTypeFilter} options={resourceTypeOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, resourceTypeFilter: value }))} />
+                  <CompactSelectFilter label="Category" value={filterDraft.categoryFilter} options={categoryOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, categoryFilter: value }))} />
+                </div>
+              </section>
+
+              <section className="space-y-3">
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Academic context</div>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <CompactSelectFilter label="Class" value={filterDraft.classFilter} options={classOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, classFilter: value }))} />
+                  <CompactSelectFilter label="Section" value={filterDraft.sectionFilter} options={sectionOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, sectionFilter: value }))} />
+                  <CompactSelectFilter label="Subject" value={filterDraft.subjectFilter} options={subjectOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, subjectFilter: value }))} />
+                  <ModalDropdownFilter label="Lesson Plan Registry" value={filterDraft.lessonPlanIdFilter || "all"} options={lessonPlanOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, lessonPlanIdFilter: value === "all" ? "" : value }))} disabled={lessonPlanAvailability !== "ready"} helperText={lessonPlanAvailability === "empty" ? "No lesson workspace rows found" : lessonPlanAvailability === "loading" ? "Loading lesson workspace rows..." : lessonPlanAvailability === "ready" ? undefined : "Lesson Plan Registry unavailable"} />
+                  <ModalDropdownFilter label="NCERT Textbook" value={filterDraft.bookFilter} options={bookOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, bookFilter: value }))} disabled={ncertTextbookAvailability !== "ready"} helperText={ncertTextbookAvailability === "empty" ? "No NCERT textbooks found" : ncertTextbookAvailability === "loading" ? "Loading NCERT registry..." : ncertTextbookAvailability === "ready" ? undefined : "NCERT Registry unavailable"} />
+                  <ModalDropdownFilter label="NCERT Chapter" value={filterDraft.chapterFilter} options={draftChapterOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, chapterFilter: value }))} disabled={ncertChapterAvailability !== "ready"} helperText={ncertChapterAvailability === "empty" ? "No NCERT chapters found" : ncertChapterAvailability === "loading" ? "Loading NCERT registry..." : ncertChapterAvailability === "ready" ? undefined : "NCERT Registry unavailable"} />
+                </div>
+              </section>
+
+              <section className="space-y-3">
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">People and ownership</div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <ModalDropdownFilter label="Staff" value={filterDraft.staffFilter || "all"} options={staffOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, staffFilter: value === "all" ? "" : value }))} disabled={staffRegistryAvailability !== "ready"} helperText={staffRegistryAvailability === "empty" ? "No active staff rows found" : staffRegistryAvailability === "loading" ? "Loading staff directory..." : staffRegistryAvailability === "ready" ? undefined : "Staff Directory unavailable"} />
+                  <CompactSelectFilter label="Audience" value={filterDraft.audienceFilter} options={audienceOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, audienceFilter: value }))} />
+                </div>
+              </section>
+
+              <section className="space-y-3">
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Source and evidence</div>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <CompactSelectFilter label="Source registry" value={filterDraft.sourceRegistryIdFilter || "all"} options={sourceRegistryIdOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, sourceRegistryIdFilter: value === "all" ? "" : value }))} />
+                  <CompactSelectFilter label="Evidence status" value={filterDraft.evidenceStatusFilter} options={[{ value: "mapped", label: "Mapped" }, { value: "review only", label: "Review only" }, { value: "unavailable", label: "Unavailable" }]} onChange={(value) => setFilterDraft((current) => ({ ...current, evidenceStatusFilter: value }))} />
+                  <CompactSelectFilter label="Source confidence" value={filterDraft.sourceConfidenceFilter} options={[{ value: "high", label: "High" }, { value: "medium", label: "Medium" }, { value: "low", label: "Low" }]} onChange={(value) => setFilterDraft((current) => ({ ...current, sourceConfidenceFilter: value }))} />
+                  <CompactSelectFilter label="Drive link" value={filterDraft.driveLinkFilter} options={[{ value: "linked", label: "Linked" }, { value: "missing", label: "Missing" }]} onChange={(value) => setFilterDraft((current) => ({ ...current, driveLinkFilter: value as ResourceLinkFilter }))} />
+                  <CompactSelectFilter label="Classroom link" value={filterDraft.classroomLinkFilter} options={[{ value: "linked", label: "Linked" }, { value: "missing", label: "Missing" }]} onChange={(value) => setFilterDraft((current) => ({ ...current, classroomLinkFilter: value as ResourceLinkFilter }))} />
+                </div>
+              </section>
+            </div>
+
+            <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-[10.5px] leading-relaxed text-slate-500">
+                {activeFilterCount > 0 ? `${activeFilterCount} active filter${activeFilterCount === 1 ? "" : "s"}.` : "No active filters."}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={clearFilterDraft}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-extrabold text-slate-700 hover:bg-slate-50"
+                >
+                  Clear All
+                </button>
+                <button
+                  type="button"
+                  onClick={closeFilterModal}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-extrabold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={applyFilterDraft}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-600 px-3 py-2 text-[11px] font-extrabold text-white hover:bg-blue-700"
+                >
+                  Apply Filters
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

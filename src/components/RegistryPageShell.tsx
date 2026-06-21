@@ -26,6 +26,7 @@ interface RegistryPageShellProps<T extends object> {
   showSort?: boolean;
   showDisplayModeToggle?: boolean;
   showPagination?: boolean;
+  showCapabilityMetadata?: boolean;
   isLoading?: boolean;
   errorMessage?: string | null;
 }
@@ -40,7 +41,7 @@ interface RegistryHeaderSummary {
   guidance?: string;
 }
 
-function renderRegistryHeader(entry: RegistryCatalogEntry, currentRole: string, summary: RegistryHeaderSummary) {
+function renderRegistryHeader(entry: RegistryCatalogEntry, currentRole: string, summary: RegistryHeaderSummary, showCapabilityMetadata: boolean) {
   const Icon = entry.iconComponent;
   const sourceStateClass = summary.sourceState === "Ready"
     ? "bg-emerald-50 text-emerald-700 border-emerald-100"
@@ -126,7 +127,7 @@ function renderRegistryHeader(entry: RegistryCatalogEntry, currentRole: string, 
           )}
         </div>
       </div>
-      {entry.capabilityMetadata && (
+      {showCapabilityMetadata && entry.capabilityMetadata && (
         <CapabilityMetadataStrip metadata={entry.capabilityMetadata} />
       )}
     </div>
@@ -320,6 +321,7 @@ export default function RegistryPageShell<T extends object>({
   showSort,
   showDisplayModeToggle,
   showPagination,
+  showCapabilityMetadata = true,
   isLoading = false,
   errorMessage = null,
 }: RegistryPageShellProps<T>) {
@@ -417,7 +419,7 @@ export default function RegistryPageShell<T extends object>({
 
   return (
     <div className="space-y-6 animate-fade-in outline-none" id={`${registryId}-registry-page`} data-testid={`${registryId}-registry-page`} tabIndex={-1}>
-      {renderRegistryHeader(entry, currentRole, summary)}
+      {renderRegistryHeader(entry, currentRole, summary, showCapabilityMetadata)}
 
       {errorMessage && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">

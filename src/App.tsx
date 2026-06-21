@@ -423,7 +423,8 @@ function getRouteStateFromLocation(pathname: string, search: string = ""): Route
   const path = String(pathname || "").replace(/^\/+/, "");
   const params = new URLSearchParams(String(search || ""));
   const section = params.get("section");
-  const settingsSection = path === "settings" ? (section || null) : null;
+  const normalizedSection = section === "summary" ? "registry" : section;
+  const settingsSection = path === "settings" ? (normalizedSection || null) : null;
   if (!path) return { tab: "overview", registryId: null, settingsSection: null };
 
   const [firstSegment, ...rest] = path.split("/");
@@ -672,11 +673,12 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const normalizedSettingsSection = settingsSection === "summary" ? "registry" : settingsSection;
     const desiredPath =
       getPathnameFromRouteState(
         activeTab,
         activeTab === "registries" ? selectedRegistryId : null,
-        activeTab === "settings" ? settingsSection : null
+        activeTab === "settings" ? normalizedSettingsSection : null
       ) +
       (activeTab === "resources" ? window.location.search : "");
     const currentPath = `${window.location.pathname}${window.location.search}`;
@@ -1388,6 +1390,12 @@ export default function App() {
     setMobileMenuOpen(false);
   };
 
+  const openRegistryExplorer = () => {
+    setSelectedRegistryId(null);
+    setActiveTab("registries");
+    setMobileMenuOpen(false);
+  };
+
   const openRegistryDataRoute = (registryId: string) => {
     setSelectedRegistryId(registryId);
     setActiveTab("registries");
@@ -1790,7 +1798,7 @@ export default function App() {
             onWorkspaceUrlSave={saveWorkspaceConnection}
             onGeminiApiKeySave={saveGeminiApiKey}
             onRefreshData={fetchAllData}
-            onNavigateTab={setActiveTab}
+            onOpenRegistryExplorer={openRegistryExplorer}
             onDisconnectWorkspace={disconnectWorkspaceConnection}
             settingsSection={settingsSection}
           />
@@ -1816,7 +1824,7 @@ export default function App() {
             onWorkspaceUrlSave={saveWorkspaceConnection}
             onGeminiApiKeySave={saveGeminiApiKey}
             onRefreshData={fetchAllData}
-            onNavigateTab={setActiveTab}
+            onOpenRegistryExplorer={openRegistryExplorer}
             onDisconnectWorkspace={disconnectWorkspaceConnection}
             settingsSection="registry"
           />
@@ -1838,7 +1846,7 @@ export default function App() {
             onWorkspaceUrlSave={saveWorkspaceConnection}
             onGeminiApiKeySave={saveGeminiApiKey}
             onRefreshData={fetchAllData}
-            onNavigateTab={setActiveTab}
+            onOpenRegistryExplorer={openRegistryExplorer}
             onDisconnectWorkspace={disconnectWorkspaceConnection}
             settingsSection="registry"
           />
@@ -2005,6 +2013,8 @@ export default function App() {
             files={files}
             currentRole={currentRole}
             setActiveTab={setActiveTab}
+            schoolRegistry={schoolRegistry}
+            registryRefreshVersion={registryRefreshVersion}
           />
         )}
 

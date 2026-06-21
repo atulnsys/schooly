@@ -1989,6 +1989,52 @@ This follow-up tightens dashboard trust signals without changing the app structu
 
 ---
 
+# UI Simplification - Settings, Staff KPIs, Academic Resource Filters, and Registry-Backed Dropdowns
+
+## Settings
+
+* Removed the visible `Registry Summary` section from Settings.
+* Removed the `Registry Summary` section pill from the Settings nav.
+* `section=summary` now lands safely on `Registry Connection`.
+* Added `View Registry Explorer` to open `/registries` without retaining a selected registry detail.
+
+## Staff
+
+* Suppressed the Staff-only `Capability Metadata` strip while keeping the shared registry catalog metadata intact.
+* Added live KPI cards for `Total Staff`, `Active Staff`, `Teaching Staff`, `Non-Teaching Staff`, and `Departments`.
+* KPI counts derive from live `Staff_Directory` rows and the active-status interpretation used by the live staff builders.
+
+## Generic Toolbar
+
+* Added a generic list-toolbar extension point through `GenericEntityPage` and `GenericEntityListView`.
+* The Academic Resources filter button now lives in the list-view toolbar instead of the page body.
+
+## Academic Resources
+
+* Removed the large `Compact filters` card, the active query context box, and the inline reset footer.
+* Kept query-parameter initialization for `/resources`.
+* Added a modal-based filter UI with grouped controls for source/status, academic context, people/ownership, and source/evidence.
+* Added `Apply Filters`, `Clear All`, and `Cancel` actions with backdrop and Escape handling.
+
+## Registry-Backed Dropdowns
+
+* Lesson Plan Registry options come from `lessonWorkspaceRegistryUrl` -> `Lesson_Workspace_Registry`.
+* Staff options come from `masterDataRegistryUrl` -> `Staff_Directory`.
+* NCERT Textbook options come from `ncertRegistryUrl` -> `NCERT_Book_Registry`.
+* NCERT Chapter options come from `ncertRegistryUrl` -> `NCERT_Chapter_Registry` and are filtered by the selected textbook.
+* Stable IDs are preserved via `lesson_workspace_id`, `staff_id`, `ncert_book_id`, and `ncert_chapter_id`.
+* The NCERT and school `Books_Registry` sources are not conflated.
+* Each registry-backed dropdown shows its own unavailable state instead of borrowing another registry's data.
+
+## Verification
+
+* `npx tsc --noEmit --pretty false` succeeded.
+* `npm run build` succeeded with the existing Vite chunk-size warning only.
+* Local route smoke returned `200` for `/settings`, `/settings?section=registry`, `/settings?section=summary`, `/settings?section=advanced`, `/setup-registries`, `/school-setup`, `/registries`, `/students`, `/staff`, `/teachers`, `/courses`, and `/assignments`.
+* Commit SHA placeholder: `pending`.
+
+---
+
 # Authenticated Registry Loading - Truthful Source States and Counts
 
 ## Registry Connection Rules

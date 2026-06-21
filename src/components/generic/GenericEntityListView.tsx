@@ -48,6 +48,7 @@ interface GenericEntityListViewProps<T extends object> {
   showSort?: boolean;
   showDisplayModeToggle?: boolean;
   showPagination?: boolean;
+  renderToolbarActions?: () => React.ReactNode;
 
   displayMode?: GenericEntityDisplayMode;
   onDisplayModeChange?: (mode: GenericEntityDisplayMode) => void;
@@ -138,6 +139,7 @@ export default function GenericEntityListView<T extends object>({
   showSort = true,
   showDisplayModeToggle = true,
   showPagination = true,
+  renderToolbarActions,
   displayMode,
   onDisplayModeChange,
   className = "",
@@ -424,6 +426,8 @@ export default function GenericEntityListView<T extends object>({
             <div className="text-[10px] text-slate-500 font-mono font-bold uppercase">
               Showing {visibleRows.length} of {rows.length}
             </div>
+
+            {renderToolbarActions?.()}
 
             {showDisplayModeToggle && (
               <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5">

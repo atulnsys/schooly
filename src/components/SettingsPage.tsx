@@ -30,7 +30,7 @@ import {
 } from "../lib/registryConnectionValidation";
 import LiveDataReconciliationPanel from "./LiveDataReconciliationPanel";
 
-type SettingsSection = "organization" | "registry" | "summary" | "application" | "advanced";
+type SettingsSection = "organization" | "registry" | "application" | "advanced";
 
 interface OrganizationDraft {
   organizationName: string;
@@ -43,7 +43,6 @@ interface OrganizationDraft {
   state: string;
   country: string;
 }
-
 interface SummaryRow {
   displayName: string;
   registryId: string;
@@ -59,7 +58,6 @@ interface SummaryRow {
   detail: string;
   routeLabel: string;
 }
-
 interface SettingsPageProps {
   currentRole: string;
   currentUser: string;
@@ -75,7 +73,7 @@ interface SettingsPageProps {
   onWorkspaceUrlSave: (url: string) => void;
   onGeminiApiKeySave: (value: string) => void;
   onRefreshData: () => Promise<void> | void;
-  onNavigateTab: (tab: string) => void;
+  onOpenRegistryExplorer: () => void;
   onDisconnectWorkspace: () => void;
   settingsSection?: string | null;
 }
@@ -113,11 +111,11 @@ function isActiveRegistryStatus(value: string): boolean {
 }
 
 function formatCountValue(value: number | null): string {
-  return value === null ? "—" : String(value);
+  return value === null ? "â€”" : String(value);
 }
 
 function formatCheckedAt(value: string | null | undefined): string {
-  if (!value) return "—";
+  if (!value) return "â€”";
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
 }
@@ -242,7 +240,7 @@ export default function SettingsPage({
   onWorkspaceUrlSave,
   onGeminiApiKeySave,
   onRefreshData,
-  onNavigateTab,
+  onOpenRegistryExplorer,
   onDisconnectWorkspace,
   settingsSection
 }: SettingsPageProps) {
@@ -259,7 +257,7 @@ export default function SettingsPage({
   const [writeAccessPending, setWriteAccessPending] = useState(false);
   const [writeAccessStatus, setWriteAccessStatus] = useState<string>("");
 
-  const activeSection = (settingsSection as SettingsSection | null) || "organization";
+  const activeSection = ((settingsSection === "summary" ? "registry" : settingsSection) as SettingsSection | null) || "organization";
 
   useEffect(() => {
     setWorkspaceUrlDraft(workspaceUrl);
@@ -304,7 +302,6 @@ export default function SettingsPage({
   const sectionButtons: Array<{ id: SettingsSection; label: string }> = [
     { id: "organization", label: "Organization" },
     { id: "registry", label: "Registry Connection" },
-    { id: "summary", label: "Registry Summary" },
     { id: "application", label: "Application" },
     { id: "advanced", label: "Advanced" }
   ];
@@ -489,11 +486,11 @@ export default function SettingsPage({
       {
         displayName: "Classroom Courses",
         registryId: "classroom-courses",
-        sourceFamily: "Application Runtime — source not verified",
+        sourceFamily: "Application Runtime â€” source not verified",
         sourceFile: "Schooly runtime data",
         sourceTab: "Classroom API",
         sourceMode: "runtime",
-        sourceState: courses.length > 0 ? "Application runtime — source not verified" : "Source unavailable",
+        sourceState: courses.length > 0 ? "Application runtime â€” source not verified" : "Source unavailable",
         rawRecords: courses.length > 0 ? courses.length : null,
         usableRecords: courses.length > 0 ? courses.length : null,
         excludedRecords: courses.length > 0 ? 0 : null,
@@ -506,11 +503,11 @@ export default function SettingsPage({
       {
         displayName: "Assignments",
         registryId: "assignments",
-        sourceFamily: "Application Runtime — source not verified",
+        sourceFamily: "Application Runtime â€” source not verified",
         sourceFile: "Schooly runtime data",
         sourceTab: "Classroom API",
         sourceMode: "runtime",
-        sourceState: assignments.length > 0 ? "Application runtime — source not verified" : "Source unavailable",
+        sourceState: assignments.length > 0 ? "Application runtime â€” source not verified" : "Source unavailable",
         rawRecords: assignments.length > 0 ? assignments.length : null,
         usableRecords: assignments.length > 0 ? assignments.length : null,
         excludedRecords: assignments.length > 0 ? 0 : null,
@@ -944,6 +941,14 @@ export default function SettingsPage({
           >
             Disconnect
           </button>
+          <button
+            type="button"
+            onClick={onOpenRegistryExplorer}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-extrabold text-slate-700 hover:bg-slate-50"
+          >
+            View Registry Explorer
+            <ExternalLink size={12} />
+          </button>
         </div>
 
         {connectionStatus && (
@@ -977,80 +982,6 @@ export default function SettingsPage({
             </div>
           </div>
         )}
-      </section>
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4" id={getSettingsSectionId("summary")} tabIndex={-1}>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Registry Summary</div>
-            <h2 className="text-base font-extrabold text-slate-900">Dynamic registry counts from the live school data</h2>
-            <p className="text-xs text-slate-600 mt-1">Counts update from the live registry and classroom sources. They are not hard-coded.</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => onNavigateTab("registries")}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
-          >
-            Open Registry Explorer
-            <ExternalLink size={12} />
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-          {summaryRows.map((row) => (
-            <div key={row.displayName} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-extrabold text-slate-900 truncate">{row.displayName}</div>
-                  <div className="text-[11px] text-blue-700 font-semibold truncate">Registry ID: {row.registryId}</div>
-                  <div className="text-[11px] text-slate-500 truncate">{row.sourceFamily}</div>
-                  <div className="text-[11px] text-slate-500 truncate">Source: {row.sourceFile}</div>
-                  <div className="text-[11px] text-slate-500 truncate">Source tab: {row.sourceTab}</div>
-                </div>
-                <span className={`text-[10px] font-black uppercase tracking-wider rounded-full border px-2.5 py-1 ${/authenticated read|local metadata/i.test(row.sourceState) ? "border-emerald-200 bg-emerald-50 text-emerald-700" : /no rows|empty/i.test(row.sourceState) ? "border-amber-200 bg-amber-50 text-amber-700" : /account mismatch|authentication required|access denied/i.test(row.sourceState) ? "border-rose-200 bg-rose-50 text-rose-700" : "border-slate-200 bg-white text-slate-700"}`}>
-                  {row.sourceState}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] text-slate-600">
-                <div className="rounded-xl border border-white bg-white px-3 py-2">
-                  <div className="text-[9px] uppercase tracking-wider font-mono text-slate-400 font-bold">Access mode</div>
-                  <div className="mt-1 font-semibold text-slate-900">{formatSourceModeLabel(row.sourceMode)}</div>
-                </div>
-                <div className="rounded-xl border border-white bg-white px-3 py-2">
-                  <div className="text-[9px] uppercase tracking-wider font-mono text-slate-400 font-bold">Last checked</div>
-                  <div className="mt-1 font-semibold text-slate-900">{formatCheckedAt(row.lastChecked)}</div>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-white bg-white px-3 py-2 text-[11px] text-slate-600">
-                {row.detail}
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                {[
-                  ["Raw records", row.rawRecords],
-                  ["Usable records", row.usableRecords],
-                  ["Excluded", row.excludedRecords]
-                ].map(([label, value]) => (
-                  <div key={String(label)} className="rounded-xl border border-white bg-white px-3 py-2">
-                    <div className="text-[9px] uppercase tracking-wider font-mono text-slate-400 font-bold">{label}</div>
-                    <div className="mt-1 font-bold text-slate-900">{formatCountValue(value as number | null)}</div>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => onNavigateTab("registries")}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
-              >
-                {row.routeLabel}
-                <ArrowRight size={12} />
-              </button>
-            </div>
-          ))}
-        </div>
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4" id={getSettingsSectionId("application")} tabIndex={-1}>
