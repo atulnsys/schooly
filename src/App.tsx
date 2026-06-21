@@ -80,6 +80,7 @@ import {
   getGoogleWorkspaceAuthState,
   GOOGLE_WORKSPACE_AUTH_STATE_CHANGED_EVENT
 } from "./lib/googleWorkspaceAuth";
+import { getFocusableElements, trapDialogKeyboard } from "./lib/accessibility";
 
 const IconMap: Record<string, React.ComponentType<{ size: number; className?: string }>> = {
   Command,
@@ -499,6 +500,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState(initialRouteState.tab);
   const [selectedRegistryId, setSelectedRegistryId] = useState<string | null>(initialRouteState.registryId);
   const [settingsSection, setSettingsSection] = useState<string | null>(initialRouteState.settingsSection);
+  const lastRouteFocusKeyRef = useRef<string | null>(null);
 
   // Databases States
   const [files, setFiles] = useState<WorkspaceFile[]>([]);
@@ -707,6 +709,15 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const routeFocusKey = `${activeTab}|${selectedRegistryId || ""}|${settingsSection || ""}`;
+    if (lastRouteFocusKeyRef.current === null) {
+      lastRouteFocusKeyRef.current = routeFocusKey;
+      return;
+    }
+    if (lastRouteFocusKeyRef.current === routeFocusKey) {
+      return;
+    }
+    lastRouteFocusKeyRef.current = routeFocusKey;
 
     const resolvedSettingsSection =
       activeTab === "setup-registries" || activeTab === "school-setup"
@@ -717,9 +728,7 @@ export default function App() {
         ? `settings-section-${resolvedSettingsSection}`
           : (activeTab === "registries" || activeTab === "registers")
             ? (selectedRegistryId ? `${selectedRegistryId}-registry-page` : "registries-registry-page")
-            : null;
-
-    if (!routeFocusId) return;
+            : "viewport-workspace";
 
     window.requestAnimationFrame(() => {
       const target = document.getElementById(routeFocusId) as HTMLElement | null;
@@ -767,6 +776,9 @@ export default function App() {
   // Google Sidebar testing state controllers
   const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
   const [connectionTestResult, setConnectionTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const selectedFileTriggerRef = useRef<HTMLElement | null>(null);
+  const selectedFileModalRef = useRef<HTMLDivElement | null>(null);
+  const workspaceUrlModalRef = useRef<HTMLDivElement | null>(null);
   const openSettingsSection = (section: string) => {
     setSettingsSection(section);
     setActiveTab("settings");
@@ -821,8 +833,29 @@ export default function App() {
     setWorkspaceUrl("");
     setConnectionTestResult(null);
     setTempUrl("");
-    setShowUrlModal(false);
+    closeWorkspaceUrlModal();
     setRegistryRefreshVersion((version) => version + 1);
+  };
+
+  const openSelectedFilePreview = (file: WorkspaceFile) => {
+    selectedFileTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setSelectedFile(file);
+  };
+
+  const closeSelectedFilePreview = () => {
+    setSelectedFile(null);
+    window.requestAnimationFrame(() => {
+      const target = selectedFileTriggerRef.current || (document.getElementById("viewport-workspace") as HTMLElement | null);
+      target?.focus({ preventScroll: true });
+    });
+  };
+
+  const closeWorkspaceUrlModal = () => {
+    setShowUrlModal(false);
+    window.requestAnimationFrame(() => {
+      const target = document.getElementById("viewport-workspace") as HTMLElement | null;
+      target?.focus({ preventScroll: true });
+    });
   };
 
   const handleTestConnection = async (targetUrl: string) => {
@@ -880,6 +913,38 @@ export default function App() {
 
   // Document quick detail sidebar overlay
   const [selectedFile, setSelectedFile] = useState<WorkspaceFile | null>(null);
+
+  useEffect(() => {
+    if (!selectedFile) return;
+
+    const timer = window.requestAnimationFrame(() => {
+      const panel = selectedFileModalRef.current;
+      const firstFocusable = getFocusableElements(panel)[0];
+      if (firstFocusable) {
+        firstFocusable.focus({ preventScroll: true });
+        return;
+      }
+      panel?.focus({ preventScroll: true });
+    });
+
+    return () => window.cancelAnimationFrame(timer);
+  }, [selectedFile]);
+
+  useEffect(() => {
+    if (!showUrlModal) return;
+
+    const timer = window.requestAnimationFrame(() => {
+      const panel = workspaceUrlModalRef.current;
+      const firstFocusable = getFocusableElements(panel)[0];
+      if (firstFocusable) {
+        firstFocusable.focus({ preventScroll: true });
+        return;
+      }
+      panel?.focus({ preventScroll: true });
+    });
+
+    return () => window.cancelAnimationFrame(timer);
+  }, [showUrlModal]);
 
   // Connection mode simulation evaluation (Phase 24 compliance sync checks)
   const isSheetWorkspace = workspaceUrl.trim().toLowerCase().startsWith("https://docs.google.com/spreadsheets/d/");
@@ -1370,7 +1435,7 @@ export default function App() {
       teachers={teachers}
       currentUser={currentUser}
       currentRole={currentRole}
-      onSelectFile={(f) => setSelectedFile(f)}
+      onSelectFile={openSelectedFilePreview}
       onToggleFavorite={handleToggleFavorite}
       onToggleTab={(t) => setActiveTab(t)}
       schema={schema}
@@ -1453,6 +1518,19 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row font-sans text-slate-900" id="main-app-container">
+      <a
+        href="#viewport-workspace"
+        className="skip-to-content"
+        onClick={(event) => {
+          const target = document.getElementById("viewport-workspace") as HTMLElement | null;
+          if (!target) return;
+          event.preventDefault();
+          target.focus({ preventScroll: true });
+          target.scrollIntoView({ behavior: "smooth", block: "start" });
+        }}
+      >
+        Skip to main content
+      </a>
 
       {/* Mobile Top Header bar */}
       <header className="md:hidden bg-white border-b border-slate-200 px-4 py-3.5 flex items-center justify-between sticky top-0 z-40" id="mobile-top-bar">
@@ -1463,10 +1541,14 @@ export default function App() {
           <span className="font-bold tracking-tight text-slate-900 text-sm">Schooly AI</span>
         </div>
         <button
+          type="button"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="p-1.5 hover:bg-slate-50 rounded-md text-slate-500 hover:text-slate-700 cursor-pointer"
+          aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+          aria-expanded={mobileMenuOpen}
+          aria-controls="side-navigation-panel"
         >
-          {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          {mobileMenuOpen ? <X size={20} aria-hidden="true" focusable="false" /> : <Menu size={20} aria-hidden="true" focusable="false" />}
         </button>
       </header>
 
@@ -1789,7 +1871,7 @@ export default function App() {
       )}
 
       {/* Main Content Workspace viewport */}
-      <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 w-full space-y-6 overflow-x-hidden" id="viewport-workspace">
+      <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 w-full space-y-6 overflow-x-hidden" id="viewport-workspace" tabIndex={-1}>
         <div className="mx-auto w-full max-w-[1440px] space-y-6">
 
         {/* Dynamic Route Switch Panel */}
@@ -2057,22 +2139,33 @@ export default function App() {
 
       {/* Globally absolute Document Preview Slideover / Modal Overlay for easy quick actions */}
       {selectedFile && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/40" id="global-preview-modal">
-          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-xl border border-slate-200 relative space-y-4 max-h-[90vh] overflow-y-auto animate-fade-in">
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/40" id="global-preview-modal" role="presentation">
+          <div
+            ref={selectedFileModalRef}
+            className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-xl border border-slate-200 relative space-y-4 max-h-[90vh] overflow-y-auto animate-fade-in"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="global-preview-modal-title"
+            aria-describedby="global-preview-modal-summary"
+            tabIndex={-1}
+            onKeyDown={(event) => trapDialogKeyboard(event, closeSelectedFilePreview)}
+          >
 
             <button
-              onClick={() => setSelectedFile(null)}
+              type="button"
+              onClick={closeSelectedFilePreview}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1.5 rounded-md cursor-pointer"
+              aria-label="Close file preview"
             >
-              <X size={18} />
+              <X size={18} aria-hidden="true" focusable="false" />
             </button>
 
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
-                <FileText size={20} />
+                <FileText size={20} aria-hidden="true" focusable="false" />
               </div>
               <div>
-                <h3 className="font-bold text-slate-900 text-sm max-w-xs truncate" title={selectedFile.name}>
+                <h3 className="font-bold text-slate-900 text-sm max-w-xs truncate" title={selectedFile.name} id="global-preview-modal-title">
                   {selectedFile.name}
                 </h3>
                 <span className="text-[10px] text-slate-400 font-mono block uppercase">
@@ -2082,7 +2175,7 @@ export default function App() {
             </div>
 
             {/* Quick Content summary */}
-            <div className="space-y-1.5">
+            <div className="space-y-1.5" id="global-preview-modal-summary">
               <span className="text-[10px] text-slate-400 font-bold font-mono uppercase block">Direct Abstract Outline</span>
               <p className="text-xs text-slate-600 leading-relaxed font-sans bg-slate-50 p-4 rounded-xl border border-slate-100 italic select-text">
                 "{selectedFile.contentSum}"
@@ -2104,6 +2197,7 @@ export default function App() {
             {/* Action controls */}
             <div className="pt-4 border-t border-slate-150 flex gap-2">
               <button
+                type="button"
                 onClick={() => {
                   handleToggleFavorite(selectedFile.id);
                   // update visual copy
@@ -2115,18 +2209,19 @@ export default function App() {
                     : "bg-slate-100 hover:bg-slate-200 text-slate-700"
                 }`}
               >
-                <Star size={12} className={selectedFile.isFavorite ? "fill-amber-500 text-amber-500" : ""} />
+                <Star size={12} className={selectedFile.isFavorite ? "fill-amber-500 text-amber-500" : ""} aria-hidden="true" focusable="false" />
                 {selectedFile.isFavorite ? "Favorite File" : "Mark Favorite"}
               </button>
 
               <button
+                type="button"
                 onClick={() => {
-                  setSelectedFile(null);
+                  closeSelectedFilePreview();
                   setActiveTab("search");
                 }}
                 className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                Open in Search Q&A <ExternalLink size={12} />
+                Open in Search Q&A <ExternalLink size={12} aria-hidden="true" focusable="false" />
               </button>
             </div>
 
@@ -2136,23 +2231,32 @@ export default function App() {
 
       {/* Google Workspace URL Setup Overlay Modal */}
       {showUrlModal && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/40" id="workspace-url-modal">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl border border-slate-200 relative space-y-4 max-h-[90vh] overflow-y-auto animate-fade-in">
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/40" id="workspace-url-modal" role="presentation">
+          <div
+            ref={workspaceUrlModalRef}
+            className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl border border-slate-200 relative space-y-4 max-h-[90vh] overflow-y-auto animate-fade-in"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="workspace-url-modal-title"
+            aria-describedby="workspace-url-modal-summary"
+            tabIndex={-1}
+            onKeyDown={(event) => trapDialogKeyboard(event, closeWorkspaceUrlModal)}
+          >
 
             <div className="flex items-start gap-3">
               <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl mt-0.5 shrink-0">
-                <Database size={20} className="animate-pulse" />
+                <Database size={20} className="animate-pulse" aria-hidden="true" focusable="false" />
               </div>
               <div>
-                <h3 className="font-bold text-slate-900 text-base">
+                <h3 className="font-bold text-slate-900 text-base" id="workspace-url-modal-title">
                   Drive Sync
                 </h3>
-                <p className="text-xs text-slate-500 mt-1 font-sans leading-relaxed">
+                <p className="text-xs text-slate-500 mt-1 font-sans leading-relaxed" id="workspace-url-modal-summary">
                   Configure the Google Drive folder used for Schooly registries and supporting files.
                 </p>
                 <div className="mt-3 bg-slate-50 border border-slate-100 p-3 rounded-xl space-y-2 text-xs font-sans">
                   <div className="font-bold text-slate-800 flex items-center gap-1.5">
-                    <Database size={13} />
+                    <Database size={13} aria-hidden="true" focusable="false" />
                     <span>School Registry Folder</span>
                   </div>
                   <p className="text-[11px] text-slate-650 leading-relaxed font-semibold">
@@ -2228,7 +2332,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => {
-                  setShowUrlModal(false);
+                  closeWorkspaceUrlModal();
                 }}
                 className="flex-1 py-2 px-3 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-xl text-xs font-semibold transition-colors cursor-pointer text-center"
               >
@@ -2255,7 +2359,7 @@ export default function App() {
                     setGeminiApiKey(tempGeminiKey.trim());
                     clearGoogleSheetReadCache();
                     setRegistryRefreshVersion((version) => version + 1);
-                    setShowUrlModal(false);
+                    closeWorkspaceUrlModal();
                     fetch("/api/audit-logs", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },

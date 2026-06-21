@@ -179,6 +179,8 @@ export default function GenericEntityDetailView<T extends object>({
             type="button"
             onClick={onClearSelection}
             className="text-slate-400 hover:text-slate-600 p-1 rounded-md cursor-pointer transition-colors"
+            aria-label={`Close ${definition.entityName} details`}
+            title={`Close ${definition.entityName} details`}
           >
             <X size={15} />
           </button>
@@ -277,6 +279,7 @@ export default function GenericEntityDetailView<T extends object>({
                   target={action.target ?? "_blank"}
                   rel="noreferrer"
                   className={`flex-1 min-w-[130px] py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${getActionClass(action.variant)}`}
+                  aria-label={label}
                 >
                   {action.icon}
                   {label}
@@ -291,6 +294,7 @@ export default function GenericEntityDetailView<T extends object>({
                 disabled={disabled}
                 onClick={() => action.onClick?.(row)}
                 className={`flex-1 min-w-[130px] py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${getActionClass(action.variant)}`}
+                aria-label={label}
               >
                 {action.icon}
                 {label}

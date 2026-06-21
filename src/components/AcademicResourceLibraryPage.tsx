@@ -20,6 +20,7 @@ import {
 import type { AcademicResourceSourceFamily } from "../lib/academicResourceTypes";
 import type { SchoolRegistryState } from "../lib/schoolRegistry";
 import type { WorkspaceFile } from "../types";
+import { getFocusableElements, trapDialogKeyboard } from "../lib/accessibility";
 
 interface AcademicResourceLibraryPageProps {
   files: WorkspaceFile[];
@@ -213,22 +214,6 @@ function ModalDropdownFilter({
       )}
     </label>
   );
-}
-
-function getFocusableModalElements(root: HTMLElement | null): HTMLElement[] {
-  if (!root) return [];
-  return Array.from(
-    root.querySelectorAll<HTMLElement>(
-      [
-        "button:not([disabled])",
-        "a[href]",
-        "input:not([disabled])",
-        "select:not([disabled])",
-        "textarea:not([disabled])",
-        '[tabindex]:not([tabindex="-1"])',
-      ].join(", "),
-    ),
-  ).filter((element) => !element.hasAttribute("disabled") && element.tabIndex !== -1);
 }
 
 function getResourceFilterPresetFromLocation(): ResourceFilterPreset {
@@ -1226,9 +1211,18 @@ export default function AcademicResourceLibraryPage({
   useEffect(() => {
     if (!filterModalOpen) return;
 
-    getFocusableModalElements(filterModalPanelRef.current)[0]?.focus();
+    const timer = window.requestAnimationFrame(() => {
+      const root = filterModalPanelRef.current;
+      const focusables = getFocusableElements(root);
+      if (focusables.length > 0) {
+        focusables[0]?.focus({ preventScroll: true });
+        return;
+      }
+      root?.focus({ preventScroll: true });
+    });
     return () => {
-      filterModalTriggerRef.current?.focus();
+      filterModalTriggerRef.current?.focus({ preventScroll: true });
+      window.cancelAnimationFrame(timer);
     };
   }, [filterModalOpen]);
 
@@ -1403,6 +1397,9 @@ export default function AcademicResourceLibraryPage({
                 : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
             }`}
             aria-label="Filter Academic Resources"
+            aria-haspopup="dialog"
+            aria-expanded={filterModalOpen}
+            aria-controls="resource-filter-modal"
             title="Filter Academic Resources"
           >
             <Filter size={12} />
@@ -1424,6 +1421,7 @@ export default function AcademicResourceLibraryPage({
 
       {filterModalOpen && (
         <div
+          id="resource-filter-modal"
           className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/45 p-4"
           role="dialog"
           aria-modal="true"
@@ -1434,28 +1432,7 @@ export default function AcademicResourceLibraryPage({
             ref={filterModalPanelRef}
             className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
             tabIndex={-1}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                event.preventDefault();
-                closeFilterModal();
-                return;
-              }
-              if (event.key !== "Tab") return;
-
-              const focusables = getFocusableModalElements(filterModalPanelRef.current);
-              if (focusables.length === 0) {
-                event.preventDefault();
-                return;
-              }
-
-              const currentIndex = focusables.indexOf(document.activeElement as HTMLElement);
-              const nextIndex = event.shiftKey
-                ? (currentIndex <= 0 ? focusables.length - 1 : currentIndex - 1)
-                : (currentIndex === -1 || currentIndex === focusables.length - 1 ? 0 : currentIndex + 1);
-
-              event.preventDefault();
-              focusables[nextIndex]?.focus();
-            }}
+            onKeyDown={(event) => trapDialogKeyboard(event, closeFilterModal)}
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">

@@ -157,6 +157,7 @@ export default function GenericEntityListView<T extends object>({
   );
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(definition.defaultPageSize ?? 20);
+  const [announcement, setAnnouncement] = useState("");
 
   const activeSearch = searchValue ?? localSearch;
   const activeFilters = filterValues ?? localFilters;
@@ -218,6 +219,30 @@ export default function GenericEntityListView<T extends object>({
   const hasActiveFilters = Object.values(activeFilters).some((value) => value && value !== "All");
   const hasActiveControls = Boolean(activeSearch.trim()) || hasActiveFilters || Boolean(sortState);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (visibleRows.length === 0) {
+        setAnnouncement(
+          hasActiveControls
+            ? "No matching records."
+            : definition.emptyTitle ?? "No rows available yet.",
+        );
+        return;
+      }
+
+      if (showPagination && visibleRows.length > pageSize) {
+        const start = (safePage - 1) * pageSize + 1;
+        const end = Math.min(visibleRows.length, safePage * pageSize);
+        setAnnouncement(`Showing records ${start} to ${end} of ${visibleRows.length}.`);
+        return;
+      }
+
+      setAnnouncement(`${visibleRows.length} record${visibleRows.length === 1 ? "" : "s"} showing.`);
+    }, 180);
+
+    return () => window.clearTimeout(timer);
+  }, [definition.emptyTitle, hasActiveControls, pageSize, safePage, showPagination, visibleRows.length]);
+
   const renderActions = (row: T) => (
     <div className="flex items-center gap-1 shrink-0">
       {rowActions
@@ -226,6 +251,8 @@ export default function GenericEntityListView<T extends object>({
           const href = getActionHref(action, row);
           const disabled = action.disabled?.(row, permissionContext);
           const label = action.getLabel?.(row) ?? action.label;
+          const rowLabel = definition.getTitle(row);
+          const actionLabel = `${label} for ${rowLabel}`;
 
           if (href && !disabled) {
             return (
@@ -237,9 +264,10 @@ export default function GenericEntityListView<T extends object>({
                 onClick={(event) => event.stopPropagation()}
                 className={`px-2 py-1.5 rounded-lg border text-[10px] font-bold transition-colors cursor-pointer ${getActionClass(action.variant)}`}
                 title={label}
+                aria-label={actionLabel}
               >
                 <span className="inline-flex items-center gap-1">
-                  {action.icon}
+                  <span aria-hidden="true">{action.icon}</span>
                   <span className="hidden sm:inline">{label}</span>
                 </span>
               </a>
@@ -257,9 +285,10 @@ export default function GenericEntityListView<T extends object>({
               }}
               className={`px-2 py-1.5 rounded-lg border text-[10px] font-bold transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${getActionClass(action.variant)}`}
               title={label}
+              aria-label={actionLabel}
             >
               <span className="inline-flex items-center gap-1">
-                {action.icon}
+                <span aria-hidden="true">{action.icon}</span>
                 <span className="hidden sm:inline">{label}</span>
               </span>
             </button>
@@ -284,7 +313,7 @@ export default function GenericEntityListView<T extends object>({
       .slice(0, maxVisibleFields);
 
     return (
-      <div
+        <div
         key={rowId}
         onClick={() => onSelectRow?.(row)}
         className={`p-4 hover:bg-slate-50/75 transition-all flex items-start justify-between gap-4 ${
@@ -293,9 +322,24 @@ export default function GenericEntityListView<T extends object>({
       >
         <div className="space-y-2 flex-1 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="font-semibold text-slate-800 text-sm truncate block" title={title}>
-              {title}
-            </span>
+            {onSelectRow ? (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onSelectRow(row);
+                }}
+                className="font-semibold text-left text-slate-800 text-sm truncate block cursor-pointer"
+                title={title}
+                aria-label={`Open details for ${title}`}
+              >
+                {title}
+              </button>
+            ) : (
+              <span className="font-semibold text-slate-800 text-sm truncate block" title={title}>
+                {title}
+              </span>
+            )}
 
             {subtitle && (
               <span className="hidden sm:inline text-[9px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-mono shrink-0">
@@ -369,10 +413,25 @@ export default function GenericEntityListView<T extends object>({
                   key={rowId}
                   onClick={() => onSelectRow?.(row)}
                   className={`hover:bg-slate-50/75 transition-all ${onSelectRow ? "cursor-pointer" : ""} ${isSelected ? "bg-blue-50/35" : ""}`}
+                  aria-selected={isSelected}
                 >
                   <td className="px-4 py-3 font-bold text-slate-800 max-w-[260px]">
                     <div className="flex items-center gap-2">
-                      <span className="truncate">{definition.getTitle(row)}</span>
+                      {onSelectRow ? (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onSelectRow(row);
+                          }}
+                          className="truncate text-left"
+                          aria-label={`Open details for ${definition.getTitle(row)}`}
+                        >
+                          <span className="truncate">{definition.getTitle(row)}</span>
+                        </button>
+                      ) : (
+                        <span className="truncate">{definition.getTitle(row)}</span>
+                      )}
                       {issues.length > 0 && (
                         <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border bg-amber-50 text-amber-700 border-amber-100">
                           <AlertTriangle size={10} />
@@ -436,6 +495,8 @@ export default function GenericEntityListView<T extends object>({
                   onClick={() => updateDisplayMode("cards")}
                   className={`p-1.5 rounded-md cursor-pointer ${activeDisplayMode === "cards" ? "bg-blue-50 text-blue-700" : "text-slate-400 hover:text-slate-700"}`}
                   title="Card view"
+                  aria-label="Card view"
+                  aria-pressed={activeDisplayMode === "cards"}
                 >
                   <LayoutGrid size={13} />
                 </button>
@@ -444,12 +505,18 @@ export default function GenericEntityListView<T extends object>({
                   onClick={() => updateDisplayMode("table")}
                   className={`p-1.5 rounded-md cursor-pointer ${activeDisplayMode === "table" ? "bg-blue-50 text-blue-700" : "text-slate-400 hover:text-slate-700"}`}
                   title="Table view"
+                  aria-label="Table view"
+                  aria-pressed={activeDisplayMode === "table"}
                 >
                   <List size={13} />
                 </button>
               </div>
             )}
           </div>
+        </div>
+
+        <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {announcement}
         </div>
 
         {(showSearch || showFilters || showSort) && (
@@ -465,6 +532,7 @@ export default function GenericEntityListView<T extends object>({
                   onChange={(event) => updateSearch(event.target.value)}
                   placeholder={definition.searchPlaceholder ?? `Search ${definition.entityNamePlural.toLowerCase()}...`}
                   className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-blue-500"
+                  aria-label={`Search ${definition.entityNamePlural.toLowerCase()}`}
                 />
               </div>
             )}
@@ -487,6 +555,7 @@ export default function GenericEntityListView<T extends object>({
                         value={activeFilters[fieldKey] ?? "All"}
                         onChange={(event) => updateFilter(fieldKey, event.target.value)}
                         className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-[10.5px] text-slate-650 font-semibold focus:outline-hidden"
+                        aria-label={`Filter by ${field.label}`}
                       >
                         <option value="All">{field.label}: All</option>
                         {options.map((option) => (
@@ -514,6 +583,7 @@ export default function GenericEntityListView<T extends object>({
                       setSortState(fieldKey ? { fieldKey, direction: sortState?.direction ?? "asc" } : null);
                     }}
                     className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-[10.5px] text-slate-650 font-semibold focus:outline-hidden"
+                    aria-label={`Sort ${definition.entityNamePlural}`}
                   >
                     <option value="">Default</option>
                     {sortableFields.map((field) => (
@@ -533,6 +603,7 @@ export default function GenericEntityListView<T extends object>({
                         })
                       }
                       className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                      aria-label={`Sort direction ${sortState.direction === "asc" ? "ascending" : "descending"}`}
                     >
                       {sortState.direction === "asc" ? "Asc" : "Desc"}
                     </button>
@@ -588,6 +659,7 @@ export default function GenericEntityListView<T extends object>({
               value={pageSize}
               onChange={(event) => setPageSize(Number(event.target.value))}
               className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-[10.5px] text-slate-650 font-semibold focus:outline-hidden"
+              aria-label="Rows per page"
             >
               {[10, 20, 50, 100].map((size) => (
                 <option key={size} value={size}>
@@ -601,6 +673,7 @@ export default function GenericEntityListView<T extends object>({
               disabled={safePage <= 1}
               onClick={() => setPage((current) => Math.max(1, current - 1))}
               className="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 cursor-pointer"
+              aria-label="Previous page"
             >
               <ChevronLeft size={13} />
             </button>
@@ -610,6 +683,7 @@ export default function GenericEntityListView<T extends object>({
               disabled={safePage >= totalPages}
               onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
               className="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 cursor-pointer"
+              aria-label="Next page"
             >
               <ChevronRight size={13} />
             </button>
