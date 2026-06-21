@@ -9,8 +9,8 @@
 | Target branch | `import/enhanced-codebase` |
 | Audit date | `2026-06-21` |
 | Baseline commit | `ca4f4fe` |
-| Reviewed through commit | `94a34b8` |
-| Verification performed | Lint passed: `npm run lint` (`tsc --noEmit`); no test script is configured in `package.json`; build passed: `npm run build`; route smoke on key pages; browser smoke at default, ~1024px, and narrow mobile widths, including invalid settings section fallback, back/forward restore, registry/staff freshness labels, and the resources filter modal. |
+| Reviewed through commit | `93b23d4` |
+| Verification performed | Lint passed: `npm run lint` (`tsc --noEmit`); no test script is configured in `package.json`; build passed: `npm run build`; route smoke on key pages; browser smoke at default, ~1024px, and narrow mobile widths, including invalid settings section fallback, back/forward restore, registry/staff freshness labels, and the resources filter modal; Git-lock handling was operationally resolved by stopping stale Git processes, not by treating VS Code watcher exclusions as a repository-wide fix. |
 
 ## Coverage Summary
 
