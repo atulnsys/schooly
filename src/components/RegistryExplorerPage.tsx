@@ -7,7 +7,7 @@ import {
   type RegistryExplorerRow,
 } from "../lib/registryExplorerEntityDefinition";
 
-type LiveRegisterCardSourceState = "Ready" | "Empty" | "Missing" | "Incomplete" | "Fallback" | "Unknown";
+type LiveRegisterCardSourceState = "Ready" | "Empty" | "Missing" | "Incomplete" | "Fallback" | "Stale" | "Unknown";
 
 interface RegistryExplorerPageProps {
   currentRole: string;
@@ -65,6 +65,7 @@ export default function RegistryExplorerPage({
     Missing: "bg-amber-50 text-amber-700 border-amber-100",
     Incomplete: "bg-orange-50 text-orange-700 border-orange-100",
     Fallback: "bg-violet-50 text-violet-700 border-violet-100",
+    Stale: "bg-amber-50 text-amber-700 border-amber-100",
     Unknown: "bg-slate-50 text-slate-600 border-slate-200",
   };
 
@@ -74,6 +75,7 @@ export default function RegistryExplorerPage({
     Missing: "Source unavailable",
     Incomplete: "Setup incomplete",
     Fallback: "Fallback data",
+    Stale: "Stale data",
     Unknown: "Metadata only",
   };
 
@@ -93,6 +95,8 @@ export default function RegistryExplorerPage({
         return "Setup incomplete";
       case "Fallback":
         return "Fallback data";
+      case "Stale":
+        return "Stale data";
       case "Unknown":
         return "Metadata only";
       default:

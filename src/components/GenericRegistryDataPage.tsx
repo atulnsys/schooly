@@ -16,7 +16,7 @@ interface GenericRegistryDataPageProps {
   schoolRegistry?: SchoolRegistryState | null;
 }
 
-type RegistryReadinessState = "Ready" | "Empty" | "Missing" | "Incomplete" | "Fallback" | "Unknown";
+type RegistryReadinessState = "Ready" | "Empty" | "Missing" | "Incomplete" | "Fallback" | "Stale" | "Unknown";
 
 interface RegistryDetailSummary {
   sourceState: RegistryReadinessState;
@@ -78,6 +78,11 @@ function getRegistryReadiness(
   liveRows: Array<Record<string, unknown>>,
   schoolRegistry?: SchoolRegistryState | null,
 ): RegistryReadinessState {
+  if (schoolRegistry?.sourceStatus === "stale") return "Stale";
+  if (schoolRegistry?.sourceStatus === "refreshing" || schoolRegistry?.sourceStatus === "loading") return liveRows.length > 0 ? "Stale" : "Unknown";
+  if (schoolRegistry?.sourceStatus === "authentication_required" || schoolRegistry?.sourceStatus === "account_mismatch" || schoolRegistry?.sourceStatus === "permission_denied" || schoolRegistry?.sourceStatus === "source_unavailable") {
+    return liveRows.length > 0 ? "Fallback" : "Missing";
+  }
   if (schoolRegistry?.mode === "fallback") return "Fallback";
   if (schoolRegistry?.mode === "missing" || schoolRegistry?.mode === "error") {
     return liveRows.length > 0 ? "Ready" : "Missing";
@@ -126,6 +131,8 @@ function buildRegistryDetailSummary(
       ? "Mandatory field metadata unavailable"
       : readiness === "Missing"
         ? "Mandatory fields defined, but live rows are not loaded."
+        : readiness === "Stale"
+          ? "Mandatory values are retained, but the latest sync needs attention."
         : readiness === "Empty"
           ? "Mandatory fields defined, but no rows are available to validate."
           : readiness === "Fallback"
@@ -140,6 +147,8 @@ function buildRegistryDetailSummary(
     requiredHeaders.length > 0
       ? readiness === "Missing"
         ? "Validation metadata not available from this source yet"
+        : readiness === "Stale"
+          ? "Validation metadata available, but refresh needs attention"
         : readiness === "Incomplete"
           ? "Validation rules need review"
           : "Validation metadata available"
@@ -155,6 +164,8 @@ function buildRegistryDetailSummary(
           ? "Source unavailable"
           : readiness === "Fallback"
             ? "Fallback data"
+            : readiness === "Stale"
+              ? "Stale data retained"
             : readiness === "Incomplete"
               ? "Setup incomplete"
               : "Metadata only";
@@ -163,6 +174,8 @@ function buildRegistryDetailSummary(
     validationMessages.push(`Validation rules need review: ${missingFields.slice(0, 3).join(", ")}.`);
   } else if (readiness === "Ready" && requiredHeaders.length > 0 && missingFields.length === 0) {
     validationMessages.push("No validation issues detected from available metadata.");
+  } else if (readiness === "Stale") {
+    validationMessages.push("Previously loaded rows are still visible, but the latest refresh needs attention.");
   }
 
   let guidance: string | undefined;
@@ -174,6 +187,8 @@ function buildRegistryDetailSummary(
     guidance = "Setup incomplete. Required headers are still missing in this route.";
   } else if (readiness === "Fallback") {
     guidance = "Fallback data is in use. Reconnect the live source before relying on it.";
+  } else if (readiness === "Stale") {
+    guidance = "Previously loaded rows are still visible, but the latest refresh needs attention.";
   } else if (readiness === "Unknown") {
     guidance = "Registry metadata is available, but live rows are not loaded yet.";
   }
@@ -278,8 +293,8 @@ function RegistryDetailFallback({
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <SummaryPill label="Rows" value={detailSummary.rowCountLabel} tone={detailSummary.sourceState === "Ready" ? "blue" : detailSummary.sourceState === "Empty" ? "slate" : detailSummary.sourceState === "Missing" ? "amber" : detailSummary.sourceState === "Incomplete" ? "orange" : detailSummary.sourceState === "Fallback" ? "violet" : "slate"} />
-          <SummaryPill label="Source state" value={detailSummary.sourceState} tone={detailSummary.sourceState === "Ready" ? "emerald" : detailSummary.sourceState === "Empty" ? "slate" : detailSummary.sourceState === "Missing" ? "amber" : detailSummary.sourceState === "Incomplete" ? "orange" : detailSummary.sourceState === "Fallback" ? "violet" : "slate"} />
+          <SummaryPill label="Rows" value={detailSummary.rowCountLabel} tone={detailSummary.sourceState === "Ready" ? "blue" : detailSummary.sourceState === "Empty" ? "slate" : detailSummary.sourceState === "Missing" ? "amber" : detailSummary.sourceState === "Incomplete" ? "orange" : detailSummary.sourceState === "Fallback" ? "violet" : detailSummary.sourceState === "Stale" ? "amber" : "slate"} />
+          <SummaryPill label="Source state" value={detailSummary.sourceState} tone={detailSummary.sourceState === "Ready" ? "emerald" : detailSummary.sourceState === "Empty" ? "slate" : detailSummary.sourceState === "Missing" ? "amber" : detailSummary.sourceState === "Incomplete" ? "orange" : detailSummary.sourceState === "Fallback" ? "violet" : detailSummary.sourceState === "Stale" ? "amber" : "slate"} />
           <SummaryPill label="Mandatory fields" value={detailSummary.mandatoryFieldLabel} tone={detailSummary.mandatoryFieldLabel === "Mandatory values available in live rows" ? "emerald" : detailSummary.mandatoryFieldLabel === "Mandatory field metadata unavailable" ? "slate" : "amber"} />
           <SummaryPill label="Validation" value={detailSummary.validationLabel} tone={detailSummary.validationLabel === "Validation metadata available" ? "blue" : "slate"} />
         </div>

@@ -171,7 +171,9 @@ function ModalDropdownFilter({
   onChange,
   disabled = false,
   helperText,
-  loadedAt,
+  lastCheckedAt,
+  lastSuccessfulSyncAt,
+  sourceStatus,
 }: {
   label: string;
   value: string;
@@ -179,12 +181,20 @@ function ModalDropdownFilter({
   onChange: (value: string) => void;
   disabled?: boolean;
   helperText?: string;
-  loadedAt?: string | null;
+  lastCheckedAt?: string | null;
+  lastSuccessfulSyncAt?: string | null;
+  sourceStatus?: RegistryDropdownAvailability;
 }) {
-  const lastSyncedLabel = loadedAt
+  const lastCheckedLabel = lastCheckedAt
     ? (() => {
-        const parsed = new Date(loadedAt);
-        return Number.isNaN(parsed.getTime()) ? String(loadedAt) : parsed.toLocaleString();
+        const parsed = new Date(lastCheckedAt);
+        return Number.isNaN(parsed.getTime()) ? String(lastCheckedAt) : parsed.toLocaleString();
+      })()
+    : null;
+  const lastSyncedLabel = lastSuccessfulSyncAt
+    ? (() => {
+        const parsed = new Date(lastSuccessfulSyncAt);
+        return Number.isNaN(parsed.getTime()) ? String(lastSuccessfulSyncAt) : parsed.toLocaleString();
       })()
     : null;
 
@@ -207,9 +217,21 @@ function ModalDropdownFilter({
       {helperText && disabled && (
         <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-600">{helperText}</div>
       )}
+      {(sourceStatus === "stale" || sourceStatus === "refreshing") && (
+        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-600">
+          {sourceStatus === "stale"
+            ? "Previous options retained after a refresh failure."
+            : "Refreshing source rows while keeping the previous options available."}
+        </div>
+      )}
+      {lastCheckedLabel && (
+        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+          Last checked {lastCheckedLabel}
+        </div>
+      )}
       {lastSyncedLabel && (
         <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-600">
-          Last synced {lastSyncedLabel}
+          Last successful sync {lastSyncedLabel}
         </div>
       )}
     </label>
@@ -865,10 +887,13 @@ export default function AcademicResourceLibraryPage({
   const [filterDraft, setFilterDraft] = useState<ResourceFilterPreset & { staffFilter: string }>(() => ({ ...initialFilterPreset }));
   const filterModalPanelRef = useRef<HTMLDivElement | null>(null);
   const filterModalTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const dropdownSourcesRef = useRef<AcademicResourceDropdownSources>({
+    lessonPlanRegistry: { availability: "loading", lastCheckedAt: null, lastSuccessfulSyncAt: null, isRefreshing: true, loadedAt: null, message: "Loading...", options: [] },
+    ncertTextbooks: { availability: "loading", lastCheckedAt: null, lastSuccessfulSyncAt: null, isRefreshing: true, loadedAt: null, message: "Loading...", options: [] },
+    ncertChapters: { availability: "loading", lastCheckedAt: null, lastSuccessfulSyncAt: null, isRefreshing: true, loadedAt: null, message: "Loading...", options: [] },
+  });
   const [dropdownSources, setDropdownSources] = useState<AcademicResourceDropdownSources>({
-    lessonPlanRegistry: { availability: "loading", loadedAt: null, message: "Loading...", options: [] },
-    ncertTextbooks: { availability: "loading", loadedAt: null, message: "Loading...", options: [] },
-    ncertChapters: { availability: "loading", loadedAt: null, message: "Loading...", options: [] },
+    ...dropdownSourcesRef.current,
   });
 
   const rowsAfterSourceFilter = useMemo(() => {
@@ -890,6 +915,10 @@ export default function AcademicResourceLibraryPage({
   const bookOptions = useMemo(() => dropdownSources.ncertTextbooks.options, [dropdownSources.ncertTextbooks.options]);
   const chapterOptions = useMemo(() => dropdownSources.ncertChapters.options, [dropdownSources.ncertChapters.options]);
   const lessonPlanOptions = useMemo(() => dropdownSources.lessonPlanRegistry.options, [dropdownSources.lessonPlanRegistry.options]);
+
+  useEffect(() => {
+    dropdownSourcesRef.current = dropdownSources;
+  }, [dropdownSources]);
 
   const filteredRows = useMemo(() => {
     const selectedLessonPlanOption = findRegistryOptionByValue(lessonPlanOptions, lessonPlanIdFilter);
@@ -1001,9 +1030,13 @@ export default function AcademicResourceLibraryPage({
 
   useEffect(() => {
     let cancelled = false;
+    const previousSources = dropdownSourcesRef.current;
     void Promise.all([
-      loadLessonPlanRegistryDropdownState(),
-      loadNcertDropdownState(),
+      loadLessonPlanRegistryDropdownState(previousSources.lessonPlanRegistry),
+      loadNcertDropdownState({
+        textbooks: previousSources.ncertTextbooks,
+        chapters: previousSources.ncertChapters,
+      }),
     ]).then(([lessonPlanRegistry, ncertDropdowns]) => {
       if (cancelled) return;
       setDropdownSources({
@@ -1473,16 +1506,16 @@ export default function AcademicResourceLibraryPage({
                   <CompactSelectFilter label="Class" value={filterDraft.classFilter} options={classOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, classFilter: value }))} />
                   <CompactSelectFilter label="Section" value={filterDraft.sectionFilter} options={sectionOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, sectionFilter: value }))} />
                   <CompactSelectFilter label="Subject" value={filterDraft.subjectFilter} options={subjectOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, subjectFilter: value }))} />
-                  <ModalDropdownFilter label="Lesson Plan Registry" value={filterDraft.lessonPlanIdFilter || "all"} options={lessonPlanOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, lessonPlanIdFilter: value === "all" ? "" : value }))} disabled={lessonPlanAvailability !== "ready"} helperText={lessonPlanAvailability === "empty" ? "No lesson workspace rows found" : lessonPlanAvailability === "loading" ? "Loading lesson workspace rows..." : lessonPlanAvailability === "ready" ? undefined : "Lesson Plan Registry unavailable"} loadedAt={dropdownSources.lessonPlanRegistry.loadedAt} />
-                  <ModalDropdownFilter label="NCERT Textbook" value={filterDraft.bookFilter} options={bookOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, bookFilter: value }))} disabled={ncertTextbookAvailability !== "ready"} helperText={ncertTextbookAvailability === "empty" ? "No NCERT textbooks found" : ncertTextbookAvailability === "loading" ? "Loading NCERT registry..." : ncertTextbookAvailability === "ready" ? undefined : "NCERT Registry unavailable"} loadedAt={dropdownSources.ncertTextbooks.loadedAt} />
-                  <ModalDropdownFilter label="NCERT Chapter" value={filterDraft.chapterFilter} options={draftChapterOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, chapterFilter: value }))} disabled={ncertChapterAvailability !== "ready"} helperText={ncertChapterAvailability === "empty" ? "No NCERT chapters found" : ncertChapterAvailability === "loading" ? "Loading NCERT registry..." : ncertChapterAvailability === "ready" ? undefined : "NCERT Registry unavailable"} loadedAt={dropdownSources.ncertChapters.loadedAt} />
+                  <ModalDropdownFilter label="Lesson Plan Registry" value={filterDraft.lessonPlanIdFilter || "all"} options={lessonPlanOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, lessonPlanIdFilter: value === "all" ? "" : value }))} disabled={lessonPlanAvailability === "loading" || lessonPlanAvailability === "authentication_required" || lessonPlanAvailability === "account_mismatch" || lessonPlanAvailability === "source_unavailable" || lessonPlanAvailability === "error" || (lessonPlanAvailability === "empty" && lessonPlanOptions.length === 0)} helperText={lessonPlanAvailability === "empty" ? "No lesson workspace rows found" : lessonPlanAvailability === "loading" ? "Loading lesson workspace rows..." : lessonPlanAvailability === "stale" ? "Previous lesson workspace options retained after a refresh failure." : lessonPlanAvailability === "ready" ? undefined : "Lesson Plan Registry unavailable"} sourceStatus={lessonPlanAvailability} lastCheckedAt={dropdownSources.lessonPlanRegistry.lastCheckedAt} lastSuccessfulSyncAt={dropdownSources.lessonPlanRegistry.lastSuccessfulSyncAt} />
+                  <ModalDropdownFilter label="NCERT Textbook" value={filterDraft.bookFilter} options={bookOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, bookFilter: value }))} disabled={ncertTextbookAvailability === "loading" || ncertTextbookAvailability === "authentication_required" || ncertTextbookAvailability === "account_mismatch" || ncertTextbookAvailability === "source_unavailable" || ncertTextbookAvailability === "error" || (ncertTextbookAvailability === "empty" && bookOptions.length === 0)} helperText={ncertTextbookAvailability === "empty" ? "No NCERT textbooks found" : ncertTextbookAvailability === "loading" ? "Loading NCERT registry..." : ncertTextbookAvailability === "stale" ? "Previous NCERT options retained after a refresh failure." : ncertTextbookAvailability === "ready" ? undefined : "NCERT Registry unavailable"} sourceStatus={ncertTextbookAvailability} lastCheckedAt={dropdownSources.ncertTextbooks.lastCheckedAt} lastSuccessfulSyncAt={dropdownSources.ncertTextbooks.lastSuccessfulSyncAt} />
+                  <ModalDropdownFilter label="NCERT Chapter" value={filterDraft.chapterFilter} options={draftChapterOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, chapterFilter: value }))} disabled={ncertChapterAvailability === "loading" || ncertChapterAvailability === "authentication_required" || ncertChapterAvailability === "account_mismatch" || ncertChapterAvailability === "source_unavailable" || ncertChapterAvailability === "error" || (ncertChapterAvailability === "empty" && draftChapterOptions.length === 0)} helperText={ncertChapterAvailability === "empty" ? "No NCERT chapters found" : ncertChapterAvailability === "loading" ? "Loading NCERT registry..." : ncertChapterAvailability === "stale" ? "Previous NCERT options retained after a refresh failure." : ncertChapterAvailability === "ready" ? undefined : "NCERT Registry unavailable"} sourceStatus={ncertChapterAvailability} lastCheckedAt={dropdownSources.ncertChapters.lastCheckedAt} lastSuccessfulSyncAt={dropdownSources.ncertChapters.lastSuccessfulSyncAt} />
                 </div>
               </section>
 
               <section className="space-y-3">
                 <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">People and ownership</div>
                 <div className="grid gap-3 md:grid-cols-2">
-                  <ModalDropdownFilter label="Staff" value={filterDraft.staffFilter || "all"} options={staffOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, staffFilter: value === "all" ? "" : value }))} disabled={staffRegistryAvailability !== "ready"} helperText={staffRegistryAvailability === "empty" ? "No active staff rows found" : staffRegistryAvailability === "loading" ? "Loading staff directory..." : staffRegistryAvailability === "ready" ? undefined : "Staff Directory unavailable"} loadedAt={staffRegistrySource.loadedAt} />
+                  <ModalDropdownFilter label="Staff" value={filterDraft.staffFilter || "all"} options={staffOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, staffFilter: value === "all" ? "" : value }))} disabled={staffRegistryAvailability === "loading" || staffRegistryAvailability === "authentication_required" || staffRegistryAvailability === "account_mismatch" || staffRegistryAvailability === "source_unavailable" || staffRegistryAvailability === "error" || (staffRegistryAvailability === "empty" && staffOptions.length === 0)} helperText={staffRegistryAvailability === "empty" ? "No active staff rows found" : staffRegistryAvailability === "loading" ? "Loading staff directory..." : staffRegistryAvailability === "stale" ? "Previous staff options retained after a refresh failure." : staffRegistryAvailability === "ready" ? undefined : "Staff Directory unavailable"} sourceStatus={staffRegistryAvailability} lastCheckedAt={staffRegistrySource.lastCheckedAt} lastSuccessfulSyncAt={staffRegistrySource.lastSuccessfulSyncAt} />
                   <CompactSelectFilter label="Audience" value={filterDraft.audienceFilter} options={audienceOptions} onChange={(value) => setFilterDraft((current) => ({ ...current, audienceFilter: value }))} />
                 </div>
               </section>

@@ -9,6 +9,7 @@ interface StaffRegistryPageProps {
   sourceDisplayLabel?: string | null;
   sourceLastSyncedAt?: string | null;
   sourceLastCheckedAt?: string | null;
+  sourceStatus?: "not_tested" | "loading" | "refreshing" | "ready" | "empty" | "filtered_empty" | "authentication_required" | "account_mismatch" | "permission_denied" | "source_unavailable" | "stale" | "error" | null;
 }
 
 function normalizeIdentity(value: string): string {
@@ -28,7 +29,7 @@ function StaffKpiCard({ label, value }: { label: string; value: number | string 
   );
 }
 
-export default function StaffRegistryPage({ staffRows, currentRole, sourceDisplayLabel, sourceLastSyncedAt, sourceLastCheckedAt }: StaffRegistryPageProps) {
+export default function StaffRegistryPage({ staffRows, currentRole, sourceDisplayLabel, sourceLastSyncedAt, sourceLastCheckedAt, sourceStatus }: StaffRegistryPageProps) {
   const [selectedStaff, setSelectedStaff] = useState<StaffDirectoryRow | null>(null);
 
   const staffKpis = useMemo(() => {
@@ -86,6 +87,7 @@ export default function StaffRegistryPage({ staffRows, currentRole, sourceDispla
         sourceDisplayLabel={sourceDisplayLabel}
         sourceLastSyncedAt={sourceLastSyncedAt}
         sourceLastCheckedAt={sourceLastCheckedAt}
+        sourceStatus={sourceStatus}
       />
     </div>
   );

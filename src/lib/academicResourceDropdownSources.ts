@@ -5,10 +5,13 @@ import type { SchoolRegistryState, StaffDirectoryRow } from "./schoolRegistry";
 
 export type RegistryDropdownAvailability =
   | "loading"
+  | "refreshing"
   | "ready"
   | "empty"
+  | "stale"
   | "authentication_required"
   | "account_mismatch"
+  | "permission_denied"
   | "source_unavailable"
   | "error";
 
@@ -23,9 +26,14 @@ export interface RegistryDropdownOption {
 
 export interface RegistryDropdownState {
   availability: RegistryDropdownAvailability;
+  lastCheckedAt: string | null;
+  lastSuccessfulSyncAt: string | null;
+  isRefreshing: boolean;
   loadedAt: string | null;
   message: string;
   options: RegistryDropdownOption[];
+  staleReason?: string | null;
+  errorCode?: string | null;
 }
 
 export interface AcademicResourceDropdownSources {
@@ -50,8 +58,11 @@ function uniqueByStableKey(options: RegistryDropdownOption[]): RegistryDropdownO
 function buildAvailabilityMessage(availability: RegistryDropdownAvailability, defaultMessage: string): string {
   if (availability === "ready") return defaultMessage;
   if (availability === "empty") return defaultMessage;
+  if (availability === "stale") return defaultMessage || "Previous rows are retained, but the latest refresh needs attention.";
+  if (availability === "refreshing") return defaultMessage || "Refreshing source rows...";
   if (availability === "authentication_required") return defaultMessage || "Google account connection required.";
   if (availability === "account_mismatch") return defaultMessage || "Connected Google account does not match the configured account.";
+  if (availability === "permission_denied") return defaultMessage || "Registry access is restricted.";
   if (availability === "source_unavailable") return defaultMessage || "Registry unavailable.";
   if (availability === "error") return defaultMessage || "Registry load failed.";
   return "Loading...";
@@ -60,7 +71,8 @@ function buildAvailabilityMessage(availability: RegistryDropdownAvailability, de
 function mapReadError(code?: GoogleSheetReadErrorCode, authState = getGoogleWorkspaceAuthState()): RegistryDropdownAvailability {
   if (authState.accountMatchStatus === "mismatch") return "account_mismatch";
   if (code === "AUTH_REQUIRED" || code === "TOKEN_EXPIRED") return "authentication_required";
-  if (code === "ACCESS_DENIED" || code === "INVALID_URL") return "source_unavailable";
+  if (code === "ACCESS_DENIED") return "permission_denied";
+  if (code === "INVALID_URL") return "source_unavailable";
   return "error";
 }
 
@@ -121,11 +133,36 @@ function buildNcertChapterOption(row: Record<string, string>): RegistryDropdownO
   };
 }
 
-function normalizeAvailabilityFromState(state: "ready" | "empty" | "authentication_required" | "account_mismatch" | "source_unavailable" | "error"): RegistryDropdownAvailability {
+function normalizeAvailabilityFromState(state: "ready" | "empty" | "authentication_required" | "account_mismatch" | "permission_denied" | "source_unavailable" | "stale" | "refreshing" | "error"): RegistryDropdownAvailability {
   return state;
 }
 
-export function buildStaffDropdownOptions(registry: SchoolRegistryState | null): RegistryDropdownState {
+function createRegistryDropdownState(
+  availability: RegistryDropdownAvailability,
+  message: string,
+  options: RegistryDropdownOption[],
+  checkedAt: string | null,
+  previous?: RegistryDropdownState | null,
+  errorCode?: string | null,
+  staleReason?: string | null,
+): RegistryDropdownState {
+  const retainPrevious = availability === "stale" || availability === "refreshing";
+  const retainedOptions = retainPrevious && previous?.options?.length ? previous.options : options;
+  const lastSuccessfulSyncAt = retainPrevious && previous?.lastSuccessfulSyncAt ? previous.lastSuccessfulSyncAt : checkedAt;
+  return {
+    availability,
+    lastCheckedAt: checkedAt,
+    lastSuccessfulSyncAt,
+    isRefreshing: availability === "refreshing",
+    loadedAt: lastSuccessfulSyncAt,
+    message,
+    options: retainedOptions,
+    staleReason: staleReason || null,
+    errorCode: errorCode || null,
+  };
+}
+
+export function buildStaffDropdownOptions(registry: SchoolRegistryState | null, previous?: RegistryDropdownState | null): RegistryDropdownState {
   const rows = (registry?.staffDirectory || [])
     .filter((row) => {
       const status = normalizeToken(row.status);
@@ -158,94 +195,149 @@ export function buildStaffDropdownOptions(registry: SchoolRegistryState | null):
 
   const availability: RegistryDropdownAvailability =
     !registry ? "source_unavailable" :
+    registry.sourceStatus === "refreshing" ? "refreshing" :
+    registry.sourceStatus === "stale" ? "stale" :
+    registry.sourceStatus === "authentication_required" ? "authentication_required" :
+    registry.sourceStatus === "account_mismatch" ? "account_mismatch" :
+    registry.sourceStatus === "permission_denied" ? "permission_denied" :
     registry.mode === "missing" ? "source_unavailable" :
-    registry.mode === "error" ? "error" :
+    registry.mode === "error" ? (previous?.options?.length ? "stale" : "error") :
     options.length > 0 ? "ready" : "empty";
 
-  return {
+  const checkedAt = registry?.lastCheckedAt || registry?.loadedAt || previous?.lastCheckedAt || null;
+  return createRegistryDropdownState(
     availability,
-    loadedAt: registry?.loadedAt || null,
-    message: buildAvailabilityMessage(availability, options.length > 0 ? "Staff directory loaded." : "No active staff rows found."),
+    buildAvailabilityMessage(availability, options.length > 0 ? "Staff directory loaded." : "No active staff rows found."),
     options,
-  };
+    checkedAt,
+    previous,
+    registry?.errorCode || null,
+    registry?.staleReason || previous?.staleReason || null,
+  );
 }
 
-export async function loadLessonPlanRegistryDropdownState(): Promise<RegistryDropdownState> {
+export async function loadLessonPlanRegistryDropdownState(previous?: RegistryDropdownState | null): Promise<RegistryDropdownState> {
   const config = loadSeededRegistryConfig();
   const authState = getGoogleWorkspaceAuthState();
+  const hasPrevious = Boolean(previous?.options?.length);
   if (authState.accountMatchStatus === "mismatch") {
-    return {
-      availability: "account_mismatch",
-      loadedAt: null,
-      message: "Connected Google account does not match the configured registry account.",
-      options: [],
-    };
+    return createRegistryDropdownState(
+      hasPrevious ? "stale" : "account_mismatch",
+      hasPrevious
+        ? `${previous?.message || "Lesson workspace registry loaded."} Latest refresh failed: Connected Google account does not match the configured registry account.`
+        : "Connected Google account does not match the configured registry account.",
+      hasPrevious ? previous?.options || [] : [],
+      null,
+      previous
+    );
   }
   if (!authState.connected || !authState.tokenPresent) {
-    return {
-      availability: authState.errorMessage && /expired/i.test(authState.errorMessage) ? "authentication_required" : "authentication_required",
-      loadedAt: null,
-      message: authState.errorMessage || "Google account connection required.",
-      options: [],
-    };
+    const message = authState.errorMessage || "Google account connection required.";
+    return createRegistryDropdownState(
+      hasPrevious ? "stale" : "authentication_required",
+      hasPrevious ? `${previous?.message || "Lesson workspace registry loaded."} Latest refresh failed: ${message}` : message,
+      hasPrevious ? previous?.options || [] : [],
+      null,
+      previous,
+      authState.errorMessage && /expired/i.test(authState.errorMessage) ? "TOKEN_EXPIRED" : "AUTH_REQUIRED"
+    );
   }
   if (!config.lessonWorkspaceRegistryUrl.trim()) {
-    return {
-      availability: "source_unavailable",
-      loadedAt: null,
-      message: "Lesson workspace registry URL is not configured.",
-      options: [],
-    };
+    return createRegistryDropdownState(
+      hasPrevious ? "stale" : "source_unavailable",
+      hasPrevious ? `${previous?.message || "Lesson workspace registry loaded."} Latest refresh failed: Lesson workspace registry URL is not configured.` : "Lesson workspace registry URL is not configured.",
+      hasPrevious ? previous?.options || [] : [],
+      null,
+      previous,
+      "INVALID_URL"
+    );
   }
 
   try {
     const result = await readGoogleSheetTabRows(config.lessonWorkspaceRegistryUrl, "Lesson_Workspace_Registry", { policy: "authenticated-required" });
     const options = uniqueByStableKey(result.rows.map(buildLessonPlanOption).filter(Boolean) as RegistryDropdownOption[]);
     const availability = options.length > 0 ? "ready" : "empty";
-    return {
+    return createRegistryDropdownState(
       availability,
-      loadedAt: result.checkedAt,
-      message: buildAvailabilityMessage(availability, options.length > 0 ? "Lesson workspace registry loaded." : "No lesson workspace rows found."),
+      buildAvailabilityMessage(availability, options.length > 0 ? "Lesson workspace registry loaded." : "No lesson workspace rows found."),
       options,
-    };
+      result.checkedAt,
+      previous,
+    );
   } catch (error: any) {
     const availability = mapReadError(error?.code, authState);
-    return {
-      availability,
-      loadedAt: null,
-      message: error?.message || "Lesson workspace registry unavailable.",
-      options: [],
-    };
+    const hasPrevious = Boolean(previous?.options?.length);
+    return createRegistryDropdownState(
+      hasPrevious ? "stale" : availability,
+      hasPrevious
+        ? `${previous?.message || "Lesson workspace registry loaded."} Latest refresh failed: ${error?.message || "Registry unavailable."}`
+        : (error?.message || "Lesson workspace registry unavailable."),
+      hasPrevious ? previous?.options || [] : [],
+      new Date().toISOString(),
+      previous,
+      error?.code || null,
+      error?.message || null,
+    );
   }
 }
 
-export async function loadNcertDropdownState(): Promise<{ textbooks: RegistryDropdownState; chapters: RegistryDropdownState }> {
+export async function loadNcertDropdownState(previous?: { textbooks: RegistryDropdownState; chapters: RegistryDropdownState } | null): Promise<{ textbooks: RegistryDropdownState; chapters: RegistryDropdownState }> {
   const config = loadSeededRegistryConfig();
   const authState = getGoogleWorkspaceAuthState();
-  const empty = (availability: RegistryDropdownAvailability, message: string): RegistryDropdownState => ({
-    availability,
-    loadedAt: null,
-    message,
-    options: [],
-  });
+  const empty = (availability: RegistryDropdownAvailability, message: string, prior?: RegistryDropdownState | null, errorCode?: string | null): RegistryDropdownState =>
+    createRegistryDropdownState(availability, message, [], null, prior, errorCode);
+  const hasPreviousTextbooks = Boolean(previous?.textbooks?.options?.length);
+  const hasPreviousChapters = Boolean(previous?.chapters?.options?.length);
 
   if (authState.accountMatchStatus === "mismatch") {
     return {
-      textbooks: empty("account_mismatch", "Connected Google account does not match the configured registry account."),
-      chapters: empty("account_mismatch", "Connected Google account does not match the configured registry account."),
+      textbooks: empty(
+        hasPreviousTextbooks ? "stale" : "account_mismatch",
+        hasPreviousTextbooks
+          ? `${previous?.textbooks?.message || "NCERT textbooks loaded."} Latest refresh failed: Connected Google account does not match the configured registry account.`
+          : "Connected Google account does not match the configured registry account.",
+        previous?.textbooks
+      ),
+      chapters: empty(
+        hasPreviousChapters ? "stale" : "account_mismatch",
+        hasPreviousChapters
+          ? `${previous?.chapters?.message || "NCERT chapters loaded."} Latest refresh failed: Connected Google account does not match the configured registry account.`
+          : "Connected Google account does not match the configured registry account.",
+        previous?.chapters
+      ),
     };
   }
   if (!authState.connected || !authState.tokenPresent) {
     const message = authState.errorMessage || "Google account connection required.";
     return {
-      textbooks: empty("authentication_required", message),
-      chapters: empty("authentication_required", message),
+      textbooks: empty(
+        hasPreviousTextbooks ? "stale" : "authentication_required",
+        hasPreviousTextbooks ? `${previous?.textbooks?.message || "NCERT textbooks loaded."} Latest refresh failed: ${message}` : message,
+        previous?.textbooks,
+        authState.errorMessage && /expired/i.test(authState.errorMessage) ? "TOKEN_EXPIRED" : "AUTH_REQUIRED"
+      ),
+      chapters: empty(
+        hasPreviousChapters ? "stale" : "authentication_required",
+        hasPreviousChapters ? `${previous?.chapters?.message || "NCERT chapters loaded."} Latest refresh failed: ${message}` : message,
+        previous?.chapters,
+        authState.errorMessage && /expired/i.test(authState.errorMessage) ? "TOKEN_EXPIRED" : "AUTH_REQUIRED"
+      ),
     };
   }
   if (!config.ncertRegistryUrl.trim()) {
     return {
-      textbooks: empty("source_unavailable", "NCERT registry URL is not configured."),
-      chapters: empty("source_unavailable", "NCERT registry URL is not configured."),
+      textbooks: empty(
+        hasPreviousTextbooks ? "stale" : "source_unavailable",
+        hasPreviousTextbooks ? `${previous?.textbooks?.message || "NCERT textbooks loaded."} Latest refresh failed: NCERT registry URL is not configured.` : "NCERT registry URL is not configured.",
+        previous?.textbooks,
+        "INVALID_URL"
+      ),
+      chapters: empty(
+        hasPreviousChapters ? "stale" : "source_unavailable",
+        hasPreviousChapters ? `${previous?.chapters?.message || "NCERT chapters loaded."} Latest refresh failed: NCERT registry URL is not configured.` : "NCERT registry URL is not configured.",
+        previous?.chapters,
+        "INVALID_URL"
+      ),
     };
   }
 
@@ -259,27 +351,43 @@ export async function loadNcertDropdownState(): Promise<{ textbooks: RegistryDro
       ? (() => {
           const bookOptions = uniqueByStableKey(booksResult.value.rows.map(buildNcertBookOption).filter(Boolean) as RegistryDropdownOption[]);
           const availability = bookOptions.length > 0 ? "ready" : "empty";
-          return {
+          return createRegistryDropdownState(
             availability,
-            loadedAt: booksResult.value.checkedAt,
-            message: buildAvailabilityMessage(availability, bookOptions.length > 0 ? "NCERT textbooks loaded." : "No NCERT textbooks found."),
-            options: bookOptions,
-          };
+            buildAvailabilityMessage(availability, bookOptions.length > 0 ? "NCERT textbooks loaded." : "No NCERT textbooks found."),
+            bookOptions,
+            booksResult.value.checkedAt,
+            previous?.textbooks,
+          );
         })()
-      : empty(mapReadError(booksResult.reason?.code, authState), booksResult.reason?.message || "NCERT textbooks unavailable.");
+      : (() => {
+          const prior = previous?.textbooks;
+          const availability = prior?.options?.length ? "stale" : mapReadError(booksResult.reason?.code, authState);
+          const message = prior?.options?.length
+            ? `${prior.message || "NCERT textbooks loaded."} Latest refresh failed: ${booksResult.reason?.message || "NCERT textbooks unavailable."}`
+            : (booksResult.reason?.message || "NCERT textbooks unavailable.");
+          return createRegistryDropdownState(availability, message, prior?.options || [], new Date().toISOString(), prior, booksResult.reason?.code || null, booksResult.reason?.message || null);
+        })();
 
     const chaptersState: RegistryDropdownState = chaptersResult.status === "fulfilled"
       ? (() => {
           const chapterOptions = uniqueByStableKey(chaptersResult.value.rows.map(buildNcertChapterOption).filter(Boolean) as RegistryDropdownOption[]);
           const availability = chapterOptions.length > 0 ? "ready" : "empty";
-          return {
+          return createRegistryDropdownState(
             availability,
-            loadedAt: chaptersResult.value.checkedAt,
-            message: buildAvailabilityMessage(availability, chapterOptions.length > 0 ? "NCERT chapters loaded." : "No NCERT chapters found."),
-            options: chapterOptions,
-          };
+            buildAvailabilityMessage(availability, chapterOptions.length > 0 ? "NCERT chapters loaded." : "No NCERT chapters found."),
+            chapterOptions,
+            chaptersResult.value.checkedAt,
+            previous?.chapters,
+          );
         })()
-      : empty(mapReadError(chaptersResult.reason?.code, authState), chaptersResult.reason?.message || "NCERT chapters unavailable.");
+      : (() => {
+          const prior = previous?.chapters;
+          const availability = prior?.options?.length ? "stale" : mapReadError(chaptersResult.reason?.code, authState);
+          const message = prior?.options?.length
+            ? `${prior.message || "NCERT chapters loaded."} Latest refresh failed: ${chaptersResult.reason?.message || "NCERT chapters unavailable."}`
+            : (chaptersResult.reason?.message || "NCERT chapters unavailable.");
+          return createRegistryDropdownState(availability, message, prior?.options || [], new Date().toISOString(), prior, chaptersResult.reason?.code || null, chaptersResult.reason?.message || null);
+        })();
 
     return {
       textbooks: booksState,
@@ -289,8 +397,22 @@ export async function loadNcertDropdownState(): Promise<{ textbooks: RegistryDro
     const availability = mapReadError(error?.code, authState);
     const message = error?.message || "NCERT registry unavailable.";
     return {
-      textbooks: empty(availability, message),
-      chapters: empty(availability, message),
+      textbooks: empty(
+        previous?.textbooks?.options?.length ? "stale" : availability,
+        previous?.textbooks?.options?.length
+          ? `${previous?.textbooks?.message || "NCERT textbooks loaded."} Latest refresh failed: ${message}`
+          : message,
+        previous?.textbooks,
+        error?.code || null
+      ),
+      chapters: empty(
+        previous?.chapters?.options?.length ? "stale" : availability,
+        previous?.chapters?.options?.length
+          ? `${previous?.chapters?.message || "NCERT chapters loaded."} Latest refresh failed: ${message}`
+          : message,
+        previous?.chapters,
+        error?.code || null
+      ),
     };
   }
 }

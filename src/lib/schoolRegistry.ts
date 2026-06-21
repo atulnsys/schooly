@@ -9,6 +9,19 @@ import { getGoogleWorkspaceAuthState } from "./googleWorkspaceAuth";
 
 export type SchoolRegistryMode = "missing" | "live" | "error" | "fallback";
 export type SchoolRegistrySourceMode = "authenticated" | "public" | "mixed" | "unavailable";
+export type SchoolRegistrySourceStatus =
+  | "not_tested"
+  | "loading"
+  | "refreshing"
+  | "ready"
+  | "empty"
+  | "filtered_empty"
+  | "authentication_required"
+  | "account_mismatch"
+  | "permission_denied"
+  | "source_unavailable"
+  | "stale"
+  | "error";
 export type SchoolRegistryTabStatus =
   | "not_tested"
   | "authentication_required"
@@ -200,7 +213,15 @@ export interface SchoolRegistryState {
   mode: SchoolRegistryMode;
   sourceLabel: string;
   sourceMode: SchoolRegistrySourceMode;
+  sourceStatus: SchoolRegistrySourceStatus;
   warnings: string[];
+  lastCheckedAt: string | null;
+  lastSuccessfulSyncAt: string | null;
+  isRefreshing: boolean;
+  errorCode: string | null;
+  safeUserMessage: string | null;
+  recoveryAction: string | null;
+  staleReason: string | null;
   loadedAt: string | null;
   config: SchoolRegistryConfig;
   tabDiagnostics: Record<string, SchoolRegistryTabDiagnostic>;
@@ -556,32 +577,68 @@ export function getTeacherAllocationFromSchoolRegistry(registry: SchoolRegistryS
   };
 }
 
-export async function loadSchoolRegistry(config = loadSchoolRegistryConfig()): Promise<SchoolRegistryState> {
+function buildRegistryState(
+  base: Omit<SchoolRegistryState, "tabDiagnostics" | "schoolProfile" | "academicYears" | "classesSections" | "subjects" | "staffDirectory" | "teacherAllocations" | "timetable" | "studentDirectory" | "studentEnrollment" | "booksRegistry" | "bookTocRegistry" | "registryBootstrapLog" | "registrySummary" | "dataSourceStatus"> & {
+    tabDiagnostics?: Record<string, SchoolRegistryTabDiagnostic>;
+    schoolProfile?: SchoolProfileRow[];
+    academicYears?: AcademicYearRow[];
+    classesSections?: ClassSectionRow[];
+    subjects?: SubjectRow[];
+    staffDirectory?: StaffDirectoryRow[];
+    teacherAllocations?: TeacherAllocationRow[];
+    timetable?: TimetableRow[];
+    studentDirectory?: StudentDirectoryRow[];
+    studentEnrollment?: StudentEnrollmentRow[];
+    booksRegistry?: BooksRegistryRow[];
+    bookTocRegistry?: BookTocRegistryRow[];
+    registryBootstrapLog?: RegistryBootstrapLogRow[];
+    registrySummary?: RegistrySummaryRow[];
+    dataSourceStatus?: DataSourceStatusRow[];
+  }
+): SchoolRegistryState {
+  return {
+    ...base,
+    tabDiagnostics: base.tabDiagnostics || {},
+    schoolProfile: base.schoolProfile || [],
+    academicYears: base.academicYears || [],
+    classesSections: base.classesSections || [],
+    subjects: base.subjects || [],
+    staffDirectory: base.staffDirectory || [],
+    teacherAllocations: base.teacherAllocations || [],
+    timetable: base.timetable || [],
+    studentDirectory: base.studentDirectory || [],
+    studentEnrollment: base.studentEnrollment || [],
+    booksRegistry: base.booksRegistry || [],
+    bookTocRegistry: base.bookTocRegistry || [],
+    registryBootstrapLog: base.registryBootstrapLog || [],
+    registrySummary: base.registrySummary || [],
+    dataSourceStatus: base.dataSourceStatus || []
+  };
+}
+
+export async function loadSchoolRegistry(
+  config = loadSchoolRegistryConfig(),
+  options: { checkedAt?: string } = {}
+): Promise<SchoolRegistryState> {
+  const checkedAt = options.checkedAt || new Date().toISOString();
   const url = config.masterDataRegistryUrl.trim();
   if (!url) {
-    return {
+    return buildRegistryState({
       mode: "missing",
       sourceLabel: "Master data registry missing - live setup required",
       sourceMode: "unavailable",
+      sourceStatus: "source_unavailable",
       warnings: ["Configure Schooly_Master_Data_Registry to use live classes, subjects, staff, and teacher allocations."],
+      lastCheckedAt: checkedAt,
+      lastSuccessfulSyncAt: null,
+      isRefreshing: false,
+      errorCode: "MISSING_REGISTRY_URL",
+      safeUserMessage: "The master data registry is not configured.",
+      recoveryAction: "Configure Schooly_Master_Data_Registry and retry.",
+      staleReason: null,
       loadedAt: null,
       config,
-      tabDiagnostics: {},
-      schoolProfile: [],
-      academicYears: [],
-      classesSections: [],
-      subjects: [],
-      staffDirectory: [],
-      teacherAllocations: [],
-      timetable: [],
-      studentDirectory: [],
-      studentEnrollment: [],
-      booksRegistry: [],
-      bookTocRegistry: [],
-      registryBootstrapLog: [],
-      registrySummary: [],
-      dataSourceStatus: []
-    };
+    });
   }
 
   try {
@@ -597,12 +654,79 @@ export async function loadSchoolRegistry(config = loadSchoolRegistryConfig()): P
       : successModes.size === 1
         ? Array.from(successModes)[0]
         : "mixed";
-    const state: SchoolRegistryState = {
+    const totalRows = Object.values(tabs).reduce((sum, rows) => sum + rows.length, 0);
+    const hasAuthRequiredIssue = Object.values(diagnostics).some((diagnostic) =>
+      diagnostic.status === "authentication_required"
+    );
+    const hasPermissionIssue = Object.values(diagnostics).some((diagnostic) =>
+      diagnostic.status === "authentication_required" ||
+      diagnostic.status === "account_mismatch" ||
+      diagnostic.status === "access_denied"
+    );
+    const hasUnavailableIssue = Object.values(diagnostics).some((diagnostic) =>
+      diagnostic.status === "tab_missing" ||
+      diagnostic.status === "file_missing" ||
+      diagnostic.status === "error"
+    );
+    const hasUnexpectedError = Object.values(diagnostics).some((diagnostic) => diagnostic.status === "error");
+    const hasFailureWarnings = warnings.length > 0 || hasPermissionIssue || hasUnavailableIssue;
+    const sourceStatus: SchoolRegistrySourceStatus =
+      authState.accountMatchStatus === "mismatch"
+        ? "account_mismatch"
+        : hasAuthRequiredIssue && totalRows === 0
+          ? "authentication_required"
+          : hasPermissionIssue && totalRows === 0
+            ? "permission_denied"
+            : hasUnavailableIssue && totalRows === 0
+              ? "source_unavailable"
+              : hasUnexpectedError && totalRows === 0
+                ? "error"
+            : totalRows === 0
+              ? "empty"
+              : hasFailureWarnings
+                ? "stale"
+                : "ready";
+
+    const safeUserMessage =
+      sourceStatus === "account_mismatch"
+        ? "The connected Google account does not match the configured registry account."
+        : sourceStatus === "authentication_required"
+          ? "Google Workspace access is required to read the live registry."
+          : sourceStatus === "permission_denied"
+            ? "Some registry tabs are restricted by permissions."
+            : sourceStatus === "empty"
+              ? "The connected workbook returned no rows."
+              : sourceStatus === "stale"
+                ? "Live rows were retained, but one or more registry tabs need attention."
+                : "Live registry rows were read successfully.";
+
+    const recoveryAction =
+      sourceStatus === "account_mismatch"
+        ? "Use the matching Google account and retry."
+        : sourceStatus === "authentication_required"
+          ? "Connect Google Workspace and retry."
+          : sourceStatus === "permission_denied"
+            ? "Review registry permissions and retry."
+            : sourceStatus === "empty"
+              ? "Add rows to the connected workbook or confirm the expected source."
+              : sourceStatus === "stale"
+                ? "Refresh the registry or resolve the failing tabs."
+                : null;
+
+    const state: SchoolRegistryState = buildRegistryState({
       mode: "live",
       sourceLabel: "Live master data registry - Google Sheets",
       sourceMode: authState.connected ? (authState.accountMatchStatus === "mismatch" ? "mixed" : sourceMode) : sourceMode,
+      sourceStatus,
       warnings,
-      loadedAt: new Date().toISOString(),
+      lastCheckedAt: checkedAt,
+      lastSuccessfulSyncAt: checkedAt,
+      isRefreshing: false,
+      errorCode: null,
+      safeUserMessage,
+      recoveryAction,
+      staleReason: sourceStatus === "stale" ? "One or more tabs could not be read during the latest sync." : null,
+      loadedAt: checkedAt,
       config,
       tabDiagnostics: diagnostics,
       schoolProfile: (tabs.School_Profile || []).map((row) => ({
@@ -705,31 +829,25 @@ export async function loadSchoolRegistry(config = loadSchoolRegistryConfig()): P
         last_synced_at: pick(row, ["last_synced_at", "last_synced"], ""),
         notes: pick(row, ["notes", "remarks"], "")
       }))
-    };
+    });
     return state;
   } catch (error: any) {
-    return {
+    const message = error?.message || String(error);
+    return buildRegistryState({
       mode: "error",
       sourceLabel: "Master data registry fetch failed - live setup required",
       sourceMode: "unavailable",
-      warnings: [error?.message || String(error)],
+      sourceStatus: "error",
+      warnings: [message],
+      lastCheckedAt: checkedAt,
+      lastSuccessfulSyncAt: null,
+      isRefreshing: false,
+      errorCode: error instanceof GoogleSheetReadError ? error.code : "UNKNOWN",
+      safeUserMessage: "The master data registry could not be read.",
+      recoveryAction: "Retry the registry read after checking the source and access.",
+      staleReason: null,
       loadedAt: null,
       config,
-      tabDiagnostics: {},
-      schoolProfile: [],
-      academicYears: [],
-      classesSections: [],
-      subjects: [],
-      staffDirectory: [],
-      teacherAllocations: [],
-      timetable: [],
-      studentDirectory: [],
-      studentEnrollment: [],
-      booksRegistry: [],
-      bookTocRegistry: [],
-      registryBootstrapLog: [],
-      registrySummary: [],
-      dataSourceStatus: []
-    };
+    });
   }
 }

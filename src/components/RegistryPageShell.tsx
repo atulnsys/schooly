@@ -6,6 +6,7 @@ import {
   getGenericFieldValue,
   isGenericValueEmpty,
 } from "../lib/genericEntityView";
+import type { SchoolRegistrySourceStatus } from "../lib/schoolRegistry";
 import {
   getRegistryCatalogEntry,
   type RegistryCapabilityMetadata,
@@ -32,9 +33,10 @@ interface RegistryPageShellProps<T extends object> {
   sourceDisplayLabel?: string | null;
   sourceLastSyncedAt?: string | null;
   sourceLastCheckedAt?: string | null;
+  sourceStatus?: SchoolRegistrySourceStatus | null;
 }
 
-type RegistrySourceState = "Ready" | "Empty" | "Missing" | "Incomplete" | "Fallback" | "Unknown";
+type RegistrySourceState = "Ready" | "Empty" | "Missing" | "Incomplete" | "Fallback" | "Stale" | "Unknown";
 
 interface RegistryHeaderSummary {
   sourceState: RegistrySourceState;
@@ -58,6 +60,7 @@ function renderRegistryHeader(
   sourceDisplayLabel?: string | null,
   sourceLastSyncedAt?: string | null,
   sourceLastCheckedAt?: string | null,
+  sourceStatus?: SchoolRegistrySourceStatus | null,
 ) {
   const Icon = entry.iconComponent;
   const sourceStateClass = summary.sourceState === "Ready"
@@ -70,6 +73,8 @@ function renderRegistryHeader(
           ? "bg-orange-50 text-orange-700 border-orange-100"
           : summary.sourceState === "Fallback"
             ? "bg-violet-50 text-violet-700 border-violet-100"
+            : summary.sourceState === "Stale"
+              ? "bg-amber-50 text-amber-700 border-amber-100"
             : summary.sourceState === "Unknown"
               ? "bg-slate-50 text-slate-600 border-slate-200"
               : "bg-slate-50 text-slate-600 border-slate-200";
@@ -124,6 +129,11 @@ function renderRegistryHeader(
           {sourceDisplayLabel !== undefined && (
             <p className="break-words">
               Live source: <span className="font-mono font-bold text-slate-700">{sourceDisplayLabel}</span>.
+            </p>
+          )}
+          {sourceStatus && (
+            <p className="break-words">
+              Current state: <span className="font-mono font-bold text-slate-700">{sourceStatus === "stale" ? "stale" : sourceStatus.replace(/_/g, " ")}</span>.
             </p>
           )}
           {(sourceDisplayLabel !== undefined || sourceLastSyncedAt !== undefined || sourceLastCheckedAt !== undefined) && (
@@ -225,7 +235,13 @@ function CapabilityMetadataStrip({ metadata }: { metadata: RegistryCapabilityMet
   );
 }
 
-function getRegistrySourceState(entry: RegistryCatalogEntry, rowCount: number, isLoading: boolean, errorMessage: string | null): RegistrySourceState {
+function getRegistrySourceState(entry: RegistryCatalogEntry, rowCount: number, isLoading: boolean, errorMessage: string | null, sourceStatus?: SchoolRegistrySourceStatus | null): RegistrySourceState {
+  if (sourceStatus === "stale") return "Stale";
+  if (sourceStatus === "refreshing" || sourceStatus === "loading") return rowCount > 0 ? "Stale" : "Unknown";
+  if (sourceStatus === "authentication_required" || sourceStatus === "account_mismatch" || sourceStatus === "permission_denied" || sourceStatus === "source_unavailable") {
+    return "Missing";
+  }
+  if (sourceStatus === "error" && rowCount > 0) return "Fallback";
   if (isLoading) return "Unknown";
   if (errorMessage) return entry.status === "deferred" ? "Missing" : "Unknown";
   if (entry.status === "deferred") return "Missing";
@@ -361,6 +377,7 @@ export default function RegistryPageShell<T extends object>({
   sourceDisplayLabel,
   sourceLastSyncedAt,
   sourceLastCheckedAt,
+  sourceStatus,
 }: RegistryPageShellProps<T>) {
   const entry = useMemo(() => getRegistryCatalogEntry(registryId), [registryId]);
   const definition = useMemo(
@@ -376,7 +393,7 @@ export default function RegistryPageShell<T extends object>({
   }
 
   const requiredFieldCount = definition.fields.filter((field) => field.required).length;
-  const sourceState = getRegistrySourceState(entry, rows.length, isLoading, errorMessage);
+  const sourceState = getRegistrySourceState(entry, rows.length, isLoading, errorMessage, sourceStatus);
   const summary: RegistryHeaderSummary = {
     sourceState,
     rowCountLabel:
@@ -388,9 +405,11 @@ export default function RegistryPageShell<T extends object>({
             ? "Source unavailable"
             : sourceState === "Fallback"
               ? "Fallback data"
-              : sourceState === "Incomplete"
-                ? "Setup incomplete"
-                : "Metadata only",
+            : sourceState === "Incomplete"
+              ? "Setup incomplete"
+              : sourceState === "Stale"
+                ? "Stale data retained"
+              : "Metadata only",
     mandatoryFieldLabel:
       requiredFieldCount > 0
         ? rows.length === 0
@@ -401,13 +420,15 @@ export default function RegistryPageShell<T extends object>({
       requiredFieldCount > 0 || Boolean(definition.getRowIssues)
         ? "Validation metadata available"
         : "Validation metadata not available from this source yet",
-    guidance:
-      sourceState === "Empty"
-        ? `${entry.label} exists, but no rows are available yet.`
-        : sourceState === "Missing"
-          ? "Source metadata is available, but live rows are not loaded."
-          : sourceState === "Fallback"
-            ? "Fallback data is in use. Reconnect the live source when ready."
+      guidance:
+        sourceState === "Empty"
+          ? `${entry.label} exists, but no rows are available yet.`
+          : sourceState === "Missing"
+            ? "Source metadata is available, but live rows are not loaded."
+            : sourceState === "Fallback"
+              ? "Fallback data is in use. Reconnect the live source when ready."
+              : sourceState === "Stale"
+                ? "Previously loaded rows are retained, but the latest refresh needs attention."
             : sourceState === "Incomplete"
             ? "Setup incomplete. Required headers are still missing in this route."
             : undefined,
@@ -436,6 +457,11 @@ export default function RegistryPageShell<T extends object>({
                   emptyTitle: "Fallback data in use",
                   emptyDescription: "Reconnect the live source when ready.",
                 }
+              : sourceState === "Stale"
+                ? {
+                    emptyTitle: "Stale data retained",
+                    emptyDescription: "Previously loaded rows are still visible while the latest refresh needs attention.",
+                  }
               : sourceState === "Unknown"
                 ? {
                     emptyTitle: "Metadata only",
@@ -456,7 +482,7 @@ export default function RegistryPageShell<T extends object>({
 
   return (
     <div className="space-y-6 animate-fade-in outline-none" id={`${registryId}-registry-page`} data-testid={`${registryId}-registry-page`} tabIndex={-1} aria-busy={isLoading}>
-      {renderRegistryHeader(entry, currentRole, summary, showCapabilityMetadata, sourceDisplayLabel, sourceLastSyncedAt, sourceLastCheckedAt)}
+      {renderRegistryHeader(entry, currentRole, summary, showCapabilityMetadata, sourceDisplayLabel, sourceLastSyncedAt, sourceLastCheckedAt, sourceStatus)}
 
       {errorMessage && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">

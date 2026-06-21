@@ -130,6 +130,22 @@ function formatSourceModeLabel(mode: string): string {
   return mode;
 }
 
+function formatSchoolRegistrySourceStatus(status?: SchoolRegistryState["sourceStatus"] | null): string {
+  if (!status) return "Unknown";
+  if (status === "ready") return "Ready";
+  if (status === "empty") return "Empty";
+  if (status === "filtered_empty") return "Filtered empty";
+  if (status === "loading") return "Loading";
+  if (status === "refreshing") return "Refreshing";
+  if (status === "authentication_required") return "Authentication required";
+  if (status === "account_mismatch") return "Account mismatch";
+  if (status === "permission_denied") return "Permission denied";
+  if (status === "source_unavailable") return "Source unavailable";
+  if (status === "stale") return "Stale";
+  if (status === "error") return "Error";
+  return status;
+}
+
 function formatSummaryStatusLabel(row: SummaryRow): string {
   if (row.sourceState) return row.sourceState;
   return row.sourceMode ? formatSourceModeLabel(row.sourceMode) : "Unknown";
@@ -896,7 +912,7 @@ export default function SettingsPage({
             ["Connected Google Account", connectedAccount],
             ["Account Match", accountMatchLabel],
             ["Access Mode", activeConnectionValidation ? formatSourceModeLabel(activeConnectionValidation.accessMode) : (googleWorkspaceAuthState.connected ? "Connected" : "Not connected")],
-            ["Registry Source Tested", activeConnectionValidation ? activeConnectionValidation.sourceMetadata.label : (currentRegistryUrl ? "Not tested" : "No registry link configured")]
+            ["Registry Source State", schoolRegistry ? (schoolRegistry.isRefreshing ? "Refreshing" : formatSchoolRegistrySourceStatus(schoolRegistry.sourceStatus)) : (currentRegistryUrl ? "Not tested" : "No registry link configured")]
           ].map(([label, value]) => (
             <div key={String(label)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
               <div className="text-[10px] uppercase tracking-wider font-mono text-slate-400 font-bold">{label}</div>
@@ -908,9 +924,9 @@ export default function SettingsPage({
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {[
             ["Test Result", activeConnectionValidation ? activeConnectionValidation.message : "Not tested"],
-            ["Last Checked", activeConnectionValidation ? formatCheckedAt(activeConnectionValidation.checkedAt) : "Not tested"],
-            ["Last successful sync", schoolRegistry?.loadedAt ? formatCheckedAt(schoolRegistry.loadedAt) : "Not yet synced"],
-            ["Next Action", activeConnectionValidation ? activeConnectionValidation.nextAction : "Connect Google Workspace and test the source"]
+            ["Last Checked", schoolRegistry?.lastCheckedAt ? formatCheckedAt(schoolRegistry.lastCheckedAt) : activeConnectionValidation ? formatCheckedAt(activeConnectionValidation.checkedAt) : "Not tested"],
+            ["Last successful sync", schoolRegistry?.lastSuccessfulSyncAt ? formatCheckedAt(schoolRegistry.lastSuccessfulSyncAt) : "Not yet synced"],
+            ["Next Action", schoolRegistry?.recoveryAction || (activeConnectionValidation ? activeConnectionValidation.nextAction : "Connect Google Workspace and test the source")]
           ].map(([label, value]) => (
             <div key={String(label)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
               <div className="text-[10px] uppercase tracking-wider font-mono text-slate-400 font-bold">{label}</div>
@@ -1135,7 +1151,7 @@ export default function SettingsPage({
                   mode: schoolRegistry?.mode === "live" ? "live" : "setup_required",
                   sourceLabel: schoolRegistry?.sourceLabel || "Live master data registry",
                   sourceUrl: registryMasterUrl,
-                  lastSyncedAt: schoolRegistry?.loadedAt || null,
+                  lastSyncedAt: schoolRegistry?.lastSuccessfulSyncAt || schoolRegistry?.loadedAt || null,
                   activeAcademicYearLabel: organizationDraft.academicYear,
                   warnings: schoolRegistry?.warnings || [],
                   setupMessages: [],

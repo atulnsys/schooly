@@ -69,7 +69,7 @@ import { getRegistryExplorerRow } from "./lib/registryExplorerEntityDefinition";
 import { loadConnectionConfig, FALLBACK_ALERT_MESSAGES, validateSourceLink } from "./lib/dataSourceEngine";
 import { DEFAULT_DASHBOARD_SHEET_URL } from "./lib/dashboardConfig";
 import { clearGoogleSheetReadCache } from "./lib/googleSheetRead";
-import { loadSchoolRegistry, type SchoolRegistryState, type StaffDirectoryRow, type StudentDirectoryRow, type StudentEnrollmentRow, type TeacherAllocationRow } from "./lib/schoolRegistry";
+import { loadSchoolRegistry, loadSchoolRegistryConfig, type SchoolRegistryState, type StaffDirectoryRow, type StudentDirectoryRow, type StudentEnrollmentRow, type TeacherAllocationRow } from "./lib/schoolRegistry";
 import { buildStudentDetailsFromRegistry, buildTeacherDetailsFromStaffDirectory } from "./lib/liveSchoolEntityBuilders";
 import { discoverRegistrySources } from "./lib/registrySourceDiscovery";
 import { loadSeededRegistryConfig, saveSeededRegistryConfig } from "./lib/seededRegistryConfig";
@@ -582,9 +582,22 @@ export default function App() {
 
   useEffect(() => {
     let isMounted = true;
+    const checkedAt = new Date().toISOString();
     setSchoolRegistryLoading(true);
     clearGoogleSheetReadCache();
-    loadSchoolRegistry()
+    setSchoolRegistry((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        sourceStatus: "refreshing",
+        isRefreshing: true,
+        lastCheckedAt: checkedAt,
+        safeUserMessage: "Refreshing the live registry while keeping the last successful data visible.",
+        recoveryAction: "Wait for the refresh to finish or retry from Settings.",
+        staleReason: current.staleReason,
+      };
+    });
+    loadSchoolRegistry(loadSchoolRegistryConfig(), { checkedAt })
       .then((registry) => {
         if (!isMounted) return;
         setSchoolRegistry(registry);
@@ -592,7 +605,24 @@ export default function App() {
       .catch((error) => {
         console.warn("[DEBUG] Live staff directory could not be loaded.", error);
         if (!isMounted) return;
-        setSchoolRegistry(null);
+        setSchoolRegistry((current) => {
+          if (!current) return current;
+          const message = error instanceof Error ? error.message : String(error || "Registry refresh failed.");
+          return {
+            ...current,
+            sourceStatus: current.lastSuccessfulSyncAt ? "stale" : "error",
+            isRefreshing: false,
+            lastCheckedAt: checkedAt,
+            errorCode: "UNKNOWN",
+            safeUserMessage: current.lastSuccessfulSyncAt
+              ? "The registry refresh failed, but the previously loaded rows are still available."
+              : "The registry could not be read.",
+            recoveryAction: current.lastSuccessfulSyncAt
+              ? "Retry the refresh after checking access or connectivity."
+              : "Configure the registry and retry.",
+            staleReason: current.lastSuccessfulSyncAt ? message : current.staleReason,
+          };
+        });
       })
       .finally(() => {
         if (isMounted) {
@@ -974,7 +1004,10 @@ export default function App() {
     return "Status unavailable";
   };
   const getSidebarRegistryStatus = () => {
-    if (isTestingConnection || schoolRegistryLoading) return "Checking";
+    if (schoolRegistry?.isRefreshing || schoolRegistryLoading) {
+      if (!schoolRegistry) return "Checking";
+      return "Refreshing";
+    }
     if (!workspaceUrl.trim()) return "Not Connected";
     if (connectionTestResult && !connectionTestResult.success) {
       const lowered = String(connectionTestResult.message || "").toLowerCase();
@@ -984,6 +1017,11 @@ export default function App() {
       return "Connection error";
     }
     if (!schoolRegistry) return "Status unavailable";
+    if (schoolRegistry.sourceStatus === "account_mismatch") return "Account mismatch";
+    if (schoolRegistry.sourceStatus === "authentication_required") return "Access required";
+    if (schoolRegistry.sourceStatus === "permission_denied") return "Access restricted";
+    if (schoolRegistry.sourceStatus === "source_unavailable") return "Source unavailable";
+    if (schoolRegistry.sourceStatus === "stale") return "Stale data";
     if (schoolRegistry.mode === "live") return "Connected";
     if (schoolRegistry.mode === "fallback" || schoolRegistry.mode === "missing") return "Setup incomplete";
     if (schoolRegistry.mode === "error") {
@@ -1336,10 +1374,12 @@ export default function App() {
     }
     return sanitizeStudentTerminology(item.name, currentRole === "Student");
   };
-  type LiveRegisterCardSourceState = "Ready" | "Empty" | "Missing" | "Incomplete" | "Fallback" | "Unknown";
+  type LiveRegisterCardSourceState = "Ready" | "Empty" | "Missing" | "Incomplete" | "Fallback" | "Stale" | "Unknown";
   const getRegistryCardSourceState = (count: number, sourceKind: "master" | "service"): LiveRegisterCardSourceState => {
     if (sourceKind === "master") {
-      if (schoolRegistryLoading) return "Unknown";
+      if (schoolRegistry?.sourceStatus === "stale") return "Stale";
+      if (schoolRegistry?.sourceStatus === "refreshing") return "Unknown";
+      if (schoolRegistryLoading && !schoolRegistry) return "Unknown";
       if (!schoolRegistry) return "Missing";
       if (schoolRegistry.mode === "error" || schoolRegistry.mode === "missing") return "Missing";
       if (schoolRegistry.mode === "fallback") return "Fallback";
@@ -1366,7 +1406,7 @@ export default function App() {
         sourceState: getRegistryCardSourceState(studentCount, "master"),
         detail: "Open the live student registry",
         source: "Master Registry / Student_Directory",
-        lastSyncedAt: schoolRegistry?.loadedAt || null,
+        lastSyncedAt: schoolRegistry?.lastSuccessfulSyncAt || schoolRegistry?.loadedAt || null,
         drillTarget: { kind: "page", registryId: "students" as const }
       },
       {
@@ -1375,7 +1415,7 @@ export default function App() {
         sourceState: getRegistryCardSourceState(teacherCount, "master"),
         detail: "Open the derived teacher view",
         source: "Master Registry / Teacher_Allocations",
-        lastSyncedAt: schoolRegistry?.loadedAt || null,
+        lastSyncedAt: schoolRegistry?.lastSuccessfulSyncAt || schoolRegistry?.loadedAt || null,
         drillTarget: { kind: "page", registryId: "teachers" as const }
       },
       {
@@ -1384,7 +1424,7 @@ export default function App() {
         sourceState: getRegistryCardSourceState(classCount, "master"),
         detail: "Open the classroom course page",
         source: "Master Registry / Classes_Sections",
-        lastSyncedAt: schoolRegistry?.loadedAt || null,
+        lastSyncedAt: schoolRegistry?.lastSuccessfulSyncAt || schoolRegistry?.loadedAt || null,
         drillTarget: { kind: "page", registryId: "courses" as const }
       },
       {
@@ -1393,7 +1433,7 @@ export default function App() {
         sourceState: getRegistryCardSourceState(staffCount, "master"),
         detail: "Open the canonical staff directory",
         source: "Master Registry / Staff_Directory",
-        lastSyncedAt: schoolRegistry?.loadedAt || null,
+        lastSyncedAt: schoolRegistry?.lastSuccessfulSyncAt || schoolRegistry?.loadedAt || null,
         drillTarget: { kind: "page", registryId: "staff" as const }
       },
       {
@@ -1402,7 +1442,7 @@ export default function App() {
         sourceState: getRegistryCardSourceState(subjectCount, "master"),
         detail: "Open the master registry subject tab",
         source: "Master Registry / Subjects",
-        lastSyncedAt: schoolRegistry?.loadedAt || null,
+        lastSyncedAt: schoolRegistry?.lastSuccessfulSyncAt || schoolRegistry?.loadedAt || null,
         drillTarget: { kind: "data", registryId: "masterDataRegistryUrl__subjects" as const }
       },
       {
@@ -1496,8 +1536,9 @@ export default function App() {
             staffRows={schoolRegistry?.staffDirectory || []}
             currentRole={currentRole}
             sourceDisplayLabel={schoolRegistry?.sourceLabel || "Live master data registry"}
-            sourceLastSyncedAt={schoolRegistry?.loadedAt || null}
-            sourceLastCheckedAt={schoolRegistry?.tabDiagnostics?.Staff_Directory?.checkedAt || null}
+            sourceLastSyncedAt={schoolRegistry?.lastSuccessfulSyncAt || schoolRegistry?.loadedAt || null}
+            sourceLastCheckedAt={schoolRegistry?.lastCheckedAt || schoolRegistry?.tabDiagnostics?.Staff_Directory?.checkedAt || null}
+            sourceStatus={schoolRegistry?.sourceStatus || null}
           />
         );
       case "courses":
@@ -2014,8 +2055,9 @@ export default function App() {
             staffRows={schoolRegistry?.staffDirectory || []}
             currentRole={currentRole}
             sourceDisplayLabel={schoolRegistry?.sourceLabel || "Live master data registry"}
-            sourceLastSyncedAt={schoolRegistry?.loadedAt || null}
-            sourceLastCheckedAt={schoolRegistry?.tabDiagnostics?.Staff_Directory?.checkedAt || null}
+            sourceLastSyncedAt={schoolRegistry?.lastSuccessfulSyncAt || schoolRegistry?.loadedAt || null}
+            sourceLastCheckedAt={schoolRegistry?.lastCheckedAt || schoolRegistry?.tabDiagnostics?.Staff_Directory?.checkedAt || null}
+            sourceStatus={schoolRegistry?.sourceStatus || null}
           />
         )}
 
