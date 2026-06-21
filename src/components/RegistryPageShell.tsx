@@ -455,7 +455,7 @@ export default function RegistryPageShell<T extends object>({
   };
 
   return (
-    <div className="space-y-6 animate-fade-in outline-none" id={`${registryId}-registry-page`} data-testid={`${registryId}-registry-page`} tabIndex={-1}>
+    <div className="space-y-6 animate-fade-in outline-none" id={`${registryId}-registry-page`} data-testid={`${registryId}-registry-page`} tabIndex={-1} aria-busy={isLoading}>
       {renderRegistryHeader(entry, currentRole, summary, showCapabilityMetadata, sourceDisplayLabel, sourceLastSyncedAt, sourceLastCheckedAt)}
 
       {errorMessage && (
@@ -465,7 +465,7 @@ export default function RegistryPageShell<T extends object>({
       )}
 
       {isLoading ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm text-sm text-slate-600">
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm text-sm text-slate-600" role="status" aria-live="polite" aria-atomic="true">
           Loading {entry.label.toLowerCase()}...
         </div>
       ) : (

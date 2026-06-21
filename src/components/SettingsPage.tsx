@@ -328,6 +328,8 @@ export default function SettingsPage({
     : null;
   const connectedAccount = googleWorkspaceAuthState.connectedAccount || googleWorkspaceAuthState.expectedAccount || "Not connected";
   const accountMatchLabel = formatMatchLabel(googleWorkspaceAuthState.accountMatchStatus);
+  const connectionStatusRole = /fail|error|denied|unavailable/i.test(connectionStatus) ? "alert" : "status";
+  const writeAccessStatusRole = /fail|error|denied|unavailable/i.test(writeAccessStatus) ? "alert" : "status";
 
   const summaryRows = useMemo<SummaryRow[]>(() => {
     const studentDirectoryRows = schoolRegistry?.studentDirectory || [];
@@ -739,7 +741,7 @@ export default function SettingsPage({
   const authModeLabel = googleWorkspaceAuthState.authMode === "write" ? "Write" : googleWorkspaceAuthState.authMode === "read" ? "Read" : "Idle";
 
   return (
-    <main className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in">
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-1">
@@ -850,7 +852,7 @@ export default function SettingsPage({
         )}
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4" id={getSettingsSectionId("registry")} tabIndex={-1}>
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4" id={getSettingsSectionId("registry")} tabIndex={-1} aria-busy={testingConnection}>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Registry Connection</div>
@@ -960,7 +962,7 @@ export default function SettingsPage({
         </div>
 
         {connectionStatus && (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700" role={connectionStatusRole} aria-live={connectionStatusRole === "alert" ? "assertive" : "polite"} aria-atomic="true">
             {connectionStatus}
           </div>
         )}
@@ -992,7 +994,7 @@ export default function SettingsPage({
         )}
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4" id={getSettingsSectionId("application")} tabIndex={-1}>
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4" id={getSettingsSectionId("application")} tabIndex={-1} aria-busy={writeAccessPending}>
         <div>
           <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Application</div>
           <h2 className="text-base font-extrabold text-slate-900">Application settings and access state</h2>
@@ -1056,7 +1058,7 @@ export default function SettingsPage({
           </button>
         </div>
         {writeAccessStatus && (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700" role={writeAccessStatusRole} aria-live={writeAccessStatusRole === "alert" ? "assertive" : "polite"} aria-atomic="true">
             {writeAccessStatus}
           </div>
         )}
@@ -1150,6 +1152,6 @@ export default function SettingsPage({
           </div>
         )}
       </section>
-    </main>
+    </div>
   );
 }
