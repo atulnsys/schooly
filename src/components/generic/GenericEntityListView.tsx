@@ -363,10 +363,7 @@ export default function GenericEntityListView<T extends object>({
     return (
         <div
         key={rowId}
-        onClick={() => onSelectRow?.(row)}
-        className={`p-4 hover:bg-slate-50/75 transition-all flex items-start justify-between gap-4 ${
-          onSelectRow ? "cursor-pointer" : ""
-        } ${isSelected ? "bg-blue-50/35 border-l-4 border-blue-550 pl-3" : ""}`}
+        className={`p-4 hover:bg-slate-50/75 transition-all flex items-start justify-between gap-4 ${isSelected ? "bg-blue-50/35 border-l-4 border-blue-550 pl-3" : ""}`}
       >
         <div className="space-y-2 flex-1 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
@@ -459,8 +456,7 @@ export default function GenericEntityListView<T extends object>({
               return (
                 <tr
                   key={rowId}
-                  onClick={() => onSelectRow?.(row)}
-                  className={`hover:bg-slate-50/75 transition-all ${onSelectRow ? "cursor-pointer" : ""} ${isSelected ? "bg-blue-50/35" : ""}`}
+                  className={`hover:bg-slate-50/75 transition-all ${isSelected ? "bg-blue-50/35" : ""}`}
                   aria-selected={isSelected}
                 >
                   <td className="px-4 py-3 font-bold text-slate-800 max-w-[260px]">
