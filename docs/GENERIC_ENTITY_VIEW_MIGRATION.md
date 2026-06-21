@@ -1,4 +1,4 @@
-# Generic Entity View Migration Tracker
+﻿# Generic Entity View Migration Tracker
 
 ## Purpose
 
@@ -244,7 +244,7 @@ Not allowed during migration:
 
 # Migration Cycle 1
 
-## Step 1 — Inventory Findings
+## Step 1 â€” Inventory Findings
 
 | Component/Page | Finding | Risk | Recommendation |
 | -------------- | ------- | ---- | -------------- |
@@ -255,7 +255,7 @@ Not allowed during migration:
 | `RoleDashboards.tsx` | Status chip rather than list/detail page. | High | Defer. |
 | `TaskCenter.tsx`, `AcademicYearRollover.tsx`, `DataSourceSettings.tsx`, `DynamicDashboardWidget.tsx` | Not present in repo. | None | Ignore for this cycle. |
 
-## Step 2 — Selected Object Group
+## Step 2 â€” Selected Object Group
 
 Selected group: `ClassroomAssignment` in `src/components/ClassroomManager.tsx`
 
@@ -265,7 +265,7 @@ Risk level: Low
 
 Files expected to change: `src/components/ClassroomManager.tsx`, `src/lib/classroomAssignmentEntityDefinition.tsx`, `docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
 
-## Step 3 — Migration Plan
+## Step 3 â€” Migration Plan
 
 Checklist:
 
@@ -285,13 +285,13 @@ Checklist:
 * [x] Preserve validation/status messages if present.
 * [x] Defer detail migration if specialized UI would break.
 
-## Step 4 — Drill-through / Action Coverage
+## Step 4 â€” Drill-through / Action Coverage
 
 | Action/Drill-through | Existing Behavior | Generic Mapping Used | Preserved? | Notes |
 | -------------------- | ----------------- | -------------------- | ---------- | ----- |
 | Course assignment row display | Manual table with title, status, due date, submissions, and max grade | `GenericEntityListView` table mode with `createClassroomAssignmentEntityDefinition` | Yes | Kept the empty state and course scoping; detail/drill-through is not used for this pilot. |
 
-## Step 5 — Behavior Preserved
+## Step 5 â€” Behavior Preserved
 
 * Active course assignment filtering still uses the selected classroom course.
 * Classroom stream and announcements remain unchanged.
@@ -299,13 +299,13 @@ Checklist:
 * Assignment empty state still shows when no rows are available.
 * Existing classroom-specific data flow and fetch logic were left alone.
 
-## Step 6 — Deferred Items
+## Step 6 â€” Deferred Items
 
 * No selected-row detail migration for `ClassroomAssignment`.
 * No drill-through or row action expansion was added.
 * `GenericEntityDetailView` was intentionally left out because there is no existing safe detail panel to replace in this surface.
 
-## Step 7 — Code Verification
+## Step 7 â€” Code Verification
 
 Commands to run:
 
@@ -317,7 +317,7 @@ Verification results:
 * `npx tsc --noEmit --pretty false` succeeded.
 * `npm run build` succeeded with the existing Vite chunk-size warning only.
 
-## Step 8 — UI Smoke Verification
+## Step 8 â€” UI Smoke Verification
 
 UI verification should prove that the migrated object works in the browser, not just in TypeScript.
 
@@ -358,7 +358,7 @@ Screenshots or notes:
 
 Manual notes: the assignments list remains compact and course-scoped. The redundant per-row course subtitle was removed, and the max-points field now falls back cleanly when `totalPoints` is missing.
 
-## Step 9 — Commit
+## Step 9 â€” Commit
 
 Commit message:
 
@@ -374,7 +374,7 @@ Files committed:
 `src/lib/classroomAssignmentEntityDefinition.tsx`
 `docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
 
-## Step 10 — Recommended Next Group
+## Step 10 â€” Recommended Next Group
 
 Recommended next group:
 
@@ -394,7 +394,7 @@ The classroom assignment list is now backed by the generic entity framework, whi
 
 # Migration Cycle 2
 
-## Step 1 â€” Inventory Findings
+## Step 1 Ã¢â‚¬â€ Inventory Findings
 
 | Component/Page | Finding | Risk | Recommendation |
 | -------------- | ------- | ---- | -------------- |
@@ -405,7 +405,7 @@ The classroom assignment list is now backed by the generic entity framework, whi
 | `RoleDashboards.tsx` | Status chip rather than list/detail page. | High | Defer. |
 | `TaskCenter.tsx`, `AcademicYearRollover.tsx`, `DataSourceSettings.tsx`, `DynamicDashboardWidget.tsx` | Not present in repo. | None | Ignore for this cycle. |
 
-## Step 2 â€” Selected Object Group
+## Step 2 Ã¢â‚¬â€ Selected Object Group
 
 Selected group: `ClassroomCourse` in `src/components/ClassroomManager.tsx`
 
@@ -415,7 +415,7 @@ Risk level: Low
 
 Files expected to change: `src/components/ClassroomManager.tsx`, `src/lib/classroomCourseEntityDefinition.tsx`, `docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
 
-## Step 3 â€” Migration Plan
+## Step 3 Ã¢â‚¬â€ Migration Plan
 
 Checklist:
 
@@ -435,26 +435,26 @@ Checklist:
 * [x] Preserve validation/status messages if present.
 * [x] Defer detail migration if specialized UI would break.
 
-## Step 4 â€” Drill-through / Action Coverage
+## Step 4 Ã¢â‚¬â€ Drill-through / Action Coverage
 
 | Action/Drill-through | Existing Behavior | Generic Mapping Used | Preserved? | Notes |
 | -------------------- | ----------------- | -------------------- | ---------- | ----- |
 | Course selection | Horizontal course tabs switch the active course and update all course-scoped panels. | `GenericEntityListView` table mode with `createClassroomCourseEntityDefinition` | Yes | Row click updates the selected course; there is no separate detail panel. |
 
-## Step 5 â€” Behavior Preserved
+## Step 5 Ã¢â‚¬â€ Behavior Preserved
 
 * The selected course still drives assignments, announcements, materials, and roster content.
 * The classroom stream, materials index, and student roster stay in place.
 * Course switching still updates the visible classroom data.
 * Existing empty or fallback classroom messages remain untouched.
 
-## Step 6 â€” Deferred Items
+## Step 6 Ã¢â‚¬â€ Deferred Items
 
 * No course detail panel was added.
 * No drill-through route was introduced.
 * No other classroom sections were migrated in this cycle.
 
-## Step 7 â€” Code Verification
+## Step 7 Ã¢â‚¬â€ Code Verification
 
 Commands to run:
 
@@ -466,7 +466,7 @@ Verification results:
 * `npx tsc --noEmit --pretty false` succeeded.
 * `npm run build` succeeded with the existing Vite chunk-size warning only.
 
-## Step 8 â€” UI Smoke Verification
+## Step 8 Ã¢â‚¬â€ UI Smoke Verification
 
 UI verification should prove that the migrated object works in the browser, not just in TypeScript.
 
@@ -506,7 +506,7 @@ Screenshots or notes:
 
 Manual notes: the course selector is now a compact generic table. The rest of `ClassroomManager` remained specialized and unchanged.
 
-## Step 9 â€” Commit
+## Step 9 Ã¢â‚¬â€ Commit
 
 Commit message:
 
@@ -522,7 +522,7 @@ Files committed:
 `src/lib/classroomCourseEntityDefinition.tsx`
 `docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
 
-## Step 10 â€” Recommended Next Group
+## Step 10 Ã¢â‚¬â€ Recommended Next Group
 
 Recommended next group:
 
@@ -536,7 +536,7 @@ The course selector was the cleanest remaining boundary. Anything broader should
 
 # Migration Cycle 3
 
-## Step 1 â€” Inventory Findings
+## Step 1 Ã¢â‚¬â€ Inventory Findings
 
 | Component/Page | Finding | Risk | Recommendation |
 | -------------- | ------- | ---- | -------------- |
@@ -547,7 +547,7 @@ The course selector was the cleanest remaining boundary. Anything broader should
 | `RoleDashboards.tsx` | Status chip rather than list/detail page. | High | Defer. |
 | `TaskCenter.tsx`, `AcademicYearRollover.tsx`, `DataSourceSettings.tsx`, `DynamicDashboardWidget.tsx` | Not present in repo. | None | Ignore for this cycle. |
 
-## Step 2 â€” Selected Object Group
+## Step 2 Ã¢â‚¬â€ Selected Object Group
 
 Selected group: `StudentDetails` roster cards in `src/components/ClassroomManager.tsx`
 
@@ -557,7 +557,7 @@ Risk level: Low
 
 Files expected to change: `src/components/ClassroomManager.tsx`, `src/lib/classroomStudentEntityDefinition.tsx`, `docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
 
-## Step 3 â€” Migration Plan
+## Step 3 Ã¢â‚¬â€ Migration Plan
 
 Checklist:
 
@@ -577,26 +577,26 @@ Checklist:
 * [ ] Preserve validation/status messages if present.
 * [ ] Defer detail migration if specialized UI would break.
 
-## Step 4 â€” Drill-through / Action Coverage
+## Step 4 Ã¢â‚¬â€ Drill-through / Action Coverage
 
 | Action/Drill-through | Existing Behavior | Generic Mapping Used | Preserved? | Notes |
 | -------------------- | ----------------- | -------------------- | ---------- | ----- |
 | Roster card display | Manual risk cards show name, email, GPA, grade level, and risk index in the selected course roster. | `GenericEntityListView` cards mode with `createClassroomStudentEntityDefinition` | Yes | List-only boundary; no drill-through or detail panel was introduced. |
 
-## Step 5 â€” Behavior Preserved
+## Step 5 Ã¢â‚¬â€ Behavior Preserved
 
 * The selected course still drives the roster list contents.
 * The classroom stream, materials index, and assignments panel remain unchanged.
 * The roster still reflects grade-level filtered students for the active course.
 * Risk indicators remain visible through card styling and row issues.
 
-## Step 6 â€” Deferred Items
+## Step 6 Ã¢â‚¬â€ Deferred Items
 
 * No roster detail panel was added.
 * No row selection or drill-through was introduced.
 * No other classroom sections were migrated in this cycle.
 
-## Step 7 â€” Code Verification
+## Step 7 Ã¢â‚¬â€ Code Verification
 
 Commands to run:
 
@@ -608,7 +608,7 @@ Verification results:
 * `npx tsc --noEmit --pretty false` succeeded.
 * `npm run build` succeeded with the existing Vite chunk-size warning only.
 
-## Step 8 â€” UI Smoke Verification
+## Step 8 Ã¢â‚¬â€ UI Smoke Verification
 
 UI verification should prove that the migrated object works in the browser, not just in TypeScript.
 
@@ -649,7 +649,7 @@ Screenshots or notes:
 
 Manual notes: the roster is now a compact generic card list. The surrounding classroom panels stayed intact.
 
-## Step 9 â€” Commit
+## Step 9 Ã¢â‚¬â€ Commit
 
 Commit message:
 
@@ -665,7 +665,7 @@ Files committed:
 `src/lib/classroomStudentEntityDefinition.tsx`
 `docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
 
-## Step 10 â€” Recommended Next Group
+## Step 10 Ã¢â‚¬â€ Recommended Next Group
 
 Recommended next group:
 
@@ -679,7 +679,7 @@ The roster was the last obvious low-risk classroom card boundary. Anything broad
 
 # Migration Cycle 4
 
-## Step 1 â€” Inventory Findings
+## Step 1 Ã¢â‚¬â€ Inventory Findings
 
 | Component/Page | Finding | Risk | Recommendation |
 | -------------- | ------- | ---- | -------------- |
@@ -690,7 +690,7 @@ The roster was the last obvious low-risk classroom card boundary. Anything broad
 | `DashboardOverview.tsx` | Broad dashboard and registry drill-through surface. | High | Defer. |
 | `RoleDashboards.tsx` | Status chip rather than list/detail page. | High | Defer. |
 
-## Step 2 â€” Selected Object Group
+## Step 2 Ã¢â‚¬â€ Selected Object Group
 
 Selected group: `Students` first-class registry page backed by `StudentDetails` and the existing `/api/students` feed.
 
@@ -700,7 +700,7 @@ Risk level: Low
 
 Files expected to change: `src/App.tsx`, `src/lib/schemaEngine.ts`, `src/components/StudentsRegistryPage.tsx`, `src/lib/studentEntityDefinition.tsx`, `docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
 
-## Step 3 â€” Migration Plan
+## Step 3 Ã¢â‚¬â€ Migration Plan
 
 Checklist:
 
@@ -720,27 +720,27 @@ Checklist:
 * [x] Preserve validation/status messages if present.
 * [x] Defer detail migration if specialized UI would break.
 
-## Step 4 â€” Drill-through / Action Coverage
+## Step 4 Ã¢â‚¬â€ Drill-through / Action Coverage
 
 | Action/Drill-through | Existing Behavior | Generic Mapping Used | Preserved? | Notes |
 | -------------------- | ----------------- | -------------------- | ---------- | ----- |
 | Students list display | No dedicated Students page existed; students only appeared inside Classroom Sync roster and dashboard register cards. | `GenericEntityPage` with `createStudentEntityDefinition` | Yes | New dedicated registry page stays read-only and uses the live student feed. |
 | Student selection | No page-level selection existed. | `GenericEntityDetailView` controlled through `StudentsRegistryPage` local state | Yes | Detail shows name, email, grade level, enrollment status, GPA, risk flag, and risk index. |
 
-## Step 5 â€” Behavior Preserved
+## Step 5 Ã¢â‚¬â€ Behavior Preserved
 
 * Classroom Sync roster remains unchanged and still renders the synced SIS pupil cards.
 * The existing `/api/students` feed is reused directly.
 * No backend, mock data, or dependency changes were added.
 * Navigation remains schema-driven and role-scoped.
 
-## Step 6 â€” Deferred Items
+## Step 6 Ã¢â‚¬â€ Deferred Items
 
 * No new backend registry source was added.
 * No extra classroom sections were migrated.
 * No broader dashboard rewrite was attempted.
 
-## Step 7 â€” Code Verification
+## Step 7 Ã¢â‚¬â€ Code Verification
 
 Commands to run:
 
@@ -752,7 +752,7 @@ Verification results:
 * `npx tsc --noEmit --pretty false` succeeded.
 * `npm run build` succeeded with the existing Vite chunk-size warning only.
 
-## Step 8 â€” UI Smoke Verification
+## Step 8 Ã¢â‚¬â€ UI Smoke Verification
 
 UI verification should prove that the migrated object works in the browser, not just in TypeScript.
 
@@ -793,7 +793,7 @@ Screenshots or notes:
 
 Manual notes: browser automation fell back to the installed Edge executable because the bundled Playwright Chromium binary was not present in this environment. The Students page rendered correctly once the local browser was pointed at Edge.
 
-## Step 9 â€” Commit
+## Step 9 Ã¢â‚¬â€ Commit
 
 Commit message:
 
@@ -809,7 +809,7 @@ Files committed:
 `src/components/StudentsRegistryPage.tsx`
 `src/lib/registryCatalog.tsx`
 
-## Step 10 â€” Recommended Next Group
+## Step 10 Ã¢â‚¬â€ Recommended Next Group
 
 Recommended next group:
 
@@ -819,7 +819,7 @@ Reason:
 
 The next bounded target has already been completed for this run, and the tracker should stay focused on one migration cycle at a time.
 
-## Follow-up Fix â€” Students Discoverability
+## Follow-up Fix Ã¢â‚¬â€ Students Discoverability
 
 * Before this fix, the Students page was present in code but not reliably visible in the sidebar because the active schema could come from older local storage state and the Students item was placed in a less visible nav section.
 * `/students` now opens the Students registry page directly after the route-to-tab bridge was added in `App.tsx`.
@@ -831,7 +831,7 @@ The next bounded target has already been completed for this run, and the tracker
 
 # Migration Cycle 5
 
-## Step 1 â€” Inventory Findings
+## Step 1 Ã¢â‚¬â€ Inventory Findings
 
 | Component/Page | Finding | Risk | Recommendation |
 | -------------- | ------- | ---- | -------------- |
@@ -844,7 +844,7 @@ The next bounded target has already been completed for this run, and the tracker
 | `DashboardOverview.tsx` | Broad dashboard and registry drill-through surface. | High | Defer. |
 | `RoleDashboards.tsx` | Status chip rather than list/detail page. | High | Defer. |
 
-## Step 2 â€” Selected Object Group
+## Step 2 Ã¢â‚¬â€ Selected Object Group
 
 Selected group: `People & Classroom` registry pages
 
@@ -854,7 +854,7 @@ Risk level: Low
 
 Files expected to change: `src/App.tsx`, `src/components/DashboardOverview.tsx`, `src/components/TeachersRegistryPage.tsx`, `src/components/ClassroomCoursesRegistryPage.tsx`, `src/components/ClassroomAssignmentsRegistryPage.tsx`, `src/lib/teacherEntityDefinition.tsx`, `src/lib/classroomCourseEntityDefinition.tsx`, `src/lib/classroomAssignmentEntityDefinition.tsx`, `src/lib/schemaEngine.ts`, `docs/GENERIC_ENTITY_VIEW_MIGRATION.md`
 
-## Step 3 â€” Migration Plan
+## Step 3 Ã¢â‚¬â€ Migration Plan
 
 Checklist:
 
@@ -872,7 +872,7 @@ Checklist:
 * [x] Preserve validation/status messages if present.
 * [x] Defer detail migration if specialized UI would break.
 
-## Step 4 â€” Behavior Preserved
+## Step 4 Ã¢â‚¬â€ Behavior Preserved
 
 * Students remains the first-class dedicated registry page.
 * Classroom Sync still owns the embedded roster and course-scoped classroom panels.
@@ -880,14 +880,14 @@ Checklist:
 * Surrounding dashboard and classroom sections remain intact.
 * Generic pages now reuse the same live `/api/students`, `/api/teachers`, `/api/classroom/courses`, and `/api/classroom/assignments` feeds.
 
-## Step 5 â€” Deferred Items
+## Step 5 Ã¢â‚¬â€ Deferred Items
 
 * No broad dashboard rewrite.
 * No new backend or mock data.
 * No LessonPlanner or TextbookIngestor migration.
 * No extra registry groups beyond People & Classroom.
 
-## Step 6 â€” Code Verification
+## Step 6 Ã¢â‚¬â€ Code Verification
 
 Commands to run:
 
@@ -899,7 +899,7 @@ Verification results:
 * `npx tsc --noEmit --pretty false` succeeded.
 * `npm run build` succeeded with the existing Vite chunk-size warning only.
 
-## Step 7 â€” UI Smoke Verification
+## Step 7 Ã¢â‚¬â€ UI Smoke Verification
 
 UI verification should prove that the migrated pages work in the browser, not just in TypeScript.
 
@@ -920,7 +920,7 @@ Completed locally. I verified:
 * The course assignment page no longer duplicated the course name in the row subtitle.
 * No page-level browser errors were introduced by this migration.
 
-## Step 8 â€” Commit
+## Step 8 Ã¢â‚¬â€ Commit
 
 Commit message:
 
@@ -943,7 +943,7 @@ Files committed:
 `src/lib/schemaEngine.ts`
 `src/lib/teacherEntityDefinition.tsx`
 
-## Step 9 â€” Recommended Next Group
+## Step 9 Ã¢â‚¬â€ Recommended Next Group
 
 Recommended next group:
 
@@ -970,7 +970,7 @@ Each future cycle must still follow:
 
 ---
 
-# Grouped Migration Cycle â€” Registry Catalog and First-Class Registry Pages
+# Grouped Migration Cycle Ã¢â‚¬â€ Registry Catalog and First-Class Registry Pages
 
 ## Registry Inventory
 
@@ -1080,10 +1080,10 @@ Checked:
 
 ## Commit SHAs Recorded
 
-* `b0577dc` â€” prior checkpoint for the people/classroom registry page migration
-* `c2e12f0` â€” Students discoverability fix
-* `1d8e3cb` â€” registry catalog and first-class Students registry page
-* `d35334b` â€” tracker reconciliation checkpoint
+* `b0577dc` Ã¢â‚¬â€ prior checkpoint for the people/classroom registry page migration
+* `c2e12f0` Ã¢â‚¬â€ Students discoverability fix
+* `1d8e3cb` Ã¢â‚¬â€ registry catalog and first-class Students registry page
+* `d35334b` Ã¢â‚¬â€ tracker reconciliation checkpoint
 
 ## Tracker Changes Made
 
@@ -1091,7 +1091,7 @@ Checked:
 * Added `1d8e3cb` to the baseline checkpoint table.
 * Added `d35334b` to the baseline checkpoint table.
 * Added a grouped registry-catalog migration section.
-* Added the `Registry Completion Sprint — All Safe Registries` inventory and classification section.
+* Added the `Registry Completion Sprint â€” All Safe Registries` inventory and classification section.
 * Recorded active registries, deferred registries, routes, navigation, drill-throughs, verification, and files changed.
 
 ---
@@ -1213,7 +1213,7 @@ These app surfaces are active today, but their explicit capability metadata rows
 
 ---
 
-# Registry Completion Sprint — All Safe Registries
+# Registry Completion Sprint â€” All Safe Registries
 
 ## Registry Inventory
 
@@ -1328,7 +1328,7 @@ These app surfaces are active today, but their explicit capability metadata rows
 
 ## Commit SHAs Recorded
 
-* `d35334b` â€” tracker reconciliation checkpoint
+* `d35334b` Ã¢â‚¬â€ tracker reconciliation checkpoint
 
 ## Tracker Changes Made
 
@@ -1476,7 +1476,7 @@ The teacher page already had a stable generic shell. The smallest safe consolida
 
 ---
 
-# Registry Finalization — 56 Registry Explorer Coverage
+# Registry Finalization â€” 56 Registry Explorer Coverage
 
 ## Selected Object Group
 
@@ -1519,7 +1519,7 @@ The explorer is the single metadata-driven surface that covers the known registr
 
 ---
 
-# Lesson Plans — Custom List Detail Stabilization
+# Lesson Plans â€” Custom List Detail Stabilization
 
 ## Why Lesson Plans Remains Custom
 
@@ -2031,7 +2031,7 @@ This follow-up tightens dashboard trust signals without changing the app structu
 * `npx tsc --noEmit --pretty false` succeeded.
 * `npm run build` succeeded with the existing Vite chunk-size warning only.
 * Local route smoke returned `200` for `/settings`, `/settings?section=registry`, `/settings?section=summary`, `/settings?section=advanced`, `/setup-registries`, `/school-setup`, `/registries`, `/students`, `/staff`, `/teachers`, `/courses`, and `/assignments`.
-* Commit SHA placeholder: `pending`.
+* Commit SHA placeholder: `9486fa2`.
 * Related audit docs: [PRODUCT_UI_QUALITY_CHECKLIST.md](./PRODUCT_UI_QUALITY_CHECKLIST.md) and [SCHOOLY_PRODUCT_UI_QUALITY_TRACKER.md](./SCHOOLY_PRODUCT_UI_QUALITY_TRACKER.md).
 
 ---
@@ -2182,7 +2182,7 @@ This follow-up tightens dashboard trust signals without changing the app structu
   * `/assignments`
   * `/`
   * `/search`
-* Current commit SHA placeholder: `pending`.
+* Current Commit SHA placeholder: `9486fa2`.
 * No new browser console errors were observed during the route smoke.
 
 ### Commit SHA
@@ -2904,7 +2904,7 @@ This follow-up aligns dashboard KPIs, registry summary cards, and registry explo
 
 ---
 
-# Feature Readiness â€” Registry Count and Drill-Through Closure
+# Feature Readiness Ã¢â‚¬â€ Registry Count and Drill-Through Closure
 
 ## Count Reconciliation
 
@@ -2978,3 +2978,4 @@ This follow-up aligns dashboard KPIs, registry summary cards, and registry explo
 ## Commit SHA
 
 * `pending`
+
