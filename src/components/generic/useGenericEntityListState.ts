@@ -94,6 +94,7 @@ function serializeFilters(filters: GenericEntityFilterState): string | null {
 
 function snapshotToSearchParams(
   snapshot: ListStateSnapshot,
+  defaultDisplayMode: GenericEntityDisplayMode,
   currentParams: URLSearchParams,
 ): URLSearchParams {
   const params = new URLSearchParams(currentParams.toString());
@@ -119,7 +120,7 @@ function snapshotToSearchParams(
 
   if (snapshot.page > 1) params.set("page", String(snapshot.page));
   if (snapshot.pageSize > 0) params.set("size", String(snapshot.pageSize));
-  if (snapshot.displayMode !== "cards") params.set("view", snapshot.displayMode);
+  if (snapshot.displayMode !== defaultDisplayMode) params.set("view", snapshot.displayMode);
   if (snapshot.selectedRowId) params.set("row", snapshot.selectedRowId);
 
   return params;
@@ -129,6 +130,7 @@ function snapshotFromLocation<T extends object>(
   params: URLSearchParams,
   definition: GenericEntityDefinition<T>,
   rows: T[],
+  defaultDisplayMode: GenericEntityDisplayMode,
 ): ListStateSnapshot {
   const allowedFilterKeys = definition.fields
     .filter((field) => field.filterable)
@@ -152,7 +154,12 @@ function snapshotFromLocation<T extends object>(
       : definition.defaultSort ?? null,
     page: normalizeInteger(params.get("page"), 1),
     pageSize: normalizeInteger(params.get("size"), definition.defaultPageSize ?? 20),
-    displayMode: params.get("view") === "table" ? "table" : definition.defaultDisplayMode ?? "cards",
+    displayMode:
+      params.get("view") === "table"
+        ? "table"
+        : params.get("view") === "cards"
+          ? "cards"
+          : defaultDisplayMode,
     selectedRowId: selectedRowAllowed ? selectedRowId : null,
   };
 }
@@ -180,7 +187,12 @@ export function useGenericEntityListState<T extends object>({
       };
     }
 
-    return snapshotFromLocation(new URLSearchParams(window.location.search), definition, rows);
+    return snapshotFromLocation(
+      new URLSearchParams(window.location.search),
+      definition,
+      rows,
+      defaultDisplayMode,
+    );
   };
 
   const [state, setState] = useState<ListStateSnapshot>(readSnapshot);
@@ -188,18 +200,25 @@ export function useGenericEntityListState<T extends object>({
     if (!enabled || typeof window === "undefined") return;
 
     const handlePopState = () => {
-      setState(snapshotFromLocation(new URLSearchParams(window.location.search), definition, rows));
+      setState(
+        snapshotFromLocation(
+          new URLSearchParams(window.location.search),
+          definition,
+          rows,
+          defaultDisplayMode,
+        ),
+      );
     };
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [definition, enabled, rows]);
+  }, [defaultDisplayMode, definition, enabled, rows]);
 
   useEffect(() => {
     if (!enabled || typeof window === "undefined" || !namespace) return;
 
     const currentParams = new URLSearchParams(window.location.search);
-    const nextParams = snapshotToSearchParams(state, currentParams);
+    const nextParams = snapshotToSearchParams(state, defaultDisplayMode, currentParams);
     const nextSearch = nextParams.toString();
     const currentSearch = currentParams.toString();
     if (nextSearch === currentSearch) {
@@ -207,7 +226,9 @@ export function useGenericEntityListState<T extends object>({
       return;
     }
 
-    const previous = lastSyncedStateRef.current ?? snapshotFromLocation(currentParams, definition, rows);
+    const previous =
+      lastSyncedStateRef.current ??
+      snapshotFromLocation(currentParams, definition, rows, defaultDisplayMode);
     const filtersChanged = serializeFilters(previous.filters) !== serializeFilters(state.filters);
     const sortChanged =
       previous.sortState?.fieldKey !== state.sortState?.fieldKey ||
@@ -233,7 +254,7 @@ export function useGenericEntityListState<T extends object>({
       window.history.pushState({}, "", nextUrl);
     }
     lastSyncedStateRef.current = state;
-  }, [definition, enabled, namespace, rows, state]);
+  }, [defaultDisplayMode, definition, enabled, namespace, rows, state]);
 
   useEffect(() => {
     if (!enabled) return;
