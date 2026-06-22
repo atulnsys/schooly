@@ -34,7 +34,6 @@ type TokenResponse = {
 };
 
 type StoredAuthState = {
-  accessToken?: string | null;
   expiresAtMs?: number | null;
   connectedAtMs?: number | null;
   lastError?: string | null;
@@ -152,7 +151,6 @@ function normalizeEmailAddress(value: string | null | undefined): string {
 function persistState(): void {
   try {
     const payload = {
-      accessToken: state.accessToken,
       expiresAtMs: state.expiresAtMs,
       connectedAtMs: state.connectedAtMs,
       lastError: state.lastError,
@@ -163,7 +161,7 @@ function persistState(): void {
     };
     sessionStorage.setItem(AUTH_STATE_STORAGE_KEY, JSON.stringify(payload));
   } catch {
-    // Session storage is optional.
+    // Session storage is optional and stores only non-sensitive auth metadata.
   }
 }
 
@@ -172,7 +170,6 @@ function restoreState(): void {
     const payload = sessionStorage.getItem(AUTH_STATE_STORAGE_KEY);
     if (!payload) return;
     const parsed = JSON.parse(payload) as StoredAuthState;
-    if (typeof parsed.accessToken === "string") state.accessToken = parsed.accessToken;
     if (typeof parsed.expiresAtMs === "number") state.expiresAtMs = parsed.expiresAtMs;
     if (typeof parsed.connectedAtMs === "number") state.connectedAtMs = parsed.connectedAtMs;
     if (typeof parsed.lastError === "string" || parsed.lastError === null) state.lastError = parsed.lastError || null;
