@@ -1,37 +1,56 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   ChevronsUpDown,
+  Copy,
+  Check,
   Filter,
   LayoutGrid,
   List,
+  Pencil,
+  Pin,
+  PinOff,
+  RotateCcw,
   Search,
+  Trash2,
   X,
 } from "lucide-react";
 import {
-  filterGenericRows,
+  buildDefaultGenericEntityTablePreferences,
+  type GenericEntitySavedView,
+  type GenericEntityTablePreferences,
+} from "../../lib/genericEntityTableState";
+import {
+  formatGenericFieldValue,
   formatGenericDate,
   getAllGenericRowIssues,
   getDistinctGenericFilterOptions,
   getGenericFieldValue,
+  filterGenericRows,
   getVisibleGenericFields,
   GenericEntityActionDefinition,
   GenericEntityDefinition,
+  GenericEntityDensity,
   GenericEntityDisplayMode,
+  GenericEntityFieldDefinition,
   GenericEntityFilterState,
   GenericEntityPermissionContext,
   GenericEntitySortState,
   hasGenericPermission,
   sortGenericRows,
-  truncateGenericText,
 } from "../../lib/genericEntityView";
+import { getFocusableElements, trapDialogKeyboard } from "../../lib/accessibility";
+import type { GenericEntityListState } from "./useGenericEntityListState";
 
 interface GenericEntityListViewProps<T extends object> {
   definition: GenericEntityDefinition<T>;
   rows: T[];
 
+  state?: GenericEntityListState<T> | null;
   selectedRow?: T | null;
   onSelectRow?: (row: T) => void;
 
@@ -81,13 +100,55 @@ function getActionClass(variant: string | undefined): string {
   return "bg-white hover:bg-slate-50 text-slate-650 border-slate-200";
 }
 
+function getFieldLabel<T extends object>(field: GenericEntityFieldDefinition<T>): string {
+  return String(field.tableLabel || field.label || field.key);
+}
+
+function getFieldKey<T extends object>(field: GenericEntityFieldDefinition<T>): string {
+  return String(field.key);
+}
+
+function isFieldMandatory<T extends object>(field: GenericEntityFieldDefinition<T>): boolean {
+  return Boolean(field.tableRequired || field.required || field.tableRole === "identity");
+}
+
+function isFieldHideLocked<T extends object>(field: GenericEntityFieldDefinition<T>): boolean {
+  return isFieldMandatory(field) || field.tableHideable === false;
+}
+
+function isFieldPinnable<T extends object>(field: GenericEntityFieldDefinition<T>): boolean {
+  if (field.tableRole === "action") return false;
+  if (field.tablePinnable === false) return false;
+  return true;
+}
+
+function getDefaultWidthOptions<T extends object>(field: GenericEntityFieldDefinition<T>): number[] {
+  const minWidth = Math.max(96, field.tableMinWidth ?? 96);
+  const baseWidth =
+    field.tableWidth && Number.isFinite(field.tableWidth)
+      ? Math.round(field.tableWidth)
+      : minWidth;
+  const maxWidth = Math.max(baseWidth, field.tableMaxWidth ?? baseWidth + 64);
+  const options = Array.from(new Set([minWidth, baseWidth, maxWidth].filter((value) => Number.isFinite(value) && value > 0)));
+  return options.sort((left, right) => left - right);
+}
+
+function renderBadgeValue(value: string, variant?: string, className = "") {
+  return (
+    <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-semibold font-sans border ${getBadgeClass(variant)} ${className}`}>
+      {value}
+    </span>
+  );
+}
+
 function renderListFieldValue<T extends object>(
   row: T,
-  field: GenericEntityDefinition<T>["fields"][number],
+  field: GenericEntityFieldDefinition<T>,
 ): React.ReactNode {
   if (field.renderListValue) return field.renderListValue(row);
 
   const value = getGenericFieldValue(row, field);
+  const text = formatGenericFieldValue(row, field);
 
   if (value === null || value === undefined || value === "") {
     return <span className="text-slate-350">—</span>;
@@ -95,7 +156,10 @@ function renderListFieldValue<T extends object>(
 
   if (field.type === "date") return formatGenericDate(value, false);
   if (field.type === "datetime") return formatGenericDate(value, true);
-  if (field.type === "boolean") return value ? "Yes" : "No";
+
+  if (field.type === "boolean") {
+    return renderBadgeValue(value ? "Yes" : "No", value ? "success" : "default");
+  }
 
   if (field.type === "tags" && Array.isArray(value)) {
     return (
@@ -117,25 +181,32 @@ function renderListFieldValue<T extends object>(
     );
   }
 
-  if (field.type === "badge") {
-    return (
-      <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-semibold font-sans border ${getBadgeClass(field.getBadgeVariant?.(row))}`}>
-        {String(value)}
-      </span>
-    );
+  if (field.type === "badge" || field.type === "status") {
+    return renderBadgeValue(text, field.getBadgeVariant?.(row));
   }
 
-  const text = String(value);
-  return truncateGenericText(text, field.maxListChars ?? 120);
+  if (field.type === "number" || field.type === "currency" || field.type === "percentage" || field.type === "identifier") {
+    return <span className="font-semibold tabular-nums">{text}</span>;
+  }
+
+  return text;
 }
 
 function getActionHref<T extends object>(action: GenericEntityActionDefinition<T>, row: T): string | undefined {
   return action.getHref?.(row) ?? action.href;
 }
 
+function resolveControlValue<T extends object>(
+  controlledValue: T | undefined,
+  fallback: T,
+): T {
+  return controlledValue === undefined ? fallback : controlledValue;
+}
+
 export default function GenericEntityListView<T extends object>({
   definition,
   rows,
+  state,
   selectedRow = null,
   onSelectRow,
   searchValue,
@@ -173,19 +244,78 @@ export default function GenericEntityListView<T extends object>({
   const [localPage, setLocalPage] = useState(1);
   const [localPageSize, setLocalPageSize] = useState(definition.defaultPageSize ?? 20);
   const [announcement, setAnnouncement] = useState("");
+  const [columnsOpen, setColumnsOpen] = useState(false);
+  const [viewsOpen, setViewsOpen] = useState(false);
+  const [newViewName, setNewViewName] = useState("");
+  const [renameDraft, setRenameDraft] = useState("");
 
-  const activeSearch = searchValue ?? localSearch;
-  const activeFilters = filterValues ?? localFilters;
-  const activeDisplayMode = displayMode ?? localDisplayMode;
-  const activeSortState = controlledSortState ?? localSortState;
-  const activePage = controlledPage ?? localPage;
-  const activePageSize = controlledPageSize ?? localPageSize;
+  const columnsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const viewsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const columnsDialogRef = useRef<HTMLDivElement | null>(null);
+  const viewsDialogRef = useRef<HTMLDivElement | null>(null);
 
-  const filterableFields = getVisibleGenericFields(null, definition.fields, "list", permissionContext)
-    .filter((field) => field.filterable);
+  const activeSearch = resolveControlValue(searchValue ?? state?.searchValue, localSearch);
+  const activeFilters = resolveControlValue(filterValues ?? state?.filterValues, localFilters);
+  const activeDisplayMode = resolveControlValue(displayMode ?? state?.displayMode, localDisplayMode);
+  const activeSortState = resolveControlValue(controlledSortState ?? state?.sortState, localSortState);
+  const activePage = resolveControlValue(controlledPage ?? state?.page, localPage);
+  const activePageSize = resolveControlValue(controlledPageSize ?? state?.pageSize, localPageSize);
+  const activeTablePreferences = state?.tablePreferences
+    ?? buildDefaultGenericEntityTablePreferences(definition.entityName, definition, permissionContext);
+  const activeSavedView = state?.activeSavedView ?? null;
+  const activeSavedViewId = state?.activeSavedViewId ?? null;
+  const savedViews = state?.savedViews ?? [];
+  const tableDirty = state?.tableDirty ?? false;
+  const tableDensity = activeTablePreferences.density;
 
-  const sortableFields = getVisibleGenericFields(null, definition.fields, "list", permissionContext)
-    .filter((field) => field.sortable);
+  const allListFields = useMemo(
+    () =>
+      getVisibleGenericFields(null, definition.fields, "list", permissionContext).filter(
+        (field) => field.tableRole !== "action",
+      ),
+    [definition.fields, permissionContext],
+  );
+
+  const fieldByKey = useMemo(
+    () => new Map(allListFields.map((field) => [getFieldKey(field), field] as const)),
+    [allListFields],
+  );
+
+  const orderedFieldKeys = useMemo(() => {
+    const knownKeys = new Set(allListFields.map((field) => getFieldKey(field)));
+    const primaryOrder = activeTablePreferences.fieldOrder.filter((key) => knownKeys.has(key));
+    const missing = allListFields.map((field) => getFieldKey(field)).filter((key) => !primaryOrder.includes(key));
+    return [...primaryOrder, ...missing];
+  }, [activeTablePreferences.fieldOrder, allListFields]);
+
+  const orderedFields = useMemo(
+    () => orderedFieldKeys.map((key) => fieldByKey.get(key)).filter((field): field is GenericEntityFieldDefinition<T> => Boolean(field)),
+    [fieldByKey, orderedFieldKeys],
+  );
+
+  const visibleFieldSet = useMemo(
+    () => new Set(activeTablePreferences.visibleFieldKeys),
+    [activeTablePreferences.visibleFieldKeys],
+  );
+  const pinnedFieldSet = useMemo(
+    () => new Set(activeTablePreferences.pinnedFieldKeys),
+    [activeTablePreferences.pinnedFieldKeys],
+  );
+
+  const visibleFields = useMemo(
+    () => orderedFields.filter((field) => visibleFieldSet.has(getFieldKey(field))),
+    [orderedFields, visibleFieldSet],
+  );
+
+  const filterableFields = useMemo(
+    () => allListFields.filter((field) => field.filterable),
+    [allListFields],
+  );
+
+  const sortableFields = useMemo(
+    () => allListFields.filter((field) => field.sortable),
+    [allListFields],
+  );
 
   const rowActions =
     definition.actions?.filter((action) => {
@@ -206,72 +336,27 @@ export default function GenericEntityListView<T extends object>({
     : visibleRows;
 
   const selectedId = selectedRow ? definition.getId(selectedRow) : null;
+  const activeViewLabel = activeSavedView
+    ? activeSavedView.visibility === "private"
+      ? "Private view on this browser"
+      : activeSavedView.name
+    : null;
+  const savedViewStorageNote =
+    state?.savedViewStorageMode === "session"
+      ? "Saved views are session-only until a connected account and school context are available."
+      : null;
 
   useEffect(() => {
-    if (controlledPage !== undefined && controlledPage !== safePage) {
-      onPageChange?.(safePage);
-      return;
+    if (activeSavedView && viewsOpen && !renameDraft) {
+      setRenameDraft(activeSavedView.name);
     }
-
-    if (controlledPage === undefined && localPage !== safePage) {
-      setLocalPage(safePage);
-    }
-  }, [controlledPage, localPage, onPageChange, safePage]);
-
-  const updateSearch = (value: string) => {
-    if (onSearchChange) onSearchChange(value);
-    else setLocalSearch(value);
-  };
-
-  const updateFilter = (fieldKey: string, value: string) => {
-    const updated = { ...activeFilters, [fieldKey]: value };
-    if (onFilterChange) onFilterChange(updated);
-    else setLocalFilters(updated);
-  };
-
-  const updateDisplayMode = (mode: GenericEntityDisplayMode) => {
-    if (onDisplayModeChange) onDisplayModeChange(mode);
-    else setLocalDisplayMode(mode);
-  };
-
-  const updateSortState = (value: GenericEntitySortState | null) => {
-    if (onSortChange) onSortChange(value);
-    else setLocalSortState(value);
-  };
-
-  const updatePage = (value: number) => {
-    if (onPageChange) onPageChange(value);
-    else setLocalPage(value);
-  };
-
-  const updatePageSize = (value: number) => {
-    if (onPageSizeChange) onPageSizeChange(value);
-    else setLocalPageSize(value);
-  };
-
-  const clearControls = () => {
-    updateSearch("");
-    if (onFilterChange) onFilterChange(definition.defaultFilters ?? {});
-    else setLocalFilters(definition.defaultFilters ?? {});
-    updateSortState(definition.defaultSort ?? null);
-    updatePage(1);
-  };
-
-  const hasActiveFilters = Object.values(activeFilters).some((value) => value && value !== "All");
-  const defaultSort = definition.defaultSort ?? null;
-  const hasActiveSort =
-    Boolean(activeSortState) &&
-    (!defaultSort ||
-      defaultSort.fieldKey !== activeSortState.fieldKey ||
-      defaultSort.direction !== activeSortState.direction);
-  const hasActiveControls = Boolean(activeSearch.trim()) || hasActiveFilters || hasActiveSort;
-  const activeFilterCount = Object.entries(activeFilters).filter(([, value]) => value && value !== "All").length;
+  }, [activeSavedView, renameDraft, viewsOpen]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       if (visibleRows.length === 0) {
         setAnnouncement(
-          hasActiveControls
+          (Boolean(activeSearch.trim()) || Object.values(activeFilters).some((value) => value && value !== "All"))
             ? "No matching records."
             : definition.emptyTitle ?? "No rows available yet.",
         );
@@ -289,7 +374,95 @@ export default function GenericEntityListView<T extends object>({
     }, 180);
 
     return () => window.clearTimeout(timer);
-  }, [activePageSize, definition.emptyTitle, hasActiveControls, safePage, showPagination, visibleRows.length]);
+  }, [activeFilters, activePageSize, activeSearch, definition.emptyTitle, safePage, showPagination, visibleRows.length]);
+
+  useEffect(() => {
+    if (!columnsOpen) return;
+    const timer = window.requestAnimationFrame(() => {
+      const focusables = getFocusableElements(columnsDialogRef.current);
+      if (focusables.length > 0) {
+        focusables[0]?.focus({ preventScroll: true });
+      } else {
+        columnsDialogRef.current?.focus({ preventScroll: true });
+      }
+    });
+    return () => {
+      columnsButtonRef.current?.focus({ preventScroll: true });
+      window.cancelAnimationFrame(timer);
+    };
+  }, [columnsOpen]);
+
+  useEffect(() => {
+    if (!viewsOpen) return;
+    const timer = window.requestAnimationFrame(() => {
+      const focusables = getFocusableElements(viewsDialogRef.current);
+      if (focusables.length > 0) {
+        focusables[0]?.focus({ preventScroll: true });
+      } else {
+        viewsDialogRef.current?.focus({ preventScroll: true });
+      }
+    });
+    return () => {
+      viewsButtonRef.current?.focus({ preventScroll: true });
+      window.cancelAnimationFrame(timer);
+    };
+  }, [viewsOpen]);
+
+  const updateSearch = (value: string) => {
+    if (state?.setSearchValue) state.setSearchValue(value);
+    else setLocalSearch(value);
+  };
+
+  const updateFilter = (fieldKey: string, value: string) => {
+    const updated = { ...activeFilters, [fieldKey]: value };
+    if (state?.setFilterValues) state.setFilterValues(updated);
+    else if (onFilterChange) onFilterChange(updated);
+    else setLocalFilters(updated);
+  };
+
+  const updateDisplayMode = (mode: GenericEntityDisplayMode) => {
+    if (state?.setDisplayMode) state.setDisplayMode(mode);
+    else if (onDisplayModeChange) onDisplayModeChange(mode);
+    else setLocalDisplayMode(mode);
+  };
+
+  const updateSortState = (value: GenericEntitySortState | null) => {
+    if (state?.setSortState) state.setSortState(value);
+    else if (onSortChange) onSortChange(value);
+    else setLocalSortState(value);
+  };
+
+  const updatePage = (value: number) => {
+    if (state?.setPage) state.setPage(value);
+    else if (onPageChange) onPageChange(value);
+    else setLocalPage(value);
+  };
+
+  const updatePageSize = (value: number) => {
+    if (state?.setPageSize) state.setPageSize(value);
+    else if (onPageSizeChange) onPageSizeChange(value);
+    else setLocalPageSize(value);
+  };
+
+  const clearControls = () => {
+    updateSearch("");
+    const defaults = definition.defaultFilters ?? {};
+    if (state?.setFilterValues) state.setFilterValues(defaults);
+    else if (onFilterChange) onFilterChange(defaults);
+    else setLocalFilters(defaults);
+    updateSortState(definition.defaultSort ?? null);
+    updatePage(1);
+  };
+
+  const hasActiveFilters = Object.values(activeFilters).some((value) => value && value !== "All");
+  const defaultSort = definition.defaultSort ?? null;
+  const hasActiveSort =
+    Boolean(activeSortState) &&
+    (!defaultSort ||
+      defaultSort.fieldKey !== activeSortState.fieldKey ||
+      defaultSort.direction !== activeSortState.direction);
+  const hasActiveControls = Boolean(activeSearch.trim()) || hasActiveFilters || hasActiveSort;
+  const activeFilterCount = Object.entries(activeFilters).filter(([, value]) => value && value !== "All").length;
 
   const renderActions = (row: T) => (
     <div className="flex items-center gap-1 shrink-0">
@@ -347,6 +520,61 @@ export default function GenericEntityListView<T extends object>({
     </div>
   );
 
+  const getColumnCellStyle = (field: GenericEntityFieldDefinition<T>, isPinned: boolean, leftOffset: number): React.CSSProperties => {
+    const width = activeTablePreferences.columnWidths[getFieldKey(field)] ?? 160;
+    const minWidth = Math.max(96, field.tableMinWidth ?? 96);
+    const maxWidth = Math.max(width, field.tableMaxWidth ?? width + 64);
+    return {
+      width,
+      minWidth,
+      maxWidth,
+      textAlign: field.tableAlign ?? "left",
+      ...(isPinned
+        ? {
+            position: "sticky" as const,
+            left: leftOffset,
+            zIndex: 12,
+            backgroundColor: "rgb(255 255 255)",
+          }
+        : {}),
+    };
+  };
+
+  const renderHeaderButton = (field: GenericEntityFieldDefinition<T>, isActive: boolean) => {
+    if (!field.sortable) {
+      return <span className="block truncate">{getFieldLabel(field)}</span>;
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          updateSortState({
+            fieldKey: getFieldKey(field),
+            direction:
+              isActive && activeSortState?.direction === "asc"
+                ? "desc"
+                : "asc",
+          });
+        }}
+        className="inline-flex items-center gap-1 text-left w-full"
+        aria-label={`Sort by ${getFieldLabel(field)}`}
+        aria-pressed={isActive}
+      >
+        <span className="truncate">{getFieldLabel(field)}</span>
+        {isActive ? (
+          activeSortState?.direction === "asc" ? (
+            <ChevronUp size={12} />
+          ) : (
+            <ChevronDown size={12} />
+          )
+        ) : (
+          <ChevronsUpDown size={12} className="text-slate-300" />
+        )}
+      </button>
+    );
+  };
+
   const renderCardRow = (row: T) => {
     const rowId = definition.getId(row);
     const isSelected = selectedId === rowId;
@@ -356,14 +584,14 @@ export default function GenericEntityListView<T extends object>({
     const issues = getAllGenericRowIssues(row, definition);
     const mostSevereIssue = issues.find((issue) => issue.severity === "error") ?? issues.find((issue) => issue.severity === "warning");
 
-    const secondaryFields = getVisibleGenericFields(row, definition.fields, "list", permissionContext)
-      .filter((field) => String(field.key) !== "name" && String(field.key) !== "title")
+    const secondaryFields = visibleFields
+      .filter((field) => String(field.key) !== "name" && String(field.key) !== "title" && field.tableRole !== "identity")
       .slice(0, maxVisibleFields);
 
     return (
-        <div
+      <div
         key={rowId}
-        className={`p-4 hover:bg-slate-50/75 transition-all flex items-start justify-between gap-4 ${isSelected ? "bg-blue-50/35 border-l-4 border-blue-550 pl-3" : ""}`}
+        className={`transition-all flex items-start justify-between ${tableDensity === "compact" ? "gap-3 p-3" : "gap-4 p-4"} hover:bg-slate-50/75 ${isSelected ? "bg-blue-50/35 border-l-4 border-blue-550 pl-3" : ""}`}
       >
         <div className="space-y-2 flex-1 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
@@ -409,7 +637,7 @@ export default function GenericEntityListView<T extends object>({
           <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-450 font-mono pt-0.5">
             {secondaryFields.map((field) => (
               <span key={String(field.key)} className={field.className}>
-                <span className="text-slate-350">{field.label}: </span>
+                <span className="text-slate-350">{getFieldLabel(field)}: </span>
                 <span className="font-semibold text-slate-600">
                   {renderListFieldValue(row, field)}
                 </span>
@@ -424,24 +652,51 @@ export default function GenericEntityListView<T extends object>({
   };
 
   const renderTable = () => {
-    const fields = getVisibleGenericFields(null, definition.fields, "list", permissionContext)
-      .slice(0, Math.max(3, maxVisibleFields + 1));
+    const identityField = visibleFields.find((field) => field.tableRole === "identity") ?? null;
+    const identityWidth = identityField?.tableWidth ?? 240;
+    const pinnedKeys = new Set(activeTablePreferences.pinnedFieldKeys);
+    const rowPaddingY = tableDensity === "compact" ? "py-2" : "py-3";
+    const headerPaddingY = tableDensity === "compact" ? "py-2.5" : "py-3";
+    const bodyTextClass = tableDensity === "compact" ? "text-[11px]" : "text-xs";
+    const tableFields = [
+      ...visibleFields.filter((field) => field.tableRole !== "identity" && pinnedKeys.has(getFieldKey(field))),
+      ...visibleFields.filter((field) => field.tableRole !== "identity" && !pinnedKeys.has(getFieldKey(field))),
+    ];
+    let leftOffset = identityWidth;
 
     return (
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-xs">
-          <thead className="bg-slate-50 border-b border-slate-100">
+      <div className="overflow-x-auto max-w-full">
+        <table className="min-w-full text-xs border-separate border-spacing-0">
+          <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-20">
             <tr>
-              <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase tracking-wider">
-                {definition.entityName}
+              <th
+                className={`text-left px-4 ${headerPaddingY} font-bold text-slate-500 uppercase tracking-wider sticky top-0 z-20 bg-slate-50`}
+                style={{ width: identityWidth, minWidth: identityWidth, position: "sticky", left: 0 }}
+                scope="col"
+              >
+                {identityField ? getFieldLabel(identityField) : definition.entityName}
               </th>
-              {fields.map((field) => (
-                <th key={String(field.key)} className="text-left px-4 py-3 font-bold text-slate-500 uppercase tracking-wider">
-                  {field.label}
-                </th>
-              ))}
+              {tableFields.map((field) => {
+                const key = getFieldKey(field);
+                const isPinned = pinnedKeys.has(key);
+                const widthStyle = getColumnCellStyle(field, isPinned, leftOffset);
+                if (isPinned) {
+                  leftOffset += widthStyle.width ? Number(widthStyle.width) : 160;
+                }
+                return (
+                  <th
+                    key={key}
+                    className={`text-left px-4 ${headerPaddingY} font-bold text-slate-500 uppercase tracking-wider sticky top-0 bg-slate-50`}
+                    style={widthStyle}
+                    scope="col"
+                    aria-sort={activeSortState?.fieldKey === key ? (activeSortState.direction === "desc" ? "descending" : "ascending") : undefined}
+                  >
+                    {renderHeaderButton(field, activeSortState?.fieldKey === key)}
+                  </th>
+                );
+              })}
               {rowActions.length > 0 && (
-                <th className="text-right px-4 py-3 font-bold text-slate-500 uppercase tracking-wider">
+                <th className="text-right px-4 py-3 font-bold text-slate-500 uppercase tracking-wider sticky top-0 bg-slate-50">
                   Actions
                 </th>
               )}
@@ -452,6 +707,7 @@ export default function GenericEntityListView<T extends object>({
               const rowId = definition.getId(row);
               const isSelected = selectedId === rowId;
               const issues = getAllGenericRowIssues(row, definition);
+              let leftCellOffset = identityWidth;
 
               return (
                 <tr
@@ -459,7 +715,7 @@ export default function GenericEntityListView<T extends object>({
                   className={`hover:bg-slate-50/75 transition-all ${isSelected ? "bg-blue-50/35" : ""}`}
                   aria-selected={isSelected}
                 >
-                  <td className="px-4 py-3 font-bold text-slate-800 max-w-[260px]">
+                  <td className={`px-4 ${rowPaddingY} font-bold text-slate-800 max-w-[260px] align-top sticky left-0 bg-white z-10`} style={{ width: identityWidth, minWidth: identityWidth }}>
                     <div className="flex items-center gap-2">
                       {onSelectRow ? (
                         <button
@@ -469,12 +725,12 @@ export default function GenericEntityListView<T extends object>({
                             onSelectRow(row);
                           }}
                           className="truncate text-left"
-                          aria-label={`Open details for ${definition.getTitle(row)}`}
+                          aria-label={`Open details for ${identityField ? formatGenericFieldValue(row, identityField) : definition.getTitle(row)}`}
                         >
-                          <span className="truncate">{definition.getTitle(row)}</span>
+                          <span className="truncate">{identityField ? renderListFieldValue(row, identityField) : definition.getTitle(row)}</span>
                         </button>
                       ) : (
-                        <span className="truncate">{definition.getTitle(row)}</span>
+                        <span className="truncate">{identityField ? renderListFieldValue(row, identityField) : definition.getTitle(row)}</span>
                       )}
                       {issues.length > 0 && (
                         <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border bg-amber-50 text-amber-700 border-amber-100">
@@ -490,14 +746,33 @@ export default function GenericEntityListView<T extends object>({
                     )}
                   </td>
 
-                  {fields.map((field) => (
-                    <td key={String(field.key)} className="px-4 py-3 text-slate-600 align-top max-w-[220px]">
-                      {renderListFieldValue(row, field)}
-                    </td>
-                  ))}
+                  {tableFields.map((field) => {
+                    const key = getFieldKey(field);
+                    const isPinned = pinnedKeys.has(key);
+                    const widthStyle = getColumnCellStyle(field, isPinned, leftCellOffset);
+                    if (isPinned) {
+                      leftCellOffset += widthStyle.width ? Number(widthStyle.width) : 160;
+                    }
+                    const rawValue = getGenericFieldValue(row, field);
+                    const renderedValue = renderListFieldValue(row, field);
+                    const wrapClass = field.tableWrap === "wrap" || field.type === "longText"
+                      ? "whitespace-normal break-words"
+                      : "truncate";
+
+                    return (
+                      <td
+                        key={key}
+                        className={`px-4 ${rowPaddingY} text-slate-600 align-top ${bodyTextClass} ${wrapClass}`}
+                        style={widthStyle}
+                        title={typeof rawValue === "string" ? rawValue : undefined}
+                      >
+                        {renderedValue}
+                      </td>
+                    );
+                  })}
 
                   {rowActions.length > 0 && (
-                    <td className="px-4 py-3 text-right align-top">
+                    <td className={`px-4 ${rowPaddingY} text-right align-top sticky right-0 bg-white ${bodyTextClass}`}>
                       <div className="flex justify-end">{renderActions(row)}</div>
                     </td>
                   )}
@@ -510,11 +785,531 @@ export default function GenericEntityListView<T extends object>({
     );
   };
 
+  const renderColumnsDialog = () => {
+    if (!state) return null;
+
+    return (
+      <div
+        className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/45 p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="generic-columns-dialog-title"
+        onClick={() => setColumnsOpen(false)}
+      >
+        <div
+          ref={columnsDialogRef}
+          className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
+          tabIndex={-1}
+          onKeyDown={(event) => trapDialogKeyboard(event, () => setColumnsOpen(false))}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
+            <div className="space-y-1">
+              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-700">Table configuration</div>
+              <h2 id="generic-columns-dialog-title" className="text-lg font-black tracking-tight text-slate-950">
+                Columns
+              </h2>
+              <p className="max-w-3xl text-xs leading-relaxed text-slate-500">
+                Show or hide optional columns, move them with keyboard-friendly buttons, and set compact or comfortable density.
+                The identity column stays visible and row actions remain fixed at the end.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setColumnsOpen(false)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-slate-500 hover:bg-slate-50"
+              aria-label="Close columns dialog"
+              title="Close"
+            >
+              <X size={14} />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+            <section className="rounded-2xl border border-slate-100 bg-slate-50 p-3 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Density</div>
+                  <p className="text-[11px] text-slate-500">Choose the row density for this list.</p>
+                </div>
+                <div className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1">
+                  {(["comfortable", "compact"] as GenericEntityDensity[]).map((density) => (
+                    <button
+                      key={density}
+                      type="button"
+                      onClick={() => state.setTableDensity(density)}
+                      className={`rounded-lg px-3 py-1.5 text-[10px] font-bold capitalize ${activeTablePreferences.density === density ? "bg-blue-50 text-blue-700" : "text-slate-500 hover:bg-slate-50"}`}
+                    >
+                      {density}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Columns</div>
+              <div className="space-y-2">
+                {orderedFields.map((field) => {
+                  const key = getFieldKey(field);
+                  const mandatory = isFieldMandatory(field);
+                  const hideLocked = isFieldHideLocked(field);
+                  const moveLocked = hideLocked || field.tableRole === "identity";
+                  const visible = visibleFieldSet.has(key) || hideLocked;
+                  const pinnable = isFieldPinnable(field);
+                  const widthOptions = getDefaultWidthOptions(field);
+                  const currentWidth = activeTablePreferences.columnWidths[key] ?? widthOptions[1] ?? widthOptions[0] ?? 160;
+                  const currentWidthMatch = widthOptions.find((width) => width === currentWidth) ?? widthOptions[0] ?? currentWidth;
+                  return (
+                    <div key={key} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-3 shadow-sm">
+                      <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-bold text-slate-900">{getFieldLabel(field)}</span>
+                            {mandatory && (
+                              <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[9px] font-bold text-amber-700">
+                                Required
+                              </span>
+                            )}
+                            {field.tableHideable === false && !mandatory && (
+                              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[9px] font-bold text-slate-600">
+                                Fixed
+                              </span>
+                            )}
+                            {pinnedFieldSet.has(key) && (
+                              <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[9px] font-bold text-blue-700">
+                                Pinned
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-500">
+                            {mandatory
+                              ? "This column cannot be hidden."
+                              : field.tableHideable === false
+                                ? "This column is treated as fixed."
+                                : "Toggle visibility and reorder it with the keyboard-friendly buttons."}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold ${hideLocked ? "border-slate-200 bg-slate-50 text-slate-400" : "border-slate-200 bg-white text-slate-700"}`}>
+                            <input
+                              type="checkbox"
+                              checked={visible}
+                              disabled={hideLocked}
+                              onChange={() => state.toggleTableFieldVisibility(key)}
+                              className="accent-blue-600"
+                              aria-label={`Show ${getFieldLabel(field)}`}
+                            />
+                            Visible
+                          </label>
+
+                          <button
+                            type="button"
+                            onClick={() => state.moveTableField(key, -1)}
+                            disabled={moveLocked || orderedFields[0]?.key === field.key}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                            aria-label={`Move ${getFieldLabel(field)} up`}
+                          >
+                            <ChevronUp size={12} />
+                            Up
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => state.moveTableField(key, 1)}
+                            disabled={moveLocked || orderedFields[orderedFields.length - 1]?.key === field.key}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                            aria-label={`Move ${getFieldLabel(field)} down`}
+                          >
+                            <ChevronDown size={12} />
+                            Down
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => state.toggleTableFieldPin(key)}
+                            disabled={!pinnable || mandatory}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                            aria-label={`${pinnedFieldSet.has(key) ? "Unpin" : "Pin"} ${getFieldLabel(field)}`}
+                          >
+                            {pinnedFieldSet.has(key) ? <PinOff size={12} /> : <Pin size={12} />}
+                            {pinnedFieldSet.has(key) ? "Unpin" : "Pin"}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-2 md:grid-cols-2">
+                        <label className="space-y-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
+                          <span>Width</span>
+                          <select
+                            value={String(currentWidthMatch)}
+                            onChange={(event) => state.setTableFieldWidth(key, Number(event.target.value))}
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10.5px] font-semibold text-slate-700 shadow-sm focus:outline-hidden focus:border-blue-500"
+                          >
+                            {widthOptions.map((width) => (
+                              <option key={width} value={width}>
+                                {width}px
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-[10.5px] text-slate-500">
+                          <div className="font-semibold text-slate-700">Column metadata</div>
+                          <div className="mt-1 flex flex-wrap gap-1.5">
+                            <span className="rounded-full bg-white px-2 py-0.5 border border-slate-200">{field.type || "text"}</span>
+                            <span className="rounded-full bg-white px-2 py-0.5 border border-slate-200">{field.tableAlign || "left"} aligned</span>
+                            <span className="rounded-full bg-white px-2 py-0.5 border border-slate-200">{field.tableWrap || "truncate"}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-5 py-4">
+            <button
+              type="button"
+              onClick={state.resetTablePreferences}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10.5px] font-bold text-slate-700 hover:bg-slate-50"
+            >
+              <RotateCcw size={12} />
+              Reset to default
+            </button>
+            <button
+              type="button"
+              onClick={() => setColumnsOpen(false)}
+              className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-600 px-3 py-2 text-[10.5px] font-bold text-white hover:bg-blue-700"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderViewsDialog = () => {
+    if (!state) return null;
+
+    const selectedView = activeSavedView;
+    const canEditSelectedView = Boolean(selectedView && selectedView.source !== "system");
+
+    return (
+      <div
+        className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/45 p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="generic-views-dialog-title"
+        onClick={() => setViewsOpen(false)}
+      >
+        <div
+          ref={viewsDialogRef}
+          className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
+          tabIndex={-1}
+          onKeyDown={(event) => trapDialogKeyboard(event, () => setViewsOpen(false))}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
+            <div className="space-y-1">
+              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-700">Private views</div>
+              <h2 id="generic-views-dialog-title" className="text-lg font-black tracking-tight text-slate-950">
+                Views
+              </h2>
+              <p className="max-w-3xl text-xs leading-relaxed text-slate-500">
+                Saved views live in this browser only. They preserve search, filters, sort, page size, density, and column settings for this entity.
+              </p>
+              {savedViewStorageNote && (
+                <p className="max-w-3xl text-[10.5px] leading-relaxed text-amber-700">
+                  {savedViewStorageNote}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setViewsOpen(false)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-slate-500 hover:bg-slate-50"
+              aria-label="Close views dialog"
+              title="Close"
+            >
+              <X size={14} />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+            <section className="rounded-2xl border border-slate-100 bg-slate-50 p-3 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Current selection</div>
+                  <div className="text-sm font-bold text-slate-900">
+                    {activeViewLabel || "Session state"}
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    {tableDirty ? "Unsaved view changes" : "No unsaved view changes"}
+                  </p>
+                </div>
+                {activeSavedView?.isDefault && (
+                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700">
+                    Default
+                  </span>
+                )}
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Saved views</div>
+                <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-white text-slate-600 border border-slate-200">
+                  {savedViews.length} saved
+                </span>
+              </div>
+
+              {savedViews.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-5 text-sm text-slate-500">
+                  No private views saved yet. Use the form below to capture the current configuration.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {savedViews.map((view) => {
+                    const isActive = view.id === activeSavedViewId;
+                    return (
+                      <button
+                        key={view.id}
+                        type="button"
+                        onClick={() => state.setActiveView(view.id)}
+                        className={`w-full rounded-2xl border px-4 py-3 text-left transition-colors ${isActive ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-white hover:bg-slate-50"}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-bold text-slate-900">{view.name}</span>
+                              {view.visibility === "private" && (
+                                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[9px] font-bold text-slate-600">
+                                  Private view on this browser
+                                </span>
+                              )}
+                              {view.isDefault && (
+                                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-bold text-emerald-700">
+                                  Default
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-1 text-[11px] text-slate-500">
+                              Updated {new Date(view.updatedAt).toLocaleString()}
+                            </div>
+                          </div>
+                          {isActive && (
+                            <span className="rounded-full border border-blue-200 bg-blue-600 px-2 py-0.5 text-[9px] font-bold text-white">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            <section className="space-y-3">
+              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Save current state</div>
+              <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                <input
+                  value={newViewName}
+                  onChange={(event) => setNewViewName(event.target.value)}
+                  placeholder="New private view name"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    state.saveViewAsNew(newViewName);
+                    setNewViewName("");
+                  }}
+                  className="inline-flex items-center justify-center gap-1 rounded-xl border border-blue-200 bg-blue-600 px-4 py-2 text-[10.5px] font-bold text-white hover:bg-blue-700"
+                >
+                  <Copy size={12} />
+                  Save as new view
+                </button>
+              </div>
+            </section>
+
+            {selectedView && (
+              <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Selected view</div>
+                    <div className="text-sm font-bold text-slate-900">{selectedView.name}</div>
+                  </div>
+                  {canEditSelectedView ? (
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[9px] font-bold text-slate-600">
+                      Editable
+                    </span>
+                  ) : (
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[9px] font-bold text-slate-600">
+                      Read only
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                  <input
+                    value={renameDraft}
+                    onChange={(event) => setRenameDraft(event.target.value)}
+                    placeholder="Rename selected view"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => state.renameActiveView(renameDraft)}
+                    disabled={!canEditSelectedView || !renameDraft.trim()}
+                    className="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-[10.5px] font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    <Pencil size={12} />
+                    Rename
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={state.updateActiveView}
+                    disabled={!canEditSelectedView}
+                    className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10.5px] font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    <RotateCcw size={12} />
+                    Update view
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => state.duplicateActiveView()}
+                    className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10.5px] font-bold text-slate-700 hover:bg-slate-50"
+                  >
+                    <Copy size={12} />
+                    Duplicate
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => state.setDefaultView(selectedView.id)}
+                    className="inline-flex items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10.5px] font-bold text-emerald-700 hover:bg-emerald-100"
+                  >
+                    <Check size={12} />
+                    Set default
+                  </button>
+                  <button
+                    type="button"
+                    onClick={state.resetViewChanges}
+                    className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10.5px] font-bold text-slate-700 hover:bg-slate-50"
+                  >
+                    <RotateCcw size={12} />
+                    Reset changes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!window.confirm(`Delete saved view "${selectedView.name}"?`)) return;
+                      state.deleteActiveView();
+                    }}
+                    disabled={!canEditSelectedView}
+                    className="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[10.5px] font-bold text-rose-700 hover:bg-rose-100 disabled:opacity-40"
+                  >
+                    <Trash2 size={12} />
+                    Delete
+                  </button>
+                </div>
+              </section>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-5 py-4">
+            <button
+              type="button"
+              onClick={state.restoreSystemDefault}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10.5px] font-bold text-slate-700 hover:bg-slate-50"
+            >
+              <RotateCcw size={12} />
+              Restore system default
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewsOpen(false)}
+              className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-600 px-3 py-2 text-[10.5px] font-bold text-white hover:bg-blue-700"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderTableOrCards = () => {
+    if (rows.length === 0) {
+      return (
+        <div className="p-12 text-center text-slate-400 space-y-2">
+          <Search size={32} className="mx-auto text-slate-350" />
+          <p className="text-sm font-semibold text-slate-600">
+            {definition.emptyTitle ?? `No ${definition.entityNamePlural.toLowerCase()} are available.`}
+          </p>
+          <p className="text-xs text-slate-400">
+            {definition.emptyDescription ?? "This source has not returned live rows yet."}
+          </p>
+        </div>
+      );
+    }
+
+    if (visibleRows.length === 0) {
+      return (
+        <div className="p-12 text-center text-slate-400 space-y-3">
+          <Search size={32} className="mx-auto text-slate-350" />
+          <div className="space-y-1.5">
+            <p className="text-sm font-semibold text-slate-600">
+              No records match the current search and filters.
+            </p>
+            <p className="text-xs text-slate-400">
+              Clear one filter, clear all filters, or adjust the search terms to widen the results.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {Boolean(activeSearch.trim()) && (
+              <button
+                type="button"
+                onClick={() => updateSearch("")}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[10.5px] font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                <X size={11} />
+                Clear Search
+              </button>
+            )}
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearControls}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[10.5px] font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                <X size={11} />
+                Clear Filters
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    return activeDisplayMode === "table" ? (
+      renderTable()
+    ) : (
+      <div className="divide-y divide-slate-100">{pagedRows.map((row) => renderCardRow(row))}</div>
+    );
+  };
+
   return (
     <div className={`bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm ${className}`}>
       <div className="p-4 border-b border-slate-100 bg-slate-50/75 space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
+          <div className="min-w-0">
             <h3 className="font-bold text-slate-900 text-sm">
               {definition.entityNamePlural}
             </h3>
@@ -531,7 +1326,41 @@ export default function GenericEntityListView<T extends object>({
               {activeFilterCount > 0 && ` · ${activeFilterCount} filter${activeFilterCount === 1 ? "" : "s"} active`}
             </div>
 
+            {activeViewLabel && (
+              <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg border ${tableDirty ? "bg-amber-50 text-amber-700 border-amber-100" : "bg-emerald-50 text-emerald-700 border-emerald-100"}`}>
+                {tableDirty ? "Unsaved view changes" : activeViewLabel}
+              </span>
+            )}
+
             {renderToolbarActions?.()}
+
+            {state && (
+              <>
+                <button
+                  type="button"
+                  ref={columnsButtonRef}
+                  onClick={() => setColumnsOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[10.5px] font-bold text-slate-700 hover:bg-slate-50"
+                  aria-label="Columns"
+                >
+                  <LayoutGrid size={13} />
+                  Columns
+                </button>
+                <button
+                  type="button"
+                  ref={viewsButtonRef}
+                  onClick={() => {
+                    setRenameDraft(activeSavedView?.name || "");
+                    setViewsOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[10.5px] font-bold text-slate-700 hover:bg-slate-50"
+                  aria-label="Views"
+                >
+                  <ChevronLeft size={13} className="rotate-180" />
+                  Views
+                </button>
+              </>
+            )}
 
             {showDisplayModeToggle && (
               <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5">
@@ -568,10 +1397,7 @@ export default function GenericEntityListView<T extends object>({
           <div className="space-y-2">
             {showSearch && (
               <div className="relative">
-                <Search
-                  size={14}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                />
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   value={activeSearch}
                   onChange={(event) => updateSearch(event.target.value)}
@@ -614,8 +1440,8 @@ export default function GenericEntityListView<T extends object>({
                 </>
               )}
 
-            {showSort && sortableFields.length > 0 && (
-              <>
+              {showSort && sortableFields.length > 0 && (
+                <>
                   <div className="flex items-center gap-1 text-slate-400 font-mono text-[10px] ml-0 sm:ml-2">
                     <ChevronsUpDown size={12} />
                     <span>Sort:</span>
@@ -702,57 +1528,7 @@ export default function GenericEntityListView<T extends object>({
         )}
       </div>
 
-      {rows.length === 0 ? (
-        <div className="p-12 text-center text-slate-400 space-y-2">
-          <Search size={32} className="mx-auto text-slate-350" />
-          <p className="text-sm font-semibold text-slate-600">
-            {definition.emptyTitle ?? `No ${definition.entityNamePlural.toLowerCase()} are available.`}
-          </p>
-          <p className="text-xs text-slate-400">
-            {definition.emptyDescription ?? "This source has not returned live rows yet."}
-          </p>
-        </div>
-      ) : visibleRows.length === 0 ? (
-        <div className="p-12 text-center text-slate-400 space-y-3">
-          <Search size={32} className="mx-auto text-slate-350" />
-          <div className="space-y-1.5">
-            <p className="text-sm font-semibold text-slate-600">
-              No records match the current search and filters.
-            </p>
-            <p className="text-xs text-slate-400">
-              Clear one filter, clear all filters, or adjust the search terms to widen the results.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            {Boolean(activeSearch.trim()) && (
-              <button
-                type="button"
-                onClick={() => updateSearch("")}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[10.5px] font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
-              >
-                <X size={11} />
-                Clear Search
-              </button>
-            )}
-            {hasActiveFilters && (
-              <button
-                type="button"
-                onClick={clearControls}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[10.5px] font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
-              >
-                <X size={11} />
-                Clear Filters
-              </button>
-            )}
-          </div>
-        </div>
-      ) : activeDisplayMode === "table" ? (
-        renderTable()
-      ) : (
-        <div className="divide-y divide-slate-100">
-          {pagedRows.map((row) => renderCardRow(row))}
-        </div>
-      )}
+      {renderTableOrCards()}
 
       {showPagination && visibleRows.length > activePageSize && (
         <div className="p-3 border-t border-slate-100 bg-slate-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -801,6 +1577,9 @@ export default function GenericEntityListView<T extends object>({
           </div>
         </div>
       )}
+
+      {columnsOpen && renderColumnsDialog()}
+      {viewsOpen && renderViewsDialog()}
     </div>
   );
 }

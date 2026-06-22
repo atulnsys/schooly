@@ -80,6 +80,7 @@ import {
   getGoogleWorkspaceAuthState,
   GOOGLE_WORKSPACE_AUTH_STATE_CHANGED_EVENT
 } from "./lib/googleWorkspaceAuth";
+import type { GenericEntityStorageContext } from "./lib/genericEntityTableState";
 import { getFocusableElements, trapDialogKeyboard } from "./lib/accessibility";
 
 const IconMap: Record<string, React.ComponentType<{ size: number; className?: string }>> = {
@@ -802,6 +803,18 @@ export default function App() {
   });
   const [tempGeminiKey, setTempGeminiKey] = useState<string>("");
   const [showKeyText, setShowKeyText] = useState<boolean>(false);
+  const genericEntityStorageContext = useMemo<GenericEntityStorageContext>(() => ({
+    currentUser,
+    currentRole,
+    workspaceUrl,
+    account: googleWorkspaceAuthState.connectedAccount || googleWorkspaceAuthState.expectedAccount || null,
+  }), [
+    currentUser,
+    currentRole,
+    workspaceUrl,
+    googleWorkspaceAuthState.connectedAccount,
+    googleWorkspaceAuthState.expectedAccount,
+  ]);
 
   // Google Sidebar testing state controllers
   const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
@@ -1521,13 +1534,14 @@ export default function App() {
   const renderRegistryDataSurface = (registryId: string) => {
     switch (registryId) {
       case "students":
-        return <StudentsRegistryPage students={students} currentRole={currentRole} />;
+        return <StudentsRegistryPage students={students} currentRole={currentRole} storageContext={genericEntityStorageContext} />;
       case "teachers":
         return (
           <TeachersRegistryPage
             staffRows={schoolRegistry?.staffDirectory || []}
             teacherAllocations={schoolRegistry?.teacherAllocations || []}
             currentRole={currentRole}
+            storageContext={genericEntityStorageContext}
           />
         );
       case "staff":
@@ -1535,6 +1549,7 @@ export default function App() {
           <StaffRegistryPage
             staffRows={schoolRegistry?.staffDirectory || []}
             currentRole={currentRole}
+            storageContext={genericEntityStorageContext}
             sourceDisplayLabel={schoolRegistry?.sourceLabel || "Live master data registry"}
             sourceLastSyncedAt={schoolRegistry?.lastSuccessfulSyncAt || schoolRegistry?.loadedAt || null}
             sourceLastCheckedAt={schoolRegistry?.lastCheckedAt || schoolRegistry?.tabDiagnostics?.Staff_Directory?.checkedAt || null}
@@ -1542,9 +1557,9 @@ export default function App() {
           />
         );
       case "courses":
-        return <ClassroomCoursesRegistryPage courses={courses} currentRole={currentRole} />;
+        return <ClassroomCoursesRegistryPage courses={courses} currentRole={currentRole} storageContext={genericEntityStorageContext} />;
       case "assignments":
-        return <ClassroomAssignmentsRegistryPage assignments={assignments} currentRole={currentRole} />;
+        return <ClassroomAssignmentsRegistryPage assignments={assignments} currentRole={currentRole} storageContext={genericEntityStorageContext} />;
       default:
         return (
           <GenericRegistryDataPage
@@ -1999,11 +2014,12 @@ export default function App() {
         )}
 
         {(activeTab === "registries" || activeTab === "registers") && !selectedRegistryId && (
-          <RegistryExplorerPage
-            currentRole={currentRole}
-            onOpenPageRoute={openRegistryPage}
-            onOpenDataRoute={openRegistryDataRoute}
-            onNavigateTab={setActiveTab}
+        <RegistryExplorerPage
+          currentRole={currentRole}
+          storageContext={genericEntityStorageContext}
+          onOpenPageRoute={openRegistryPage}
+          onOpenDataRoute={openRegistryDataRoute}
+          onNavigateTab={setActiveTab}
             liveRegisterCards={liveRegisterCards}
           />
         )}
@@ -2039,6 +2055,7 @@ export default function App() {
           <StudentsRegistryPage
             students={students}
             currentRole={currentRole}
+            storageContext={genericEntityStorageContext}
           />
         )}
 
@@ -2047,6 +2064,7 @@ export default function App() {
             staffRows={schoolRegistry?.staffDirectory || []}
             teacherAllocations={schoolRegistry?.teacherAllocations || []}
             currentRole={currentRole}
+            storageContext={genericEntityStorageContext}
           />
         )}
 
@@ -2065,6 +2083,7 @@ export default function App() {
           <ClassroomCoursesRegistryPage
             courses={courses}
             currentRole={currentRole}
+            storageContext={genericEntityStorageContext}
           />
         )}
 
@@ -2072,6 +2091,7 @@ export default function App() {
           <ClassroomAssignmentsRegistryPage
             assignments={assignments}
             currentRole={currentRole}
+            storageContext={genericEntityStorageContext}
           />
         )}
 
@@ -2158,6 +2178,7 @@ export default function App() {
           <AcademicResourceLibraryPage
             files={files}
             currentRole={currentRole}
+            storageContext={genericEntityStorageContext}
             setActiveTab={setActiveTab}
             schoolRegistry={schoolRegistry}
             registryRefreshVersion={registryRefreshVersion}

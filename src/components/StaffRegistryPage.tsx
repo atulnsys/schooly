@@ -2,10 +2,12 @@ import React, { useMemo } from "react";
 import type { StaffDirectoryRow } from "../lib/schoolRegistry";
 import RegistryPageShell from "./RegistryPageShell";
 import { isActiveValue, isTeacherStaffRow } from "../lib/liveSchoolEntityBuilders";
+import type { GenericEntityStorageContext } from "../lib/genericEntityTableState";
 
 interface StaffRegistryPageProps {
   staffRows: StaffDirectoryRow[];
   currentRole: string;
+  storageContext?: GenericEntityStorageContext | null;
   sourceDisplayLabel?: string | null;
   sourceLastSyncedAt?: string | null;
   sourceLastCheckedAt?: string | null;
@@ -29,7 +31,7 @@ function StaffKpiCard({ label, value }: { label: string; value: number | string 
   );
 }
 
-export default function StaffRegistryPage({ staffRows, currentRole, sourceDisplayLabel, sourceLastSyncedAt, sourceLastCheckedAt, sourceStatus }: StaffRegistryPageProps) {
+export default function StaffRegistryPage({ staffRows, currentRole, storageContext, sourceDisplayLabel, sourceLastSyncedAt, sourceLastCheckedAt, sourceStatus }: StaffRegistryPageProps) {
   const staffKpis = useMemo(() => {
     const uniqueRows = new Map<string, StaffDirectoryRow>();
     staffRows.forEach((row) => {
@@ -69,10 +71,11 @@ export default function StaffRegistryPage({ staffRows, currentRole, sourceDispla
       </div>
 
       <RegistryPageShell
-        registryId="staff"
-        rows={staffRows}
-        currentRole={currentRole}
-        permissionContext={{ currentRole }}
+      registryId="staff"
+      rows={staffRows}
+      currentRole={currentRole}
+      storageContext={storageContext}
+      permissionContext={{ currentRole }}
         showCapabilityMetadata={false}
         sourceDisplayLabel={sourceDisplayLabel}
         sourceLastSyncedAt={sourceLastSyncedAt}

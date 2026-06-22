@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import GenericEntityPage from "./generic/GenericEntityPage";
 import type { GenericEntityDefinition, GenericEntityPermissionContext } from "../lib/genericEntityView";
+import type { GenericEntityStorageContext } from "../lib/genericEntityTableState";
 import {
   getAllGenericRowIssues,
   getGenericFieldValue,
@@ -18,6 +19,7 @@ interface RegistryPageShellProps<T extends object> {
   registryId: string;
   rows: T[];
   currentRole: string;
+  storageContext?: GenericEntityStorageContext | null;
   permissionContext?: GenericEntityPermissionContext;
   className?: string;
   showSearch?: boolean;
@@ -360,6 +362,7 @@ export default function RegistryPageShell<T extends object>({
   registryId,
   rows,
   currentRole,
+  storageContext,
   permissionContext,
   className = "",
   showSearch,
@@ -495,6 +498,7 @@ export default function RegistryPageShell<T extends object>({
           definition={viewDefinition}
           rows={rows}
           stateNamespace={registryId}
+          storageContext={storageContext}
           permissionContext={permissionContext ?? { currentRole }}
           showSearch={controls.showSearch}
           showFilters={controls.showFilters}

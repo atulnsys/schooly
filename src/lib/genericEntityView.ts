@@ -1,9 +1,14 @@
 import type { ReactNode } from "react";
+import { compareClassLabels } from "./classSort";
 
 export type GenericEntityFieldType =
   | "text"
   | "longText"
   | "number"
+  | "currency"
+  | "percentage"
+  | "identifier"
+  | "status"
   | "date"
   | "datetime"
   | "badge"
@@ -50,11 +55,30 @@ export interface GenericEntityFieldDefinition<T extends object> {
 
   listVisible?: boolean;
   detailVisible?: boolean;
+  tableVisibleByDefault?: boolean;
+  tableRequired?: boolean;
+  tableRole?: "identity" | "data" | "action";
+  tablePriority?: number;
+  tableMinWidth?: number;
+  tableMaxWidth?: number;
+  tableWidth?: number;
+  tableAlign?: "left" | "center" | "right";
+  tableWrap?: "wrap" | "truncate";
+  tablePinnable?: boolean;
+  tableHideable?: boolean;
+  tableLabel?: string;
 
   searchable?: boolean;
   filterable?: boolean;
   sortable?: boolean;
   required?: boolean;
+  getSortValue?: (row: T) => unknown;
+  format?: {
+    currency?: string;
+    unit?: string;
+    precision?: number;
+    percentageScale?: "fraction" | "whole";
+  };
 
   maxListChars?: number;
   className?: string;
@@ -220,7 +244,138 @@ export function formatGenericDate(value: unknown, includeTime = false): string {
 
 export function truncateGenericText(value: string, maxChars = 140): string {
   if (value.length <= maxChars) return value;
-  return `${value.slice(0, maxChars).trim()}…`;
+  return `${value.slice(0, maxChars).trim()}...`;
+}
+
+function normalizeSortText(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (Array.isArray(value)) return value.map((item) => normalizeSortText(item)).join(" ");
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value).trim();
+}
+
+function formatNumberValue(value: unknown, precision = 0, useGrouping = true): string {
+  if (value === null || value === undefined || value === "") return "—";
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return String(value);
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: precision,
+    minimumFractionDigits: precision,
+    useGrouping,
+  }).format(numeric);
+}
+
+function formatPercentageValue(
+  value: unknown,
+  precision = 1,
+  percentageScale: "fraction" | "whole" = "fraction",
+): string {
+  if (value === null || value === undefined || value === "") return "—";
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return String(value);
+  const percentageValue = percentageScale === "fraction" ? numeric * 100 : numeric;
+  return `${formatNumberValue(percentageValue, precision)}%`;
+}
+
+function formatCurrencyValue(value: unknown, currency = "USD", precision = 0): string {
+  if (value === null || value === undefined || value === "") return "—";
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return String(value);
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      maximumFractionDigits: precision,
+      minimumFractionDigits: precision,
+    }).format(numeric);
+  } catch {
+    return `${currency} ${formatNumberValue(numeric, precision)}`;
+  }
+}
+
+function formatIdentifierValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return String(value);
+}
+
+function isLikelyClassLabel(value: unknown): boolean {
+  const text = normalizeSortText(value).toLowerCase();
+  return /\bclass\b/.test(text) || /^c(?:lass)?\s*(?:[ivx]+|\d+)/i.test(text);
+}
+
+function compareGenericText(left: unknown, right: unknown): number {
+  const leftText = normalizeSortText(left);
+  const rightText = normalizeSortText(right);
+  if (isLikelyClassLabel(leftText) && isLikelyClassLabel(rightText)) {
+    return compareClassLabels(leftText, rightText);
+  }
+  return leftText.localeCompare(rightText, undefined, { sensitivity: "base", numeric: true });
+}
+
+function compareGenericSortValues(left: unknown, right: unknown): number {
+  const leftBlank = left === null || left === undefined || left === "";
+  const rightBlank = right === null || right === undefined || right === "";
+  if (leftBlank && rightBlank) return 0;
+  if (leftBlank) return 1;
+  if (rightBlank) return -1;
+
+  if (typeof left === "boolean" && typeof right === "boolean") {
+    return Number(left) - Number(right);
+  }
+
+  if (typeof left === "number" && typeof right === "number") {
+    return left - right;
+  }
+
+  const leftDate = new Date(String(left));
+  const rightDate = new Date(String(right));
+  if (!Number.isNaN(leftDate.getTime()) && !Number.isNaN(rightDate.getTime())) {
+    return leftDate.getTime() - rightDate.getTime();
+  }
+
+  const leftNumeric = Number(left);
+  const rightNumeric = Number(right);
+  if (Number.isFinite(leftNumeric) && Number.isFinite(rightNumeric)) {
+    return leftNumeric - rightNumeric;
+  }
+
+  return compareGenericText(left, right);
+}
+
+export function formatGenericFieldValue<T extends object>(
+  row: T,
+  field: GenericEntityFieldDefinition<T>,
+): string {
+  if (field.renderListValue) {
+    const rendered = field.renderListValue(row);
+    if (typeof rendered === "string") return rendered;
+    if (typeof rendered === "number") return String(rendered);
+    return normalizeSortText(rendered);
+  }
+
+  const value = getGenericFieldValue(row, field);
+  if (value === null || value === undefined || value === "") return "—";
+
+  if (field.type === "date") return formatGenericDate(value, false);
+  if (field.type === "datetime") return formatGenericDate(value, true);
+  if (field.type === "boolean") return value ? "Yes" : "No";
+  if (field.type === "number") return formatNumberValue(value, field.format?.precision ?? 0, true);
+  if (field.type === "currency") return formatCurrencyValue(value, field.format?.currency ?? "USD", field.format?.precision ?? 0);
+  if (field.type === "percentage") {
+    const scale = field.format?.percentageScale ?? (Number(value) > 1 ? "whole" : "fraction");
+    return formatPercentageValue(value, field.format?.precision ?? 1, scale);
+  }
+  if (field.type === "identifier") return formatIdentifierValue(value);
+  if (field.type === "status") return String(value);
+  if (field.type === "tags" && Array.isArray(value)) return value.map(String).join(", ");
+  if (field.type === "badge") return String(value);
+  if (field.type === "longText") return truncateGenericText(String(value), field.maxListChars ?? 140);
+  if (field.type === "custom" && typeof value !== "string") return normalizeSortText(value);
+
+  const text = String(value);
+  if (field.format?.unit) return `${text} ${field.format.unit}`;
+  return truncateGenericText(text, field.maxListChars ?? 140);
 }
 
 export function getGenericFieldSearchText<T extends object>(
@@ -255,7 +410,7 @@ export function getDistinctGenericFilterOptions<T extends object>(
     getGenericFilterValues(row, field).forEach((value) => values.add(value));
   });
 
-  return Array.from(values).sort((a, b) => a.localeCompare(b));
+  return Array.from(values).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base", numeric: true }));
 }
 
 export function getVisibleGenericFields<T extends object>(
@@ -329,26 +484,13 @@ export function sortGenericRows<T extends object>(
   const directionMultiplier = sortState.direction === "asc" ? 1 : -1;
 
   return [...rows].sort((a, b) => {
-    const aValue = getGenericFieldValue(a, field);
-    const bValue = getGenericFieldValue(b, field);
+    const aValue = field.getSortValue?.(a) ?? getGenericFieldValue(a, field);
+    const bValue = field.getSortValue?.(b) ?? getGenericFieldValue(b, field);
+    const comparison = compareGenericSortValues(aValue, bValue);
+    if (comparison !== 0) return comparison * directionMultiplier;
 
-    if (aValue === bValue) return 0;
-    if (aValue === null || aValue === undefined) return 1;
-    if (bValue === null || bValue === undefined) return -1;
-
-    if (field.type === "date" || field.type === "datetime") {
-      const aTime = new Date(String(aValue)).getTime();
-      const bTime = new Date(String(bValue)).getTime();
-
-      if (Number.isFinite(aTime) && Number.isFinite(bTime)) {
-        return (aTime - bTime) * directionMultiplier;
-      }
-    }
-
-    if (typeof aValue === "number" && typeof bValue === "number") {
-      return (aValue - bValue) * directionMultiplier;
-    }
-
-    return String(aValue).localeCompare(String(bValue)) * directionMultiplier;
+    const aId = definition.getId(a);
+    const bId = definition.getId(b);
+    return compareGenericText(aId, bId);
   });
 }

@@ -3,6 +3,7 @@ import {
   GenericEntityDefinition,
   GenericEntityPermissionContext,
 } from "../../lib/genericEntityView";
+import type { GenericEntityStorageContext } from "../../lib/genericEntityTableState";
 import GenericEntityDetailView from "./GenericEntityDetailView";
 import GenericEntityListView from "./GenericEntityListView";
 import { useGenericEntityListState } from "./useGenericEntityListState";
@@ -11,6 +12,7 @@ interface GenericEntityPageProps<T extends object> {
   definition: GenericEntityDefinition<T>;
   rows: T[];
   stateNamespace?: string;
+  storageContext?: GenericEntityStorageContext | null;
 
   permissionContext?: GenericEntityPermissionContext;
 
@@ -30,6 +32,7 @@ export default function GenericEntityPage<T extends object>({
   definition,
   rows,
   stateNamespace,
+  storageContext,
   permissionContext,
   className = "",
   showSearch = true,
@@ -46,6 +49,8 @@ export default function GenericEntityPage<T extends object>({
     definition,
     rows,
     enabled: Boolean(stateNamespace),
+    permissionContext,
+    storageContext,
   });
 
   return (
@@ -54,6 +59,7 @@ export default function GenericEntityPage<T extends object>({
         <GenericEntityListView
           definition={definition}
           rows={rows}
+          state={listState}
           selectedRow={listState.selectedRow}
           onSelectRow={listState.selectRow}
           searchValue={listState.searchValue}

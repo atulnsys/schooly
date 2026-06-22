@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import GenericEntityPage from "./generic/GenericEntityPage";
+import type { GenericEntityStorageContext } from "../lib/genericEntityTableState";
 import {
   createRegistryExplorerEntityDefinition,
   getRegistryExplorerRows,
@@ -10,6 +11,7 @@ type LiveRegisterCardSourceState = "Ready" | "Empty" | "Missing" | "Incomplete" 
 
 interface RegistryExplorerPageProps {
   currentRole: string;
+  storageContext?: GenericEntityStorageContext | null;
   onOpenPageRoute: (registryId: string) => void;
   onOpenDataRoute: (registryId: string) => void;
   onNavigateTab?: (tab: string) => void;
@@ -29,6 +31,7 @@ interface RegistryExplorerPageProps {
 
 export default function RegistryExplorerPage({
   currentRole,
+  storageContext,
   onOpenPageRoute,
   onOpenDataRoute,
   onNavigateTab,
@@ -200,6 +203,7 @@ export default function RegistryExplorerPage({
         definition={definition}
         rows={rows}
         stateNamespace="registry-explorer"
+        storageContext={storageContext}
         permissionContext={{ currentRole }}
         showSearch={true}
         showFilters={true}

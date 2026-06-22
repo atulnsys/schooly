@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, ExternalLink, Filter, LibraryBig, Search } from "lucide-react";
 import GenericEntityPage from "./generic/GenericEntityPage";
 import type { GenericEntityDefinition } from "../lib/genericEntityView";
+import type { GenericEntityStorageContext } from "../lib/genericEntityTableState";
 import {
   buildAcademicResourceRows,
   loadSavedLessonPlanArchiveRows,
@@ -25,6 +26,7 @@ import { getFocusableElements, trapDialogKeyboard } from "../lib/accessibility";
 interface AcademicResourceLibraryPageProps {
   files: WorkspaceFile[];
   currentRole: string;
+  storageContext?: GenericEntityStorageContext | null;
   setActiveTab?: (tab: string) => void;
   schoolRegistry?: SchoolRegistryState | null;
   registryRefreshVersion?: number;
@@ -891,6 +893,7 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
 export default function AcademicResourceLibraryPage({
   files,
   currentRole,
+  storageContext,
   setActiveTab,
   schoolRegistry = null,
   registryRefreshVersion = 0,
@@ -1504,6 +1507,7 @@ export default function AcademicResourceLibraryPage({
         definition={ACADEMIC_RESOURCE_DEFINITION}
         rows={filteredRows}
         stateNamespace="academic-resources"
+        storageContext={storageContext}
         permissionContext={permissionContext}
         renderDetailBeforeSections={renderDetailBeforeSections}
         renderDetailAfterSections={renderDetailAfterSections}
