@@ -81,7 +81,7 @@ import {
   GOOGLE_WORKSPACE_AUTH_STATE_CHANGED_EVENT
 } from "./lib/googleWorkspaceAuth";
 import type { GenericEntityStorageContext } from "./lib/genericEntityTableState";
-import { getFocusableElements, trapDialogKeyboard } from "./lib/accessibility";
+import OverlaySurface from "./components/common/OverlaySurface";
 
 const IconMap: Record<string, React.ComponentType<{ size: number; className?: string }>> = {
   Command,
@@ -820,8 +820,6 @@ export default function App() {
   const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
   const [connectionTestResult, setConnectionTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const selectedFileTriggerRef = useRef<HTMLElement | null>(null);
-  const selectedFileModalRef = useRef<HTMLDivElement | null>(null);
-  const workspaceUrlModalRef = useRef<HTMLDivElement | null>(null);
   const openSettingsSection = (section: string) => {
     setSettingsSection(section);
     setActiveTab("settings");
@@ -956,38 +954,6 @@ export default function App() {
 
   // Document quick detail sidebar overlay
   const [selectedFile, setSelectedFile] = useState<WorkspaceFile | null>(null);
-
-  useEffect(() => {
-    if (!selectedFile) return;
-
-    const timer = window.requestAnimationFrame(() => {
-      const panel = selectedFileModalRef.current;
-      const firstFocusable = getFocusableElements(panel)[0];
-      if (firstFocusable) {
-        firstFocusable.focus({ preventScroll: true });
-        return;
-      }
-      panel?.focus({ preventScroll: true });
-    });
-
-    return () => window.cancelAnimationFrame(timer);
-  }, [selectedFile]);
-
-  useEffect(() => {
-    if (!showUrlModal) return;
-
-    const timer = window.requestAnimationFrame(() => {
-      const panel = workspaceUrlModalRef.current;
-      const firstFocusable = getFocusableElements(panel)[0];
-      if (firstFocusable) {
-        firstFocusable.focus({ preventScroll: true });
-        return;
-      }
-      panel?.focus({ preventScroll: true });
-    });
-
-    return () => window.cancelAnimationFrame(timer);
-  }, [showUrlModal]);
 
   // Connection mode simulation evaluation (Phase 24 compliance sync checks)
   const isSheetWorkspace = workspaceUrl.trim().toLowerCase().startsWith("https://docs.google.com/spreadsheets/d/");
@@ -2202,74 +2168,49 @@ export default function App() {
 
       {/* Globally absolute Document Preview Slideover / Modal Overlay for easy quick actions */}
       {selectedFile && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/40" id="global-preview-modal" role="presentation">
-          <div
-            ref={selectedFileModalRef}
-            className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-xl border border-slate-200 relative space-y-4 max-h-[90vh] overflow-y-auto animate-fade-in"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="global-preview-modal-title"
-            aria-describedby="global-preview-modal-summary"
-            tabIndex={-1}
-            onKeyDown={(event) => trapDialogKeyboard(event, closeSelectedFilePreview)}
-          >
-
-            <button
-              type="button"
-              onClick={closeSelectedFilePreview}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1.5 rounded-md cursor-pointer"
-              aria-label="Close file preview"
-            >
-              <X size={18} aria-hidden="true" focusable="false" />
-            </button>
-
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
-                <FileText size={20} aria-hidden="true" focusable="false" />
+        <OverlaySurface
+          open={Boolean(selectedFile)}
+          onClose={closeSelectedFilePreview}
+          title={selectedFile.name}
+          description={`${selectedFile.source} Repository Document`}
+          closeLabel="Close file preview"
+          overlayId="global-preview-modal"
+          maxWidthClassName="max-w-lg"
+          bodyClassName="px-6 py-5 space-y-4"
+          footerClassName="px-6 py-4"
+          body={(
+            <>
+              <div className="space-y-1.5" id="global-preview-modal-summary">
+                <span className="text-[10px] text-slate-400 font-bold font-mono uppercase block">Direct Abstract Outline</span>
+                <p className="text-xs text-slate-600 leading-relaxed font-sans bg-slate-50 p-4 rounded-xl border border-slate-100 italic select-text">
+                  "{selectedFile.contentSum}"
+                </p>
               </div>
-              <div>
-                <h3 className="font-bold text-slate-900 text-sm max-w-xs truncate" title={selectedFile.name} id="global-preview-modal-title">
-                  {selectedFile.name}
-                </h3>
-                <span className="text-[10px] text-slate-400 font-mono block uppercase">
-                  {selectedFile.source} Repository Document
-                </span>
+
+              <div className="grid grid-cols-2 gap-y-2 border-t border-slate-100 pt-3 text-xs font-mono text-slate-400">
+                <span className="flex items-center gap-1.5"><User size={12} /> Owner</span>
+                <span className="text-right font-bold text-slate-700 truncate">{selectedFile.owner}</span>
+
+                <span className="flex items-center gap-1.5"><Clock size={12} /> Modified</span>
+                <span className="text-right font-bold text-slate-700">{new Date(selectedFile.modifiedAt).toLocaleString()}</span>
+
+                <span className="flex items-center gap-1.5"><FolderOpen size={12} /> Path</span>
+                <span className="text-right font-bold text-slate-700 truncate">{selectedFile.path}</span>
               </div>
-            </div>
-
-            {/* Quick Content summary */}
-            <div className="space-y-1.5" id="global-preview-modal-summary">
-              <span className="text-[10px] text-slate-400 font-bold font-mono uppercase block">Direct Abstract Outline</span>
-              <p className="text-xs text-slate-600 leading-relaxed font-sans bg-slate-50 p-4 rounded-xl border border-slate-100 italic select-text">
-                "{selectedFile.contentSum}"
-              </p>
-            </div>
-
-            {/* Detailed metadata */}
-            <div className="grid grid-cols-2 gap-y-2 border-t border-slate-100 pt-3 text-xs font-mono text-slate-400">
-              <span className="flex items-center gap-1.5"><User size={12} /> Owner</span>
-              <span className="text-right font-bold text-slate-700 truncate">{selectedFile.owner}</span>
-
-              <span className="flex items-center gap-1.5"><Clock size={12} /> Modified</span>
-              <span className="text-right font-bold text-slate-700">{new Date(selectedFile.modifiedAt).toLocaleString()}</span>
-
-              <span className="flex items-center gap-1.5"><FolderOpen size={12} /> Path</span>
-              <span className="text-right font-bold text-slate-700 truncate">{selectedFile.path}</span>
-            </div>
-
-            {/* Action controls */}
-            <div className="pt-4 border-t border-slate-150 flex gap-2">
+            </>
+          )}
+          footer={(
+            <>
               <button
                 type="button"
                 onClick={() => {
                   handleToggleFavorite(selectedFile.id);
-                  // update visual copy
                   selectedFile.isFavorite = !selectedFile.isFavorite;
                 }}
-                className={`flex-1 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+                className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
                   selectedFile.isFavorite
-                    ? "bg-amber-50 text-amber-700 border border-amber-100"
-                    : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                    ? "border border-amber-100 bg-amber-50 text-amber-700"
+                    : "border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200"
                 }`}
               >
                 <Star size={12} className={selectedFile.isFavorite ? "fill-amber-500 text-amber-500" : ""} aria-hidden="true" focusable="false" />
@@ -2282,54 +2223,39 @@ export default function App() {
                   closeSelectedFilePreview();
                   setActiveTab("search");
                 }}
-                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-blue-700"
               >
                 Open in Search Q&A <ExternalLink size={12} aria-hidden="true" focusable="false" />
               </button>
-            </div>
-
-          </div>
-        </div>
+            </>
+          )}
+        />
       )}
 
       {/* Google Workspace URL Setup Overlay Modal */}
       {showUrlModal && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/40" id="workspace-url-modal" role="presentation">
-          <div
-            ref={workspaceUrlModalRef}
-            className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl border border-slate-200 relative space-y-4 max-h-[90vh] overflow-y-auto animate-fade-in"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="workspace-url-modal-title"
-            aria-describedby="workspace-url-modal-summary"
-            tabIndex={-1}
-            onKeyDown={(event) => trapDialogKeyboard(event, closeWorkspaceUrlModal)}
-          >
-
-            <div className="flex items-start gap-3">
-              <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl mt-0.5 shrink-0">
-                <Database size={20} className="animate-pulse" aria-hidden="true" focusable="false" />
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-900 text-base" id="workspace-url-modal-title">
-                  Drive Sync
-                </h3>
-                <p className="text-xs text-slate-500 mt-1 font-sans leading-relaxed" id="workspace-url-modal-summary">
-                  Configure the Google Drive folder used for Schooly registries and supporting files.
-                </p>
-                <div className="mt-3 bg-slate-50 border border-slate-100 p-3 rounded-xl space-y-2 text-xs font-sans">
-                  <div className="font-bold text-slate-800 flex items-center gap-1.5">
-                    <Database size={13} aria-hidden="true" focusable="false" />
-                    <span>School Registry Folder</span>
-                  </div>
-                  <p className="text-[11px] text-slate-650 leading-relaxed font-semibold">
-                    Schooly uses the configured folder or folder ID for live registry checks. Google Sheets write access is managed separately in the onboarding wizard.
-                  </p>
+        <OverlaySurface
+          open={showUrlModal}
+          onClose={closeWorkspaceUrlModal}
+          title="Drive Sync"
+          description="Configure the Google Drive folder used for Schooly registries and supporting files."
+          closeLabel="Close drive sync dialog"
+          overlayId="workspace-url-modal"
+          maxWidthClassName="max-w-md"
+          bodyClassName="px-6 py-5 space-y-4"
+          footerClassName="px-6 py-4"
+          body={(
+            <div className="space-y-3.5">
+              <div className="bg-slate-50 border border-slate-100 p-3 rounded-xl space-y-2 text-xs font-sans">
+                <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <Database size={13} aria-hidden="true" focusable="false" />
+                  <span>School Registry Folder</span>
                 </div>
+                <p className="text-[11px] text-slate-650 leading-relaxed font-semibold">
+                  Schooly uses the configured folder or folder ID for live registry checks. Google Sheets write access is managed separately in the onboarding wizard.
+                </p>
               </div>
-            </div>
 
-            <div className="space-y-3.5 pt-2">
               <div>
                 <label className="text-[10px] text-slate-400 font-mono block mb-1.5 font-bold uppercase tracking-wider">
                   DRIVE FOLDER URL / ID *
@@ -2340,17 +2266,16 @@ export default function App() {
                     placeholder="https://drive.google.com/drive/folders/..."
                     value={tempUrl}
                     onChange={(e) => setTempUrl(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-hidden focus:border-blue-500 font-sans"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 font-sans text-xs text-slate-800 focus:outline-hidden focus:border-blue-500"
                     id="setup-workspace-url-input"
                   />
                 </div>
               </div>
 
-              {/* Quick Preset helper button */}
               <button
                 type="button"
                 onClick={() => setTempUrl("https://drive.google.com/drive/folders/1D_e735SchoolyDriveRootFolder_AP_Syllabus")}
-                className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-all block text-left"
+                className="block text-left text-[11px] font-semibold text-blue-600 transition-all hover:text-blue-700 hover:underline"
               >
                 Insert School Registry Folder
               </button>
@@ -2365,7 +2290,7 @@ export default function App() {
                     placeholder="AI Studio Developer Key (AI_...)"
                     value={tempGeminiKey}
                     onChange={(e) => setTempGeminiKey(e.target.value)}
-                    className="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-hidden focus:border-blue-500 font-mono"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-10 py-2.5 font-mono text-xs text-slate-800 focus:outline-hidden focus:border-blue-500"
                     id="setup-gemini-key-input"
                   />
                   <span className="absolute left-3 text-slate-400">
@@ -2374,12 +2299,12 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setShowKeyText(!showKeyText)}
-                    className="absolute right-3 text-slate-400 hover:text-slate-600 transition-colors"
+                    className="absolute right-3 text-slate-400 transition-colors hover:text-slate-600"
                   >
                     {showKeyText ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
                 </div>
-                <p className="text-[9.5px] text-slate-450 mt-1.5 font-sans leading-relaxed">
+                <p className="mt-1.5 text-[9.5px] leading-relaxed text-slate-450 font-sans">
                   Provide your own API Key to run requests using your personal developer quota if the global backend key is unconfigured.
                 </p>
               </div>
@@ -2390,14 +2315,13 @@ export default function App() {
                 </p>
               </div>
             </div>
-
-            <div className="pt-4 border-t border-slate-150 flex flex-wrap gap-2">
+          )}
+          footer={(
+            <>
               <button
                 type="button"
-                onClick={() => {
-                  closeWorkspaceUrlModal();
-                }}
-                className="flex-1 py-2 px-3 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-xl text-xs font-semibold transition-colors cursor-pointer text-center"
+                onClick={closeWorkspaceUrlModal}
+                className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-50"
               >
                 Cancel
               </button>
@@ -2441,13 +2365,13 @@ export default function App() {
                   }
                 }}
                 disabled={!tempUrl.trim()}
-                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                className="flex-1 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white shadow-xs transition-colors hover:bg-blue-700 disabled:opacity-40"
               >
                 Save URL
               </button>
-            </div>
-          </div>
-        </div>
+            </>
+          )}
+        />
       )}
 
     </div>

@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { ExportableSchoolySchema, resetActiveMetadataToDefault, Capability } from "../lib/schemaEngine";
 import defaultDriveManifest from "../data/schooly-drive-manifest.json";
+import OverlaySurface from "./common/OverlaySurface";
 
 interface SystemGovernanceProps {
   auditLogs: AuditLog[];
@@ -98,6 +99,7 @@ export default function SystemGovernance({
     log: string[];
     message?: string;
   }>({ status: 'idle', log: [] });
+  const [pendingRollbackDefault, setPendingRollbackDefault] = useState(false);
 
   const [showStructureLogs, setShowStructureLogs] = useState(false);
 
@@ -398,12 +400,15 @@ export default function SystemGovernance({
 
   // Roll back active config to default state
   const handleRollbackDefault = () => {
-    if (window.confirm("Are you sure you want to revert to the default core District configuration schema? Your current staging edits will be discarded.")) {
-      const defaultData = resetActiveMetadataToDefault();
-      onUpdateSchema(defaultData);
-      setJsonText(JSON.stringify(defaultData, null, 2));
-      setValidationError(null);
-    }
+    setPendingRollbackDefault(true);
+  };
+
+  const confirmRollbackDefault = () => {
+    const defaultData = resetActiveMetadataToDefault();
+    onUpdateSchema(defaultData);
+    setJsonText(JSON.stringify(defaultData, null, 2));
+    setValidationError(null);
+    setPendingRollbackDefault(false);
   };
 
   return (
@@ -1490,6 +1495,50 @@ export default function SystemGovernance({
             </table>
           </div>
         </div>
+
+        {pendingRollbackDefault && (
+          <OverlaySurface
+            open={pendingRollbackDefault}
+            onClose={() => setPendingRollbackDefault(false)}
+            title="Revert to default schema?"
+            description="This resets the core District configuration schema and discards the current staging edits."
+            role="alertdialog"
+            closeLabel="Close revert confirmation"
+            overlayId="system-governance-rollback-modal"
+            maxWidthClassName="max-w-lg"
+            closeOnBackdropClick={false}
+            bodyClassName="px-6 py-5 space-y-4"
+            footerClassName="px-6 py-4"
+            body={(
+              <div className="space-y-3 text-sm text-slate-600">
+                <p>
+                  The default schema will be restored immediately if you confirm.
+                </p>
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-800">
+                  This is a destructive configuration reset.
+                </div>
+              </div>
+            )}
+            footer={(
+              <>
+                <button
+                  type="button"
+                  onClick={() => setPendingRollbackDefault(false)}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmRollbackDefault}
+                  className="rounded-xl border border-rose-200 bg-rose-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-rose-700"
+                >
+                  Revert
+                </button>
+              </>
+            )}
+          />
+        )}
 
       </div>
     </div>

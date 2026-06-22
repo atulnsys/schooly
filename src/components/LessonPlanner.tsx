@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { WorkspaceFile, ClassroomCourse } from "../types";
+import FeedbackBanner from "./common/FeedbackBanner";
+import OverlaySurface from "./common/OverlaySurface";
 import { 
   BookOpen, 
   Sparkles, 
@@ -769,6 +771,15 @@ export default function LessonPlanner({
   const [warningPlan, setWarningPlan] = useState<ClassroomLessonPlan | null>(null);
   const [editingUrlPlanId, setEditingUrlPlanId] = useState<string | null>(null);
   const [reportPlan, setReportPlan] = useState<any | null>(null);
+  const [deletedPlanKeys, setDeletedPlanKeys] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("edu_classroom_deleted_plan_keys");
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [pendingDeletePlan, setPendingDeletePlan] = useState<{ scope: "local" | "registry"; plan: any } | null>(null);
   const [tempUrlValue, setTempUrlValue] = useState<string>("");
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
@@ -885,30 +896,60 @@ export default function LessonPlanner({
   const handleDeletePlanLocal = (planId: string) => {
     const plan = classroomPlans.find(p => p.id === planId);
     if (!plan) return;
-    const confirmDelete = window.confirm(`Are you sure you want to delete "${plan.topicName}"?`);
-    if (!confirmDelete) return;
-
-    const filtered = classroomPlans.filter(p => p.id !== planId);
-    savePlansToStorage(filtered);
-
-    // Also persist deleted key so sync can also skip it if requested
-    try {
-      const key = `${plan.className}::${plan.subjectName}::${plan.topicName}`;
-      const saved = localStorage.getItem("edu_classroom_deleted_plan_keys");
-      const deletedKeys = saved ? JSON.parse(saved) : [];
-      if (!deletedKeys.includes(key)) {
-        deletedKeys.push(key);
-        localStorage.setItem("edu_classroom_deleted_plan_keys", JSON.stringify(deletedKeys));
-      }
-    } catch (e) {
-      console.warn(e);
-    }
+    setPendingDeletePlan({ scope: "local", plan });
   };
 
   // Helper to save plans in storage
   const savePlansToStorage = (updatedPlans: ClassroomLessonPlan[]) => {
     setClassroomPlans(updatedPlans);
     localStorage.setItem("edu_classroom_review_plans", JSON.stringify(updatedPlans));
+  };
+
+  const confirmDeletePendingPlan = () => {
+    if (!pendingDeletePlan) return;
+
+    if (pendingDeletePlan.scope === "local") {
+      const filtered = classroomPlans.filter((plan) => plan.id !== pendingDeletePlan.plan.id);
+      savePlansToStorage(filtered);
+
+      try {
+        const key = `${pendingDeletePlan.plan.className}::${pendingDeletePlan.plan.subjectName}::${pendingDeletePlan.plan.topicName}`;
+        const saved = localStorage.getItem("edu_classroom_deleted_plan_keys");
+        const deletedKeys = saved ? JSON.parse(saved) : [];
+        if (!deletedKeys.includes(key)) {
+          deletedKeys.push(key);
+          localStorage.setItem("edu_classroom_deleted_plan_keys", JSON.stringify(deletedKeys));
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+
+      setFeedbackMsg({ type: "info", text: `Deleted "${pendingDeletePlan.plan.topicName}" from the local lesson plan registry.` });
+    } else {
+      const plan = pendingDeletePlan.plan;
+      const key = `${plan.className}::${plan.subjectName}::${plan.topicName}`;
+      const updatedKeys = [...deletedPlanKeys, key];
+      setDeletedPlanKeys(updatedKeys);
+      localStorage.setItem("edu_classroom_deleted_plan_keys", JSON.stringify(updatedKeys));
+
+      try {
+        const savedStr = localStorage.getItem("edu_classroom_review_plans");
+        if (savedStr) {
+          const plans = JSON.parse(savedStr);
+          const filtered = plans.filter((item: any) =>
+            !(item.topicName === plan.topicName && item.className === plan.className && item.subjectName === plan.subjectName)
+          );
+          localStorage.setItem("edu_classroom_review_plans", JSON.stringify(filtered));
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+
+      setFeedbackMsg({ type: "info", text: `Deleted "${plan.topicName}" from the workspace lesson registry.` });
+      if (onRefreshData) onRefreshData();
+    }
+
+    setPendingDeletePlan(null);
   };
 
   const handleUpdateDriveUrl = (planId: string, newUrl: string) => {
@@ -1226,6 +1267,7 @@ export default function LessonPlanner({
   // Saving state
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
+  const [feedbackMsg, setFeedbackMsg] = useState<{ type: "success" | "info" | "error"; text: string } | null>(null);
 
   // History state lookup
   const [localSavedPlans, setLocalSavedPlans] = useState<WorkspaceFile[]>([]);
@@ -1618,7 +1660,7 @@ export default function LessonPlanner({
       }
     } catch (err) {
       console.error(err);
-      alert("Error saving lesson plan to Workspace server.");
+      setFeedbackMsg({ type: "error", text: "Error saving lesson plan to Workspace server." });
     } finally {
       setIsSaving(false);
     }
@@ -1801,7 +1843,7 @@ export default function LessonPlanner({
 
   const handleCopyQuiz = () => {
     navigator.clipboard.writeText(quizContent);
-    alert("Quiz successfully copied to clipboard!");
+    setFeedbackMsg({ type: "success", text: "Quiz successfully copied to clipboard." });
   };
 
   // 4. Assignments Tab extracts
@@ -1812,7 +1854,7 @@ export default function LessonPlanner({
 
   const handleCopyAssignments = () => {
     navigator.clipboard.writeText(assignmentContent);
-    alert("Assignments copied to clipboard!");
+    setFeedbackMsg({ type: "success", text: "Assignments copied to clipboard." });
   };
 
   // 5. Parental Communication Bridge Tab extracts
@@ -1821,7 +1863,7 @@ export default function LessonPlanner({
 
   const handleCopyWhatsApp = () => {
     navigator.clipboard.writeText(parentWhatsAppTemplate);
-    alert("Parent WhatsApp communication template copied to clipboard!");
+    setFeedbackMsg({ type: "success", text: "Parent WhatsApp communication template copied to clipboard." });
   };
 
   // 6. Inclusive Learning / Scaffolds Tab extracts
@@ -1874,6 +1916,13 @@ export default function LessonPlanner({
         <span className="font-semibold text-slate-800">Custom list/detail workspace:</span>{" "}
         Lesson Plans stays specialized. Registry rows can be inspected through Registry Explorer where available, but planning, AI review, checklist, and editing remain custom workflows.
       </div>
+
+      {feedbackMsg && (
+        <FeedbackBanner
+          tone={feedbackMsg.type === "success" ? "success" : feedbackMsg.type === "info" ? "info" : "error"}
+          message={feedbackMsg.text}
+        />
+      )}
 
       {/* 3. Setup configurations View tab (Google Classroom Registry & Metrics) */}
       {activeView === "setup" && (
@@ -3436,7 +3485,7 @@ export default function LessonPlanner({
                     onClick={() => {
                       handleUpdateDriveUrl(warningPlan.id, tempUrlValue);
                       setShowSimulatedDocWarning(false);
-                      alert("Successfully updated registry document link!");
+                      setFeedbackMsg({ type: "success", text: "Successfully updated registry document link." });
                     }}
                     className="cursor-pointer shrink-0 bg-blue-600 hover:bg-blue-700 text-white font-sans font-bold px-3 py-1.5 rounded-lg text-[11px] transition-all"
                   >
@@ -3539,6 +3588,51 @@ export default function LessonPlanner({
             </div>
           </div>
         </div>
+      )}
+
+      {pendingDeletePlan && (
+        <OverlaySurface
+          open={Boolean(pendingDeletePlan)}
+          onClose={() => setPendingDeletePlan(null)}
+          title="Delete lesson plan?"
+          description={`Remove "${pendingDeletePlan.plan.topicName}" from the lesson registry.`}
+          role="alertdialog"
+          closeLabel="Close delete confirmation"
+          overlayId="lesson-plan-delete-confirm-modal"
+          maxWidthClassName="max-w-lg"
+          closeOnBackdropClick={false}
+          bodyClassName="px-6 py-5 space-y-4"
+          footerClassName="px-6 py-4"
+          body={(
+            <div className="space-y-3 text-sm text-slate-600">
+              <p>
+                This removes the lesson plan from local workspace storage and the registry list.
+                Any Drive file linked to the lesson remains untouched.
+              </p>
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-800">
+                This action cannot be undone from the local workspace.
+              </div>
+            </div>
+          )}
+          footer={(
+            <>
+              <button
+                type="button"
+                onClick={() => setPendingDeletePlan(null)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeletePendingPlan}
+                className="rounded-xl border border-rose-200 bg-rose-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-rose-700"
+              >
+                Delete
+              </button>
+            </>
+          )}
+        />
       )}
 
     </div>

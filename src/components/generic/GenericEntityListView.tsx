@@ -43,8 +43,8 @@ import {
   hasGenericPermission,
   sortGenericRows,
 } from "../../lib/genericEntityView";
-import { getFocusableElements, trapDialogKeyboard } from "../../lib/accessibility";
 import type { GenericEntityListState } from "./useGenericEntityListState";
+import OverlaySurface from "../common/OverlaySurface";
 
 interface GenericEntityListViewProps<T extends object> {
   definition: GenericEntityDefinition<T>;
@@ -248,11 +248,11 @@ export default function GenericEntityListView<T extends object>({
   const [viewsOpen, setViewsOpen] = useState(false);
   const [newViewName, setNewViewName] = useState("");
   const [renameDraft, setRenameDraft] = useState("");
+  const [pendingDeleteViewId, setPendingDeleteViewId] = useState<string | null>(null);
 
   const columnsButtonRef = useRef<HTMLButtonElement | null>(null);
   const viewsButtonRef = useRef<HTMLButtonElement | null>(null);
-  const columnsDialogRef = useRef<HTMLDivElement | null>(null);
-  const viewsDialogRef = useRef<HTMLDivElement | null>(null);
+  const lastAnnouncementRef = useRef("");
 
   const activeSearch = resolveControlValue(searchValue ?? state?.searchValue, localSearch);
   const activeFilters = resolveControlValue(filterValues ?? state?.filterValues, localFilters);
@@ -354,59 +354,23 @@ export default function GenericEntityListView<T extends object>({
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (visibleRows.length === 0) {
-        setAnnouncement(
-          (Boolean(activeSearch.trim()) || Object.values(activeFilters).some((value) => value && value !== "All"))
+      const nextAnnouncement =
+        visibleRows.length === 0
+          ? (Boolean(activeSearch.trim()) || Object.values(activeFilters).some((value) => value && value !== "All"))
             ? "No matching records."
-            : definition.emptyTitle ?? "No rows available yet.",
-        );
-        return;
-      }
+            : definition.emptyTitle ?? "No rows available yet."
+          : showPagination && visibleRows.length > activePageSize
+            ? `Showing records ${((safePage - 1) * activePageSize) + 1} to ${Math.min(visibleRows.length, safePage * activePageSize)} of ${visibleRows.length}.`
+            : `${visibleRows.length} record${visibleRows.length === 1 ? "" : "s"} showing.`;
 
-      if (showPagination && visibleRows.length > activePageSize) {
-        const start = (safePage - 1) * activePageSize + 1;
-        const end = Math.min(visibleRows.length, safePage * activePageSize);
-        setAnnouncement(`Showing records ${start} to ${end} of ${visibleRows.length}.`);
-        return;
+      if (nextAnnouncement !== lastAnnouncementRef.current) {
+        lastAnnouncementRef.current = nextAnnouncement;
+        setAnnouncement(nextAnnouncement);
       }
-
-      setAnnouncement(`${visibleRows.length} record${visibleRows.length === 1 ? "" : "s"} showing.`);
     }, 180);
 
     return () => window.clearTimeout(timer);
   }, [activeFilters, activePageSize, activeSearch, definition.emptyTitle, safePage, showPagination, visibleRows.length]);
-
-  useEffect(() => {
-    if (!columnsOpen) return;
-    const timer = window.requestAnimationFrame(() => {
-      const focusables = getFocusableElements(columnsDialogRef.current);
-      if (focusables.length > 0) {
-        focusables[0]?.focus({ preventScroll: true });
-      } else {
-        columnsDialogRef.current?.focus({ preventScroll: true });
-      }
-    });
-    return () => {
-      columnsButtonRef.current?.focus({ preventScroll: true });
-      window.cancelAnimationFrame(timer);
-    };
-  }, [columnsOpen]);
-
-  useEffect(() => {
-    if (!viewsOpen) return;
-    const timer = window.requestAnimationFrame(() => {
-      const focusables = getFocusableElements(viewsDialogRef.current);
-      if (focusables.length > 0) {
-        focusables[0]?.focus({ preventScroll: true });
-      } else {
-        viewsDialogRef.current?.focus({ preventScroll: true });
-      }
-    });
-    return () => {
-      viewsButtonRef.current?.focus({ preventScroll: true });
-      window.cancelAnimationFrame(timer);
-    };
-  }, [viewsOpen]);
 
   const updateSearch = (value: string) => {
     if (state?.setSearchValue) state.setSearchValue(value);
@@ -789,43 +753,30 @@ export default function GenericEntityListView<T extends object>({
     if (!state) return null;
 
     return (
-      <div
-        className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/45 p-4"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="generic-columns-dialog-title"
-        onClick={() => setColumnsOpen(false)}
-      >
-        <div
-          ref={columnsDialogRef}
-          className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
-          tabIndex={-1}
-          onKeyDown={(event) => trapDialogKeyboard(event, () => setColumnsOpen(false))}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
-            <div className="space-y-1">
-              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-700">Table configuration</div>
-              <h2 id="generic-columns-dialog-title" className="text-lg font-black tracking-tight text-slate-950">
-                Columns
-              </h2>
-              <p className="max-w-3xl text-xs leading-relaxed text-slate-500">
-                Show or hide optional columns, move them with keyboard-friendly buttons, and set compact or comfortable density.
-                The identity column stays visible and row actions remain fixed at the end.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setColumnsOpen(false)}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-slate-500 hover:bg-slate-50"
-              aria-label="Close columns dialog"
-              title="Close"
-            >
-              <X size={14} />
-            </button>
+      <OverlaySurface
+        open={columnsOpen}
+        onClose={() => setColumnsOpen(false)}
+        title="Columns"
+        description="Show or hide optional columns, move them with keyboard-friendly buttons, and set compact or comfortable density."
+        closeLabel="Close columns dialog"
+        returnFocusRef={columnsButtonRef}
+        maxWidthClassName="max-w-4xl"
+        bodyClassName="px-5 py-4 space-y-5"
+        footerClassName="px-5 py-4"
+        header={(
+          <div className="space-y-1 border-b border-slate-200 px-0 pb-4">
+            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-700">Table configuration</div>
+            <h3 id="generic-columns-dialog-title" className="text-lg font-black tracking-tight text-slate-950">
+              Columns
+            </h3>
+            <p className="max-w-3xl text-xs leading-relaxed text-slate-500">
+              Show or hide optional columns, move them with keyboard-friendly buttons, and set compact or comfortable density.
+              The identity column stays visible and row actions remain fixed at the end.
+            </p>
           </div>
-
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+        )}
+        body={(
+          <div className="space-y-5">
             <section className="rounded-2xl border border-slate-100 bg-slate-50 p-3 space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -968,8 +919,9 @@ export default function GenericEntityListView<T extends object>({
               </div>
             </section>
           </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-5 py-4">
+        )}
+        footer={(
+          <>
             <button
               type="button"
               onClick={state.resetTablePreferences}
@@ -985,9 +937,9 @@ export default function GenericEntityListView<T extends object>({
             >
               Done
             </button>
-          </div>
-        </div>
-      </div>
+          </>
+        )}
+      />
     );
   };
 
@@ -998,47 +950,37 @@ export default function GenericEntityListView<T extends object>({
     const canEditSelectedView = Boolean(selectedView && selectedView.source !== "system");
 
     return (
-      <div
-        className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/45 p-4"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="generic-views-dialog-title"
-        onClick={() => setViewsOpen(false)}
-      >
-        <div
-          ref={viewsDialogRef}
-          className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
-          tabIndex={-1}
-          onKeyDown={(event) => trapDialogKeyboard(event, () => setViewsOpen(false))}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
-            <div className="space-y-1">
-              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-700">Private views</div>
-              <h2 id="generic-views-dialog-title" className="text-lg font-black tracking-tight text-slate-950">
-                Views
-              </h2>
-              <p className="max-w-3xl text-xs leading-relaxed text-slate-500">
-                Saved views live in this browser only. They preserve search, filters, sort, page size, density, and column settings for this entity.
+      <OverlaySurface
+        open={viewsOpen}
+        onClose={() => {
+          setViewsOpen(false);
+          setPendingDeleteViewId(null);
+        }}
+        title="Views"
+        description="Saved views live in this browser only. They preserve search, filters, sort, page size, density, and column settings for this entity."
+        closeLabel="Close views dialog"
+        returnFocusRef={viewsButtonRef}
+        maxWidthClassName="max-w-4xl"
+        bodyClassName="px-5 py-4 space-y-5"
+        footerClassName="px-5 py-4"
+        header={(
+          <div className="space-y-1 border-b border-slate-200 px-0 pb-4">
+            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-700">Private views</div>
+            <h3 id="generic-views-dialog-title" className="text-lg font-black tracking-tight text-slate-950">
+              Views
+            </h3>
+            <p className="max-w-3xl text-xs leading-relaxed text-slate-500">
+              Saved views live in this browser only. They preserve search, filters, sort, page size, density, and column settings for this entity.
+            </p>
+            {savedViewStorageNote && (
+              <p className="max-w-3xl text-[10.5px] leading-relaxed text-amber-700">
+                {savedViewStorageNote}
               </p>
-              {savedViewStorageNote && (
-                <p className="max-w-3xl text-[10.5px] leading-relaxed text-amber-700">
-                  {savedViewStorageNote}
-                </p>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => setViewsOpen(false)}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-slate-500 hover:bg-slate-50"
-              aria-label="Close views dialog"
-              title="Close"
-            >
-              <X size={14} />
-            </button>
+            )}
           </div>
-
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+        )}
+        body={(
+          <div className="space-y-5">
             <section className="rounded-2xl border border-slate-100 bg-slate-50 p-3 space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -1074,15 +1016,16 @@ export default function GenericEntityListView<T extends object>({
                 <div className="space-y-2">
                   {savedViews.map((view) => {
                     const isActive = view.id === activeSavedViewId;
+                    const isPendingDelete = pendingDeleteViewId === view.id;
+                    const canEditView = view.source !== "system";
                     return (
-                      <button
-                        key={view.id}
-                        type="button"
-                        onClick={() => state.setActiveView(view.id)}
-                        className={`w-full rounded-2xl border px-4 py-3 text-left transition-colors ${isActive ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-white hover:bg-slate-50"}`}
-                      >
+                      <div key={view.id} className={`rounded-2xl border px-4 py-3 text-left transition-colors ${isActive ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-white hover:bg-slate-50"}`}>
                         <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
+                          <button
+                            type="button"
+                            onClick={() => state.setActiveView(view.id)}
+                            className="min-w-0 flex-1 text-left"
+                          >
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="text-sm font-bold text-slate-900">{view.name}</span>
                               {view.visibility === "private" && (
@@ -1099,14 +1042,55 @@ export default function GenericEntityListView<T extends object>({
                             <div className="mt-1 text-[11px] text-slate-500">
                               Updated {new Date(view.updatedAt).toLocaleString()}
                             </div>
-                          </div>
+                          </button>
                           {isActive && (
                             <span className="rounded-full border border-blue-200 bg-blue-600 px-2 py-0.5 text-[9px] font-bold text-white">
                               Active
                             </span>
                           )}
                         </div>
-                      </button>
+                        {isPendingDelete ? (
+                          <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-900 space-y-3">
+                            <div className="font-bold">Delete this saved view?</div>
+                            <p className="text-[11px] leading-relaxed text-rose-800">
+                              This removes "{view.name}" from browser storage. The current page state stays available until you choose another view.
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setPendingDeleteViewId(null)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10.5px] font-bold text-slate-700 hover:bg-slate-50"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  state.setActiveView(view.id);
+                                  state.deleteActiveView();
+                                  setPendingDeleteViewId(null);
+                                }}
+                                className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-600 px-3 py-2 text-[10.5px] font-bold text-white hover:bg-rose-700"
+                              >
+                                <Trash2 size={12} />
+                                Delete view
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setPendingDeleteViewId(view.id)}
+                              disabled={!canEditView}
+                              className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[10.5px] font-bold text-rose-700 hover:bg-rose-100 disabled:opacity-40"
+                            >
+                              <Trash2 size={12} />
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -1208,10 +1192,7 @@ export default function GenericEntityListView<T extends object>({
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      if (!window.confirm(`Delete saved view "${selectedView.name}"?`)) return;
-                      state.deleteActiveView();
-                    }}
+                    onClick={() => setPendingDeleteViewId(selectedView.id)}
                     disabled={!canEditSelectedView}
                     className="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[10.5px] font-bold text-rose-700 hover:bg-rose-100 disabled:opacity-40"
                   >
@@ -1222,8 +1203,9 @@ export default function GenericEntityListView<T extends object>({
               </section>
             )}
           </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-5 py-4">
+        )}
+        footer={(
+          <>
             <button
               type="button"
               onClick={state.restoreSystemDefault}
@@ -1234,14 +1216,17 @@ export default function GenericEntityListView<T extends object>({
             </button>
             <button
               type="button"
-              onClick={() => setViewsOpen(false)}
+              onClick={() => {
+                setViewsOpen(false);
+                setPendingDeleteViewId(null);
+              }}
               className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-600 px-3 py-2 text-[10.5px] font-bold text-white hover:bg-blue-700"
             >
               Done
             </button>
-          </div>
-        </div>
-      </div>
+          </>
+        )}
+      />
     );
   };
 

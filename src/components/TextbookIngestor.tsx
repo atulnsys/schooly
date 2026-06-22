@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { 
+import {
   BookOpen, 
   Upload, 
   Link, 
@@ -30,6 +30,8 @@ import {
   MoreVertical,
   Trash2
 } from "lucide-react";
+import FeedbackBanner from "./common/FeedbackBanner";
+import OverlaySurface from "./common/OverlaySurface";
 
 export const getTeacherFriendlyName = (identifier: string) => {
   if (!identifier) return "Ms. Emily Montgomery";
@@ -198,6 +200,7 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
 
   // States for delete and report modal
   const [reportPlan, setReportPlan] = useState<any | null>(null);
+  const [pendingDeletePlan, setPendingDeletePlan] = useState<any | null>(null);
   const [deletedPlanKeys, setDeletedPlanKeys] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem("edu_classroom_deleted_plan_keys");
@@ -223,9 +226,10 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
   };
 
   const handleDeletePlan = (plan: any) => {
-    const confirmDelete = window.confirm(`Are you sure you want to delete "${plan.topicName}"?`);
-    if (!confirmDelete) return;
+    setPendingDeletePlan(plan);
+  };
 
+  const confirmDeletePlan = (plan: any) => {
     const key = `${plan.className}::${plan.subjectName}::${plan.topicName}`;
     const updatedKeys = [...deletedPlanKeys, key];
     setDeletedPlanKeys(updatedKeys);
@@ -236,7 +240,7 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
       const savedStr = localStorage.getItem("edu_classroom_review_plans");
       if (savedStr) {
         const plans = JSON.parse(savedStr);
-        const filtered = plans.filter((item: any) => 
+        const filtered = plans.filter((item: any) =>
           !(item.topicName === plan.topicName && item.className === plan.className && item.subjectName === plan.subjectName)
         );
         localStorage.setItem("edu_classroom_review_plans", JSON.stringify(filtered));
@@ -245,6 +249,7 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
       console.warn(e);
     }
 
+    setPendingDeletePlan(null);
     if (onRefreshData) onRefreshData();
   };
 
@@ -834,20 +839,11 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
 
       {/* Global Feedback Notifications */}
       {feedbackMsg && (
-        <div className={`p-4 rounded-xl border flex items-start gap-2.5 text-xs animate-fadeIn ${
-          feedbackMsg.type === 'success' 
-            ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
-            : feedbackMsg.type === 'info' 
-              ? 'bg-blue-50 border-blue-200 text-blue-900' 
-              : 'bg-rose-50 border-rose-200 text-rose-900'
-        }`} id="ingestion-feedback-box">
-          {feedbackMsg.type === 'success' ? (
-            <CheckCircle2 size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-          ) : (
-            <AlertCircle size={16} className="text-rose-500 shrink-0 mt-0.5" />
-          )}
-          <span className="font-medium font-sans leading-relaxed">{feedbackMsg.text}</span>
-        </div>
+        <FeedbackBanner
+          tone={feedbackMsg.type === "success" ? "success" : feedbackMsg.type === "info" ? "info" : "error"}
+          message={feedbackMsg.text}
+          className="animate-fadeIn"
+        />
       )}
 
       {/* Horizontal Syllabus Selection Bar with background matching rest of the page */}
@@ -1754,6 +1750,51 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
             </div>
           </div>
         </div>
+      )}
+
+      {pendingDeletePlan && (
+        <OverlaySurface
+          open={Boolean(pendingDeletePlan)}
+          onClose={() => setPendingDeletePlan(null)}
+          title="Delete lesson plan?"
+          description={`Remove "${pendingDeletePlan.topicName}" from the local lesson plan registry.`}
+          role="alertdialog"
+          closeLabel="Close delete confirmation"
+          overlayId="textbook-delete-confirm-modal"
+          maxWidthClassName="max-w-lg"
+          closeOnBackdropClick={false}
+          bodyClassName="px-6 py-5 space-y-4"
+          footerClassName="px-6 py-4"
+          body={(
+            <div className="space-y-3 text-sm text-slate-600">
+              <p>
+                This removes the saved lesson plan from browser storage and the registry list.
+                You can still keep any Drive file link separately if needed.
+              </p>
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-800">
+                This action cannot be undone from the local workspace.
+              </div>
+            </div>
+          )}
+          footer={(
+            <>
+              <button
+                type="button"
+                onClick={() => setPendingDeletePlan(null)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => confirmDeletePlan(pendingDeletePlan)}
+                className="rounded-xl border border-rose-200 bg-rose-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-rose-700"
+              >
+                Delete
+              </button>
+            </>
+          )}
+        />
       )}
 
     </div>

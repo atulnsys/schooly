@@ -1,9 +1,11 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { WorkspaceFile } from "../types";
 import { schoolyFetch } from "../lib/safeFetch";
 import GenericEntityDetailView from "./generic/GenericEntityDetailView";
 import GenericEntityListView from "./generic/GenericEntityListView";
 import { createWorkspaceFileEntityDefinition } from "../lib/workspaceFileEntityDefinition";
+import FeedbackBanner from "./common/FeedbackBanner";
+import OverlaySurface from "./common/OverlaySurface";
 import { 
   Search, 
   Filter, 
@@ -105,6 +107,8 @@ export default function UniversalSearch({
   const [showAdvancedConn, setShowAdvancedConn] = useState(false);
   const [linkingPhase, setLinkingPhase] = useState<'idle' | 'auth' | 'synced'>('idle');
   const [linkingProgressMsg, setLinkingProgressMsg] = useState("");
+  const [feedbackMsg, setFeedbackMsg] = useState<{ type: "success" | "info" | "error"; text: string } | null>(null);
+  const [pendingDisconnectConfirm, setPendingDisconnectConfirm] = useState(false);
 
   // --- Integrate New Document States ---
   const [isFormExpanded, setIsFormExpanded] = useState(false);
@@ -127,6 +131,12 @@ export default function UniversalSearch({
   const [isSelectedFileSuggesting, setIsSelectedFileSuggesting] = useState(false);
   const [selectedFileSuggestions, setSelectedFileSuggestions] = useState<string[]>([]);
   const [selectedFileSuggestionsError, setSelectedFileSuggestionsError] = useState("");
+
+  useEffect(() => {
+    if (!feedbackMsg || feedbackMsg.type === "error") return;
+    const timer = window.setTimeout(() => setFeedbackMsg(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [feedbackMsg]);
 
   // Unique list of tags
   const allTags = ["All", ...Array.from(new Set(files.flatMap(f => f.tags)))];
@@ -173,9 +183,10 @@ export default function UniversalSearch({
   const handleConnectWorkspace = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!workspaceUrl.trim() || !loginEmail.trim()) {
-      alert("Please provide a valid Workspace Link and credentials email.");
+      setFeedbackMsg({ type: "error", text: "Please provide a valid Workspace Link and credentials email." });
       return;
     }
+    setFeedbackMsg(null);
     setLinkingPhase('auth');
     setLinkingProgressMsg("Contacting Google Cloud Identity Provider (SSO)...");
     
@@ -206,18 +217,23 @@ export default function UniversalSearch({
 
       setSsoConnected(true);
       setLinkingPhase('synced');
+      setFeedbackMsg({ type: "success", text: "Workspace synchronization connected successfully." });
       if (onRefreshData) onRefreshData();
     } catch (err) {
       setLinkingProgressMsg("");
       setLinkingPhase('idle');
-      alert("Workspace authentication failed. Connection aborted.");
+      setFeedbackMsg({ type: "error", text: "Workspace authentication failed. Connection aborted." });
     }
   };
 
   const handleDisconnectWorkspace = async () => {
-    if (!confirm("Are you sure you want to disconnect Google Workspace synchronization node? Interactive indices will become offline.")) return;
+    setPendingDisconnectConfirm(true);
+  };
+
+  const confirmDisconnectWorkspace = async () => {
     setSsoConnected(false);
     setLinkingPhase('idle');
+    setPendingDisconnectConfirm(false);
 
     await fetch("/api/audit-logs", {
       method: "POST",
@@ -231,12 +247,13 @@ export default function UniversalSearch({
         success: true
       })
     });
+    setFeedbackMsg({ type: "info", text: "Google Workspace synchronization disconnected." });
   };
 
   // --- Suggest Tags for creation form content ---
   const handleGenerateAISuggestedTags = async () => {
     if (!docContent.trim()) {
-      alert("Please specify some document content summary / text abstract first so Gemini can analyze it.");
+      setFeedbackMsg({ type: "error", text: "Please specify some document content summary / text abstract first so Gemini can analyze it." });
       return;
     }
     setIsGeneratingTags(true);
@@ -274,11 +291,11 @@ export default function UniversalSearch({
   // --- Integrate New Document (Submission) ---
   const handleIntegrateDocument = async () => {
     if (!docName.trim()) {
-      alert("Please specify a document name.");
+      setFeedbackMsg({ type: "error", text: "Please specify a document name." });
       return;
     }
     if (!docContent.trim()) {
-      alert("Please specify document text content summary.");
+      setFeedbackMsg({ type: "error", text: "Please specify document text content summary." });
       return;
     }
 
@@ -308,6 +325,7 @@ export default function UniversalSearch({
       if (res.ok && data.success) {
         setCreationStatus("✓ Document integrated into indexing systems!");
         
+        setFeedbackMsg({ type: "success", text: "Document integrated into the repository successfully." });
         // Refresh files in parent state
         if (onRefreshData) onRefreshData();
 
@@ -316,16 +334,16 @@ export default function UniversalSearch({
         setDocContent("");
         setAcceptedTags([]);
         setSuggestedTags([]);
-        setTimeout(() => {
+      setTimeout(() => {
           setIsFormExpanded(false);
           setCreationStatus("");
         }, 1200);
       } else {
-        alert("Server failed to register file.");
+        setFeedbackMsg({ type: "error", text: "Server failed to register file." });
       }
     } catch (err) {
       console.error(err);
-      alert("Error linking document to repository.");
+      setFeedbackMsg({ type: "error", text: "Error linking document to repository." });
     }
   };
 
@@ -615,6 +633,14 @@ export default function UniversalSearch({
             <Loader2 size={12} className="animate-spin text-blue-500" />
             <span>{linkingProgressMsg}</span>
           </div>
+        )}
+
+        {feedbackMsg && (
+          <FeedbackBanner
+            tone={feedbackMsg.type === "success" ? "success" : feedbackMsg.type === "info" ? "info" : "error"}
+            message={feedbackMsg.text}
+            onDismiss={feedbackMsg.type !== "error" ? () => setFeedbackMsg(null) : undefined}
+          />
         )}
 
         {/* Admin/Principal Connection advanced information table */}
@@ -1188,6 +1214,51 @@ export default function UniversalSearch({
               </p>
             </div>
           )}
+
+          {pendingDisconnectConfirm && (
+            <OverlaySurface
+              open={pendingDisconnectConfirm}
+              onClose={() => setPendingDisconnectConfirm(false)}
+              title="Disconnect Google Workspace?"
+              description="Interactive indices will become offline until you reconnect."
+              role="alertdialog"
+              closeLabel="Close disconnect confirmation"
+              overlayId="universal-search-disconnect-modal"
+              maxWidthClassName="max-w-lg"
+              closeOnBackdropClick={false}
+              bodyClassName="px-6 py-5 space-y-4"
+              footerClassName="px-6 py-4"
+              body={(
+                <div className="space-y-3 text-sm text-slate-600">
+                  <p>
+                    This will sever the active synchronization link with Google Workspace.
+                  </p>
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800">
+                    You can reconnect later from the same screen.
+                  </div>
+                </div>
+              )}
+              footer={(
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setPendingDisconnectConfirm(false)}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmDisconnectWorkspace}
+                    className="rounded-xl border border-rose-200 bg-rose-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-rose-700"
+                  >
+                    Disconnect
+                  </button>
+                </>
+              )}
+            />
+          )}
+
         </div>
 
       </div>

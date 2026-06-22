@@ -21,7 +21,7 @@ import {
 import type { AcademicResourceSourceFamily } from "../lib/academicResourceTypes";
 import type { SchoolRegistryState } from "../lib/schoolRegistry";
 import type { WorkspaceFile } from "../types";
-import { getFocusableElements, trapDialogKeyboard } from "../lib/accessibility";
+import OverlaySurface from "./common/OverlaySurface";
 
 interface AcademicResourceLibraryPageProps {
   files: WorkspaceFile[];
@@ -937,7 +937,6 @@ export default function AcademicResourceLibraryPage({
   const [classroomLinkFilter, setClassroomLinkFilter] = useState<ResourceLinkFilter>(initialFilterPreset.classroomLinkFilter);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [filterDraft, setFilterDraft] = useState<ResourceFilterPreset & { staffFilter: string }>(() => ({ ...initialFilterPreset }));
-  const filterModalPanelRef = useRef<HTMLDivElement | null>(null);
   const filterModalTriggerRef = useRef<HTMLButtonElement | null>(null);
   const dropdownSourcesRef = useRef<AcademicResourceDropdownSources>({
     lessonPlanRegistry: { availability: "loading", lastCheckedAt: null, lastSuccessfulSyncAt: null, isRefreshing: true, loadedAt: null, message: "Loading...", options: [] },
@@ -1344,24 +1343,6 @@ export default function AcademicResourceLibraryPage({
     });
   };
 
-  useEffect(() => {
-    if (!filterModalOpen) return;
-
-    const timer = window.requestAnimationFrame(() => {
-      const root = filterModalPanelRef.current;
-      const focusables = getFocusableElements(root);
-      if (focusables.length > 0) {
-        focusables[0]?.focus({ preventScroll: true });
-        return;
-      }
-      root?.focus({ preventScroll: true });
-    });
-    return () => {
-      filterModalTriggerRef.current?.focus({ preventScroll: true });
-      window.cancelAnimationFrame(timer);
-    };
-  }, [filterModalOpen]);
-
   const renderDetailBeforeSections = (row: AcademicResourceRow) => (
     <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-[10.5px] leading-relaxed text-slate-600 space-y-2">
       <div className="font-bold text-slate-900">Source note</div>
@@ -1564,43 +1545,30 @@ export default function AcademicResourceLibraryPage({
       />
 
       {filterModalOpen && (
-        <div
-          id="resource-filter-modal"
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/45 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="resource-filter-modal-title"
-          onClick={closeFilterModal}
-        >
-          <div
-            ref={filterModalPanelRef}
-            className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
-            tabIndex={-1}
-            onKeyDown={(event) => trapDialogKeyboard(event, closeFilterModal)}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
-              <div className="space-y-1">
-                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-700">Academic Resource Filters</div>
-                <h2 id="resource-filter-modal-title" className="text-lg font-black tracking-tight text-slate-950">
-                  Filter Academic Resources
-                </h2>
-                <p className="max-w-3xl text-xs leading-relaxed text-slate-500">
-                  Adjust filters without changing the live list until you apply them. Registry-backed dropdowns stay tied to their canonical sources.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={closeFilterModal}
-                className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-slate-500 hover:bg-slate-50"
-                aria-label="Close filter dialog"
-                title="Close"
-              >
-                <Filter size={14} className="rotate-45" />
-              </button>
+        <OverlaySurface
+          open={filterModalOpen}
+          onClose={closeFilterModal}
+          overlayId="resource-filter-modal"
+          title="Filter Academic Resources"
+          description="Adjust filters without changing the live list until you apply them. Registry-backed dropdowns stay tied to their canonical sources."
+          closeLabel="Close filter dialog"
+          returnFocusRef={filterModalTriggerRef}
+          maxWidthClassName="max-w-5xl"
+          bodyClassName="px-5 py-4 space-y-5"
+          footerClassName="px-5 py-4"
+          header={(
+            <div className="space-y-1 border-b border-slate-200 px-0 pb-4">
+              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-700">Academic Resource Filters</div>
+              <h3 id="resource-filter-modal-title" className="text-lg font-black tracking-tight text-slate-950">
+                Filter Academic Resources
+              </h3>
+              <p className="max-w-3xl text-xs leading-relaxed text-slate-500">
+                Adjust filters without changing the live list until you apply them. Registry-backed dropdowns stay tied to their canonical sources.
+              </p>
             </div>
-
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+          )}
+          body={(
+            <div className="space-y-5">
               <section className="space-y-3">
                 <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Source and status</div>
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -1642,8 +1610,9 @@ export default function AcademicResourceLibraryPage({
                 </div>
               </section>
             </div>
-
-            <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          )}
+          footer={(
+            <>
               <div className="text-[10.5px] leading-relaxed text-slate-500">
                 {activeFilterCount > 0 ? `${activeFilterCount} active filter${activeFilterCount === 1 ? "" : "s"}.` : "No active filters."}
               </div>
@@ -1670,9 +1639,9 @@ export default function AcademicResourceLibraryPage({
                   Apply Filters
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
+            </>
+          )}
+        />
       )}
     </div>
   );

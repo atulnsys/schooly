@@ -118,7 +118,7 @@ export default function MockDataStudio() {
 
   const handleSave = async () => {
     if (jsonError) {
-      alert("Please fix structural JSON syntax validation errors before saving mock files!");
+      setJsonError("Please fix structural JSON syntax validation errors before saving mock files!");
       return;
     }
     

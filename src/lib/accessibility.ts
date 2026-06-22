@@ -23,10 +23,13 @@ export function focusFirstFocusable(root: HTMLElement | null): void {
 export function trapDialogKeyboard(
   event: KeyboardEvent<HTMLElement>,
   onClose: () => void,
+  options: { closeOnEscape?: boolean } = {},
 ): void {
   if (event.key === "Escape") {
     event.preventDefault();
-    onClose();
+    if (options.closeOnEscape !== false) {
+      onClose();
+    }
     return;
   }
 
