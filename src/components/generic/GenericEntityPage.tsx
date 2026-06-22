@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import {
+  filterGenericRows,
   GenericEntityDefinition,
   GenericEntityPermissionContext,
 } from "../../lib/genericEntityView";
@@ -26,6 +27,15 @@ interface GenericEntityPageProps<T extends object> {
 
   renderDetailBeforeSections?: (row: T) => React.ReactNode;
   renderDetailAfterSections?: (row: T) => React.ReactNode;
+  detailContext?: {
+    displayMode?: "read-only" | "editable" | "restricted" | "unavailable";
+    stateLabel?: string | null;
+    sourceLabel?: string | null;
+    sourceStatusLabel?: string | null;
+    sourceLastSyncedAt?: string | null;
+    sourceLastCheckedAt?: string | null;
+    readOnlyReason?: string | null;
+  } | null;
 }
 
 export default function GenericEntityPage<T extends object>({
@@ -43,6 +53,7 @@ export default function GenericEntityPage<T extends object>({
   renderToolbarActions,
   renderDetailBeforeSections,
   renderDetailAfterSections,
+  detailContext,
 }: GenericEntityPageProps<T>) {
   const listState = useGenericEntityListState({
     namespace: stateNamespace,
@@ -52,16 +63,60 @@ export default function GenericEntityPage<T extends object>({
     permissionContext,
     storageContext,
   });
+  const pageRef = useRef<HTMLDivElement | null>(null);
+  const detailRef = useRef<HTMLDivElement | null>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const previousSelectedRowIdRef = useRef<string | null>(null);
+
+  const visibleRows = useMemo(
+    () => filterGenericRows(rows, definition, listState.searchValue, listState.filterValues, permissionContext),
+    [definition, listState.filterValues, listState.searchValue, permissionContext, rows],
+  );
+  const selectedRowIsVisible =
+    !listState.selectedRowId ||
+    visibleRows.some((row) => definition.getId(row) === listState.selectedRowId);
+
+  useEffect(() => {
+    const previousSelectedRowId = previousSelectedRowIdRef.current;
+    previousSelectedRowIdRef.current = listState.selectedRowId;
+
+    if (listState.selectedRowId && listState.selectedRowId !== previousSelectedRowId) {
+      window.requestAnimationFrame(() => {
+        detailRef.current?.focus({ preventScroll: true });
+      });
+      return;
+    }
+
+    if (!listState.selectedRowId && previousSelectedRowId) {
+      window.requestAnimationFrame(() => {
+        (returnFocusRef.current ?? pageRef.current)?.focus?.({ preventScroll: true });
+      });
+    }
+  }, [listState.selectedRowId]);
+
+  const handleSelectRow = (row: T) => {
+    if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
+      returnFocusRef.current = document.activeElement;
+    }
+    listState.selectRow(row);
+  };
+
+  const handleClearSelection = () => {
+    listState.selectRow(null);
+    window.requestAnimationFrame(() => {
+      (returnFocusRef.current ?? pageRef.current)?.focus?.({ preventScroll: true });
+    });
+  };
 
   return (
-    <div className={`grid grid-cols-1 lg:grid-cols-3 gap-6 ${className}`}>
+    <div ref={pageRef} tabIndex={-1} className={`grid grid-cols-1 lg:grid-cols-3 gap-6 outline-none ${className}`}>
       <div className="lg:col-span-2">
         <GenericEntityListView
           definition={definition}
           rows={rows}
           state={listState}
           selectedRow={listState.selectedRow}
-          onSelectRow={listState.selectRow}
+          onSelectRow={handleSelectRow}
           searchValue={listState.searchValue}
           onSearchChange={listState.setSearchValue}
           filterValues={listState.filterValues}
@@ -84,12 +139,15 @@ export default function GenericEntityPage<T extends object>({
         />
       </div>
 
-      <div className="space-y-4">
+      <div ref={detailRef} className="space-y-4" tabIndex={-1}>
         <GenericEntityDetailView
           definition={definition}
           row={listState.selectedRow}
-          onClearSelection={() => listState.selectRow(null)}
+          selectedRowId={listState.selectedRowId}
+          selectedRowIsVisible={selectedRowIsVisible}
+          onClearSelection={handleClearSelection}
           permissionContext={permissionContext}
+          detailContext={detailContext}
           childrenBeforeSections={
             listState.selectedRow ? renderDetailBeforeSections?.(listState.selectedRow) : null
           }

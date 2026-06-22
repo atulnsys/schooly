@@ -39,6 +39,7 @@ export interface GenericEntityListState<T extends object> {
   displayMode: GenericEntityDisplayMode;
   setDisplayMode: (value: GenericEntityDisplayMode) => void;
   selectedRow: T | null;
+  selectedRowId: string | null;
   selectRow: (row: T | null) => void;
   activeFilterCount: number;
   tablePreferences: GenericEntityTablePreferences;
@@ -139,7 +140,6 @@ function hasExplicitUrlState(params: URLSearchParams): boolean {
 function snapshotFromLocation<T extends object>(
   params: URLSearchParams,
   definition: GenericEntityDefinition<T>,
-  rows: T[],
   defaultDisplayMode: GenericEntityDisplayMode,
 ): {
   search: string;
@@ -159,7 +159,6 @@ function snapshotFromLocation<T extends object>(
     : false;
 
   const selectedRowId = params.get("row");
-  const selectedRowAllowed = Boolean(selectedRowId && rows.some((row) => definition.getId(row) === selectedRowId));
 
   return {
     search: params.get("q") || "",
@@ -178,7 +177,7 @@ function snapshotFromLocation<T extends object>(
         : params.get("view") === "cards"
           ? "cards"
           : defaultDisplayMode,
-    selectedRowId: selectedRowAllowed ? selectedRowId : null,
+    selectedRowId: selectedRowId && selectedRowId.trim() ? selectedRowId : null,
   };
 }
 
@@ -276,7 +275,7 @@ function createListStateFromSource<T extends object>(
   );
 
   const urlParams = new URLSearchParams(window.location.search);
-  const urlSnapshot = snapshotFromLocation(urlParams, definition, rows, defaultDisplayMode);
+  const urlSnapshot = snapshotFromLocation(urlParams, definition, defaultDisplayMode);
   const explicitUrlState = hasExplicitUrlState(urlParams);
   const requestedViewId = String(urlParams.get("sv") || "").trim();
   const selectedView = requestedViewId ? savedViews.find((view) => view.id === requestedViewId) ?? null : null;
@@ -527,17 +526,6 @@ export function useGenericEntityListState<T extends object>({
       window.history.pushState({}, "", nextUrl);
     }
   }, [defaultDisplayMode, enabled, namespace, resolvedNamespace, state]);
-
-  useEffect(() => {
-    if (!enabled) return;
-
-    const selectedRowExists =
-      state.selectedRowId &&
-      rows.some((row) => definition.getId(row) === state.selectedRowId);
-    if (state.selectedRowId && !selectedRowExists) {
-      setState((current) => ({ ...current, selectedRowId: null }));
-    }
-  }, [definition, enabled, rows, state.selectedRowId]);
 
   const selectedRow = useMemo(
     () => rows.find((row) => definition.getId(row) === state.selectedRowId) ?? null,
@@ -885,6 +873,7 @@ export function useGenericEntityListState<T extends object>({
     displayMode: state.displayMode,
     setDisplayMode,
     selectedRow,
+    selectedRowId: state.selectedRowId,
     selectRow,
     activeFilterCount,
     tablePreferences: state.tablePreferences,

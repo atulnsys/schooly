@@ -197,5 +197,9 @@ export function createStaffEntityDefinition(): GenericEntityDefinition<StaffDire
       }
       return issues;
     },
+    detail: {
+      displayMode: "read-only",
+      readOnlyReason: "Staff directory rows are read-only snapshots from the live registry.",
+    },
   };
 }

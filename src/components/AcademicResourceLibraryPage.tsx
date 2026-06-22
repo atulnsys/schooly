@@ -888,6 +888,19 @@ const ACADEMIC_RESOURCE_DEFINITION: GenericEntityDefinition<AcademicResourceRow>
       hidden: (row) => !row.classroomUrl,
     },
   ],
+  detail: {
+    displayMode: "read-only",
+    readOnlyReason: "This evidence library is read-only and preserves the original source records.",
+    externalLinks: [
+      {
+        label: "Open source route",
+        getHref: (row) => row.sourceRoute || undefined,
+        target: "_self",
+        variant: "primary",
+        description: "Open the original source route for this resource.",
+      },
+    ],
+  },
 };
 
 export default function AcademicResourceLibraryPage({
@@ -1509,6 +1522,12 @@ export default function AcademicResourceLibraryPage({
         stateNamespace="academic-resources"
         storageContext={storageContext}
         permissionContext={permissionContext}
+        detailContext={{
+          displayMode: "read-only",
+          stateLabel: "Evidence map",
+          sourceLabel: "Academic resources",
+          readOnlyReason: "This library is a read-only evidence map that preserves the original workspace and lesson-plan sources.",
+        }}
         renderDetailBeforeSections={renderDetailBeforeSections}
         renderDetailAfterSections={renderDetailAfterSections}
         renderToolbarActions={() => (

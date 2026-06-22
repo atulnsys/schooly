@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   ExternalLink,
@@ -248,6 +248,18 @@ function normalizeSettingsSection(section: string | null | undefined): SettingsS
   return "organization";
 }
 
+function isSuccessFeedback(message: string): boolean {
+  return [
+    "Saved locally.",
+    "Loaded registry values into the editable form.",
+    "Registry updated from the editable organization form.",
+    "Connection details saved.",
+    "Google account connected for read access.",
+    "Disconnected.",
+    "Write authorization granted for approved registry updates."
+  ].includes(String(message || "").trim());
+}
+
 export default function SettingsPage({
   currentRole,
   currentUser,
@@ -274,11 +286,19 @@ export default function SettingsPage({
   const [useRegistryUpdateConfirm, setUseRegistryUpdateConfirm] = useState(false);
   const [organizationStatus, setOrganizationStatus] = useState<string>("");
   const [connectionStatus, setConnectionStatus] = useState<string>("");
+  const [savingOrganizationDraft, setSavingOrganizationDraft] = useState(false);
+  const [savingConnectionDetails, setSavingConnectionDetails] = useState(false);
+  const [savingApplicationSettings, setSavingApplicationSettings] = useState(false);
+  const [registryUpdatePending, setRegistryUpdatePending] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
   const [connectionValidation, setConnectionValidation] = useState<RegistryConnectionValidationSnapshot | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(settingsSection === "advanced");
   const [writeAccessPending, setWriteAccessPending] = useState(false);
   const [writeAccessStatus, setWriteAccessStatus] = useState<string>("");
+  const organizationSaveLockRef = useRef(false);
+  const connectionSaveLockRef = useRef(false);
+  const applicationSaveLockRef = useRef(false);
+  const registryUpdateLockRef = useRef(false);
 
   const activeSection = normalizeSettingsSection(settingsSection);
 
@@ -609,8 +629,18 @@ export default function SettingsPage({
   }, [activeConnectionValidation, assignments.length, courses.length, registryCatalogSummary.totalEntries, schoolRegistry, students.length, teachers.length]);
 
   const handleSaveOrganization = () => {
-    saveOrganizationDraft(organizationDraft);
-    setOrganizationStatus("Saved locally.");
+    if (savingOrganizationDraft || organizationSaveLockRef.current) return;
+    organizationSaveLockRef.current = true;
+    setSavingOrganizationDraft(true);
+    try {
+      saveOrganizationDraft(organizationDraft);
+      setOrganizationStatus("Saved locally.");
+    } finally {
+      window.setTimeout(() => {
+        organizationSaveLockRef.current = false;
+        setSavingOrganizationDraft(false);
+      }, 0);
+    }
   };
 
   const handleUseRegistryValues = () => {
@@ -621,9 +651,16 @@ export default function SettingsPage({
   };
 
   const handleSaveConnection = () => {
+    if (savingConnectionDetails || connectionSaveLockRef.current) return;
+    connectionSaveLockRef.current = true;
+    setSavingConnectionDetails(true);
     const trimmedUrl = workspaceUrlDraft.trim();
     if (!trimmedUrl) {
       setConnectionStatus("Add a registry link before saving.");
+      window.setTimeout(() => {
+        connectionSaveLockRef.current = false;
+        setSavingConnectionDetails(false);
+      }, 0);
       return;
     }
     clearGoogleSheetReadCache();
@@ -632,6 +669,24 @@ export default function SettingsPage({
     setGoogleWorkspaceAccountHint(registryAccountDraft.trim() || null);
     setConnectionValidation(null);
     setConnectionStatus("Connection details saved.");
+    window.setTimeout(() => {
+      connectionSaveLockRef.current = false;
+      setSavingConnectionDetails(false);
+    }, 0);
+  };
+
+  const handleSaveApplicationSettings = () => {
+    if (savingApplicationSettings || applicationSaveLockRef.current) return;
+    applicationSaveLockRef.current = true;
+    setSavingApplicationSettings(true);
+    try {
+      onGeminiApiKeySave(geminiDraft.trim());
+    } finally {
+      window.setTimeout(() => {
+        applicationSaveLockRef.current = false;
+        setSavingApplicationSettings(false);
+      }, 0);
+    }
   };
 
   const handleConnectGoogleAccount = async () => {
@@ -700,57 +755,65 @@ export default function SettingsPage({
   };
 
   const handleSaveRegistryUpdate = async () => {
-    if (!useRegistryUpdateConfirm) {
-      setOrganizationStatus("Confirm the write before updating the registry.");
-      return;
+    if (registryUpdatePending || registryUpdateLockRef.current) return;
+    registryUpdateLockRef.current = true;
+    setRegistryUpdatePending(true);
+    try {
+      if (!useRegistryUpdateConfirm) {
+        setOrganizationStatus("Confirm the write before updating the registry.");
+        return;
+      }
+      if (googleWorkspaceAuthState.authMode !== "write" || !getGoogleWorkspaceAccessToken()) {
+        setOrganizationStatus("Grant write access before updating the registry.");
+        return;
+      }
+
+      const parsed = parseGoogleSheetUrl(registryMasterUrl);
+      if (!parsed) {
+        setOrganizationStatus("Registry URL is missing or invalid.");
+        return;
+      }
+
+      const rowValues = [
+        organizationDraft.organizationCode || "",
+        organizationDraft.organizationName || "",
+        organizationDraft.academicYear || "",
+        organizationDraft.board || "",
+        organizationDraft.medium || "",
+        organizationDraft.principalName || "",
+        organizationDraft.city || "",
+        organizationDraft.state || "",
+        organizationDraft.country || "",
+        "Active",
+      ];
+
+      const accessToken = getGoogleWorkspaceAccessToken();
+      if (!accessToken) {
+        setOrganizationStatus("Connect write access before updating the registry.");
+        return;
+      }
+
+      const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${parsed.sheetId}/values/${encodeURIComponent("'School_Profile'!A2:J2")}?valueInputOption=USER_ENTERED`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ values: [rowValues] }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        setOrganizationStatus(text || `Registry update failed with status ${response.status}.`);
+        return;
+      }
+
+      setOrganizationStatus("Registry updated from the editable organization form.");
+      void onRefreshData();
+    } finally {
+      registryUpdateLockRef.current = false;
+      setRegistryUpdatePending(false);
     }
-    if (googleWorkspaceAuthState.authMode !== "write" || !getGoogleWorkspaceAccessToken()) {
-      setOrganizationStatus("Grant write access before updating the registry.");
-      return;
-    }
-
-    const parsed = parseGoogleSheetUrl(registryMasterUrl);
-    if (!parsed) {
-      setOrganizationStatus("Registry URL is missing or invalid.");
-      return;
-    }
-
-    const rowValues = [
-      organizationDraft.organizationCode || "",
-      organizationDraft.organizationName || "",
-      organizationDraft.academicYear || "",
-      organizationDraft.board || "",
-      organizationDraft.medium || "",
-      organizationDraft.principalName || "",
-      organizationDraft.city || "",
-      organizationDraft.state || "",
-      organizationDraft.country || "",
-      "Active"
-    ];
-
-    const accessToken = getGoogleWorkspaceAccessToken();
-    if (!accessToken) {
-      setOrganizationStatus("Connect write access before updating the registry.");
-      return;
-    }
-
-    const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${parsed.sheetId}/values/${encodeURIComponent("'School_Profile'!A2:J2")}?valueInputOption=USER_ENTERED`, {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ values: [rowValues] })
-    });
-
-    if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      setOrganizationStatus(text || `Registry update failed with status ${response.status}.`);
-      return;
-    }
-
-    setOrganizationStatus("Registry updated from the editable organization form.");
-    void onRefreshData();
   };
 
   const googleAccountStatus = googleWorkspaceAuthState.connected ? "Connected" : "Not connected";
@@ -832,7 +895,12 @@ export default function SettingsPage({
               <div className="text-[10px] uppercase tracking-wider font-mono text-slate-400 font-bold">{label}</div>
               <input
                 value={organizationDraft[key as keyof OrganizationDraft]}
-                onChange={(event) => setOrganizationDraft((current) => ({ ...current, [key]: event.target.value }))}
+                onChange={(event) => {
+                  setOrganizationDraft((current) => ({ ...current, [key]: event.target.value }));
+                  if (organizationStatus && isSuccessFeedback(organizationStatus)) {
+                    setOrganizationStatus("");
+                  }
+                }}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-blue-400 focus:bg-white focus:outline-none"
               />
             </label>
@@ -843,17 +911,18 @@ export default function SettingsPage({
           <button
             type="button"
             onClick={handleSaveOrganization}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-600 px-3 py-2 text-[11px] font-extrabold text-white hover:bg-blue-700"
+            disabled={savingOrganizationDraft || registryUpdatePending}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-600 px-3 py-2 text-[11px] font-extrabold text-white hover:bg-blue-700 disabled:opacity-60"
           >
-            Save Local Settings
+            {savingOrganizationDraft ? "Saving..." : "Save Local Settings"}
           </button>
           <button
             type="button"
             onClick={handleSaveRegistryUpdate}
-            disabled={!useRegistryUpdateConfirm || googleWorkspaceAuthState.authMode !== "write"}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[11px] font-extrabold ${useRegistryUpdateConfirm && googleWorkspaceAuthState.authMode === "write" ? "border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50" : "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"}`}
+            disabled={registryUpdatePending || !useRegistryUpdateConfirm || googleWorkspaceAuthState.authMode !== "write"}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[11px] font-extrabold disabled:opacity-60 ${useRegistryUpdateConfirm && googleWorkspaceAuthState.authMode === "write" ? "border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50" : "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"}`}
           >
-            Update Registry
+            {registryUpdatePending ? "Updating..." : "Update Registry"}
             <ShieldCheck size={12} />
           </button>
           <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-700">
@@ -862,7 +931,7 @@ export default function SettingsPage({
           </label>
         </div>
         {organizationStatus && (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700" role="status" aria-live="polite" aria-atomic="true">
             {organizationStatus}
           </div>
         )}
@@ -887,7 +956,15 @@ export default function SettingsPage({
             <div className="text-[10px] uppercase tracking-wider font-mono text-slate-400 font-bold">Registry Access Google Account</div>
             <input
               value={registryAccountDraft}
-              onChange={(event) => setRegistryAccountDraft(event.target.value)}
+              onChange={(event) => {
+                setRegistryAccountDraft(event.target.value);
+                if (connectionStatus && isSuccessFeedback(connectionStatus)) {
+                  setConnectionStatus("");
+                }
+                if (writeAccessStatus && isSuccessFeedback(writeAccessStatus)) {
+                  setWriteAccessStatus("");
+                }
+              }}
               onBlur={() => {
                 safeLocalStorageSet(REGISTRY_ACCOUNT_STORAGE_KEY, registryAccountDraft.trim());
                 setGoogleWorkspaceAccountHint(registryAccountDraft.trim() || null);
@@ -900,10 +977,16 @@ export default function SettingsPage({
             <div className="text-[10px] uppercase tracking-wider font-mono text-slate-400 font-bold">Registry URL / Drive Folder URL</div>
             <input
               value={workspaceUrlDraft}
-              onChange={(event) => setWorkspaceUrlDraft(event.target.value)}
+              onChange={(event) => {
+                setWorkspaceUrlDraft(event.target.value);
+                if (connectionStatus && isSuccessFeedback(connectionStatus)) {
+                  setConnectionStatus("");
+                }
+              }}
               placeholder="https://drive.google.com/drive/folders/..."
               className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-blue-400 focus:bg-white focus:outline-none"
             />
+            <div className="text-[11px] text-slate-500">Paste the shared registry folder or spreadsheet link. The connection test will tell you if the URL is readable.</div>
           </label>
         </div>
 
@@ -939,9 +1022,10 @@ export default function SettingsPage({
           <button
             type="button"
             onClick={handleSaveConnection}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-600 px-3 py-2 text-[11px] font-extrabold text-white hover:bg-blue-700"
+            disabled={savingConnectionDetails || !workspaceUrlDraft.trim()}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-600 px-3 py-2 text-[11px] font-extrabold text-white hover:bg-blue-700 disabled:opacity-60"
           >
-            Save Connection
+            {savingConnectionDetails ? "Saving..." : "Save Connection"}
           </button>
           <button
             type="button"
@@ -1049,8 +1133,10 @@ export default function SettingsPage({
           <input
             type="password"
             value={geminiDraft}
-            onChange={(event) => setGeminiDraft(event.target.value)}
-            onBlur={() => onGeminiApiKeySave(geminiDraft.trim())}
+            onChange={(event) => {
+              setGeminiDraft(event.target.value);
+            }}
+            onBlur={handleSaveApplicationSettings}
             placeholder="AI Studio developer key"
             className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-blue-400 focus:bg-white focus:outline-none"
           />
@@ -1058,10 +1144,11 @@ export default function SettingsPage({
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => onGeminiApiKeySave(geminiDraft.trim())}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50"
+            onClick={handleSaveApplicationSettings}
+            disabled={savingApplicationSettings}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-extrabold text-blue-700 hover:bg-blue-50 disabled:opacity-60"
           >
-            Save Application Settings
+            {savingApplicationSettings ? "Saving..." : "Save Application Settings"}
           </button>
           <button
             type="button"

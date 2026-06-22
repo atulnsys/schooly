@@ -42,5 +42,9 @@ export function createClassroomCourseEntityDefinition(): GenericEntityDefinition
         fields: ["studentCount"],
       },
     ],
+    detail: {
+      displayMode: "read-only",
+      readOnlyReason: "Classroom course rows are read-only snapshots of the connected course feed.",
+    },
   };
 }

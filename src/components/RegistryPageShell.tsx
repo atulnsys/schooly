@@ -52,6 +52,22 @@ function formatRegistryTimestamp(value: string | null | undefined): string {
   return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
 }
 
+function formatSchoolRegistrySourceStatus(status?: SchoolRegistrySourceStatus | null): string {
+  if (!status) return "Unknown";
+  if (status === "ready") return "Ready";
+  if (status === "empty") return "Empty";
+  if (status === "filtered_empty") return "Filtered empty";
+  if (status === "loading") return "Loading";
+  if (status === "refreshing") return "Refreshing";
+  if (status === "authentication_required") return "Authentication required";
+  if (status === "account_mismatch") return "Account mismatch";
+  if (status === "permission_denied") return "Permission denied";
+  if (status === "source_unavailable") return "Source unavailable";
+  if (status === "stale") return "Stale";
+  if (status === "error") return "Error";
+  return status;
+}
+
 function renderRegistryHeader(
   entry: RegistryCatalogEntry,
   currentRole: string,
@@ -479,6 +495,31 @@ export default function RegistryPageShell<T extends object>({
     showPagination: showPagination ?? entry.controlDefaults.showPagination,
   };
 
+  const detailContext = {
+    displayMode:
+      sourceState === "Missing" || sourceState === "Incomplete"
+        ? "unavailable"
+        : sourceState === "Fallback" || sourceState === "Stale"
+          ? "restricted"
+          : "read-only",
+    stateLabel: summary.sourceState,
+    sourceLabel: sourceDisplayLabel ?? entry.sourceLabel,
+    sourceStatusLabel: sourceStatus ? formatSchoolRegistrySourceStatus(sourceStatus) : summary.sourceState,
+    sourceLastSyncedAt,
+    sourceLastCheckedAt,
+    readOnlyReason:
+      summary.guidance ||
+      `${entry.label} rows are read-only snapshots in this view.`,
+  } satisfies {
+    displayMode?: "read-only" | "editable" | "restricted" | "unavailable";
+    stateLabel?: string | null;
+    sourceLabel?: string | null;
+    sourceStatusLabel?: string | null;
+    sourceLastSyncedAt?: string | null;
+    sourceLastCheckedAt?: string | null;
+    readOnlyReason?: string | null;
+  };
+
   return (
     <div className="space-y-6 animate-fade-in outline-none" id={`${registryId}-registry-page`} data-testid={`${registryId}-registry-page`} tabIndex={-1} aria-busy={isLoading}>
       {renderRegistryHeader(entry, currentRole, summary, showCapabilityMetadata, sourceDisplayLabel, sourceLastSyncedAt, sourceLastCheckedAt, sourceStatus)}
@@ -506,6 +547,7 @@ export default function RegistryPageShell<T extends object>({
           showDisplayModeToggle={controls.showDisplayModeToggle}
           showPagination={controls.showPagination}
           renderDetailBeforeSections={(row) => renderRegistryDetailSummary(row, definition)}
+          detailContext={detailContext}
           className={className}
         />
       )}

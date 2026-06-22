@@ -60,5 +60,9 @@ export function createStudentEntityDefinition(): GenericEntityDefinition<Student
     getRowIssues: (student) => {
       return [];
     },
+    detail: {
+      displayMode: "read-only",
+      readOnlyReason: "Student rows are read-only snapshots from the live school feed.",
+    },
   };
 }

@@ -13,11 +13,25 @@ import {
   hasGenericPermission,
 } from "../../lib/genericEntityView";
 
+interface GenericEntityDetailContext {
+  displayMode?: "read-only" | "editable" | "restricted" | "unavailable";
+  stateLabel?: string | null;
+  sourceLabel?: string | null;
+  sourceStatusLabel?: string | null;
+  sourceLastSyncedAt?: string | null;
+  sourceLastCheckedAt?: string | null;
+  selectionNote?: string | null;
+  readOnlyReason?: string | null;
+}
+
 interface GenericEntityDetailViewProps<T extends object> {
   definition: GenericEntityDefinition<T>;
   row: T | null;
+  selectedRowId?: string | null;
+  selectedRowIsVisible?: boolean;
   onClearSelection?: () => void;
   permissionContext?: GenericEntityPermissionContext;
+  detailContext?: GenericEntityDetailContext | null;
   className?: string;
   childrenBeforeSections?: React.ReactNode;
   childrenAfterSections?: React.ReactNode;
@@ -38,6 +52,13 @@ function getActionClass(variant: string | undefined): string {
   return "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200";
 }
 
+function getDisplayModeLabel(mode: GenericEntityDetailContext["displayMode"]): string {
+  if (mode === "editable") return "Editable";
+  if (mode === "restricted") return "Restricted";
+  if (mode === "unavailable") return "Unavailable";
+  return "Read only";
+}
+
 function getActionHref<T extends object>(action: GenericEntityActionDefinition<T>, row: T): string | undefined {
   return action.getHref?.(row) ?? action.href;
 }
@@ -51,7 +72,7 @@ function renderDetailFieldValue<T extends object>(
   const value = getGenericFieldValue(row, field);
 
   if (value === null || value === undefined || value === "") {
-    return <span className="text-slate-350">—</span>;
+    return <span className="text-slate-500">Not available</span>;
   }
 
   if (field.type === "date") return formatGenericDate(value, false);
@@ -100,8 +121,8 @@ function renderDetailFieldValue<T extends object>(
 
   if (field.type === "longText") {
     return (
-      <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100 italic text-left col-span-2">
-        "{String(value)}"
+      <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100 text-left col-span-2 whitespace-pre-wrap break-words">
+        {String(value)}
       </p>
     );
   }
@@ -112,22 +133,86 @@ function renderDetailFieldValue<T extends object>(
 export default function GenericEntityDetailView<T extends object>({
   definition,
   row,
+  selectedRowId,
+  selectedRowIsVisible,
   onClearSelection,
   permissionContext,
+  detailContext,
   className = "",
   childrenBeforeSections,
   childrenAfterSections,
 }: GenericEntityDetailViewProps<T>) {
+  const detailMode = definition.detail?.displayMode ?? detailContext?.displayMode ?? "read-only";
+  const stateLabel = detailContext?.stateLabel ?? getDisplayModeLabel(detailMode);
+  const sourceLabel = detailContext?.sourceLabel ?? null;
+  const sourceStatusLabel = detailContext?.sourceStatusLabel ?? null;
+  const readOnlyReason = definition.detail?.readOnlyReason ?? detailContext?.readOnlyReason ?? null;
+  const selectionNote = detailContext?.selectionNote ?? null;
+  const selectionVisibilityNote =
+    selectionNote ||
+    (selectedRowIsVisible === false
+      ? "This record is still selected, but the current list filters hide it."
+      : null);
+  const sourceLastSyncedAt = detailContext?.sourceLastSyncedAt ?? null;
+  const sourceLastCheckedAt = detailContext?.sourceLastCheckedAt ?? null;
+
+  const buildDetailText = (fieldKeyCandidates: string[]): string | null => {
+    if (!row) return null;
+
+    for (const candidate of fieldKeyCandidates) {
+      const field = definition.fields.find((item) => String(item.key) === candidate);
+      if (!field) continue;
+
+      const value = getGenericFieldValue(row, field);
+      if (value === null || value === undefined || value === "") continue;
+
+      if (field.type === "date") return formatGenericDate(value, false);
+      if (field.type === "datetime") return formatGenericDate(value, true);
+      if (field.type === "boolean") return value ? "Yes" : "No";
+      if (Array.isArray(value)) {
+        const joined = value.map(String).filter(Boolean).join(", ");
+        if (joined) return joined;
+        continue;
+      }
+
+      return String(value);
+    }
+
+    return null;
+  };
+
   if (!row) {
+    const missingHeadline = selectedRowId
+      ? `Record ${selectedRowId} is no longer available.`
+      : "No record selected";
+    const missingBody = selectedRowId
+      ? selectedRowIsVisible === false
+        ? "The record is still selected, but the current list filters hide it. Clear the filters or close the detail pane to continue browsing."
+        : "The direct link may be stale, the source may have changed, or the record may have been removed from the current dataset."
+      : "Choose a record from the list to inspect its source details.";
+
     return (
-      <div className={`bg-white border border-slate-200 rounded-2xl p-6 shadow-sm text-center space-y-2 ${className}`}>
+      <div className={`bg-white border border-slate-200 rounded-2xl p-6 shadow-sm text-center space-y-3 ${className}`}>
         <FileText size={26} className="mx-auto text-slate-300" />
-        <h3 className="text-sm font-bold text-slate-800">
-          No row selected
-        </h3>
-        <p className="text-xs text-slate-500">
-          Choose a record from the list to inspect its source details.
-        </p>
+        <div className="space-y-1.5">
+          <h3 className="text-sm font-bold text-slate-800">{missingHeadline}</h3>
+          <p className="text-xs text-slate-500">{missingBody}</p>
+        </div>
+        {selectedRowId && (
+          <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-600 break-all">
+            Record ID: {selectedRowId}
+          </div>
+        )}
+        {onClearSelection && (
+          <button
+            type="button"
+            onClick={onClearSelection}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50"
+          >
+            <X size={12} />
+            Close detail
+          </button>
+        )}
       </div>
     );
   }
@@ -135,6 +220,9 @@ export default function GenericEntityDetailView<T extends object>({
   const title = definition.getTitle(row);
   const subtitle = definition.getSubtitle?.(row);
   const issues = getAllGenericRowIssues(row, definition);
+  const detailFields = getVisibleGenericFields(row, definition.fields, "detail", permissionContext);
+  const fieldsByKey = new Map<string, GenericEntityFieldDefinition<T>>();
+  detailFields.forEach((field) => fieldsByKey.set(String(field.key), field));
 
   const detailActions =
     definition.actions?.filter((action) => {
@@ -143,22 +231,59 @@ export default function GenericEntityDetailView<T extends object>({
       return action.placement === "detail" || action.placement === "both" || !action.placement;
     }) ?? [];
 
-  const detailFields = getVisibleGenericFields(row, definition.fields, "detail", permissionContext);
-  const fieldsByKey = new Map<string, GenericEntityFieldDefinition<T>>();
-
-  detailFields.forEach((field) => fieldsByKey.set(String(field.key), field));
-
-  const defaultFieldKeys = detailFields.map((field) => field.key);
-
   const sections = definition.sections?.length
     ? definition.sections
     : [
         {
           id: "details",
           title: `${definition.entityName} Details`,
-          fields: defaultFieldKeys,
+          fields: detailFields.map((field) => field.key),
         },
       ];
+
+  const metaEntries = [
+    { label: "Record ID", value: definition.getId(row), tone: "default" },
+    { label: "State", value: stateLabel, tone: detailMode === "editable" ? "success" : detailMode === "restricted" ? "warning" : detailMode === "unavailable" ? "danger" : "info" },
+    sourceLabel ? { label: "Source", value: sourceLabel, tone: "default" } : null,
+    sourceStatusLabel ? { label: "Source status", value: sourceStatusLabel, tone: "info" } : null,
+    buildDetailText(["status", "reviewStatus", "enrollmentStatus", "sourceState", "sourceStatus"])
+      ? { label: "Status", value: buildDetailText(["status", "reviewStatus", "enrollmentStatus", "sourceState", "sourceStatus"]) as string, tone: "default" }
+      : null,
+    buildDetailText(["owner", "ownerId", "importedBy", "verifiedBy", "teacherName"])
+      ? { label: "Owner", value: buildDetailText(["owner", "ownerId", "importedBy", "verifiedBy", "teacherName"]) as string, tone: "default" }
+      : null,
+    buildDetailText(["createdAt", "created_at", "importedAt", "startedAt"])
+      ? { label: "Created", value: buildDetailText(["createdAt", "created_at", "importedAt", "startedAt"]) as string, tone: "default" }
+      : null,
+    buildDetailText(["updatedAt", "updated_at", "modifiedAt", "completedAt"])
+      ? { label: "Updated", value: buildDetailText(["updatedAt", "updated_at", "modifiedAt", "completedAt"]) as string, tone: "default" }
+      : null,
+    (buildDetailText(["lastSuccessfulSyncAt", "lastSyncedAt", "syncedAt"]) ?? (sourceLastSyncedAt ? formatGenericDate(sourceLastSyncedAt, true) : null))
+      ? { label: "Last sync", value: buildDetailText(["lastSuccessfulSyncAt", "lastSyncedAt", "syncedAt"]) ?? (sourceLastSyncedAt ? formatGenericDate(sourceLastSyncedAt, true) : ""), tone: "default" }
+      : null,
+  ].filter((entry): entry is { label: string; value: string; tone: string } => Boolean(entry));
+
+  const externalLinks = definition.detail?.externalLinks ?? [];
+
+  const renderMetaChip = (label: string, value: string, tone: string) => {
+    const chipClass =
+      tone === "success"
+        ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+        : tone === "warning"
+          ? "bg-amber-50 text-amber-700 border-amber-100"
+          : tone === "danger"
+            ? "bg-rose-50 text-rose-700 border-rose-100"
+            : tone === "info"
+              ? "bg-blue-50 text-blue-700 border-blue-100"
+              : "bg-slate-50 text-slate-700 border-slate-200";
+
+    return (
+      <div key={label} className={`rounded-xl border px-3 py-2 ${chipClass}`}>
+        <div className="text-[9px] uppercase tracking-[0.18em] font-mono font-bold opacity-80">{label}</div>
+        <div className="mt-1 text-[11px] font-semibold break-words">{value}</div>
+      </div>
+    );
+  };
 
   return (
     <div className={`bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4 max-w-full overflow-hidden ${className}`}>
@@ -186,6 +311,22 @@ export default function GenericEntityDetailView<T extends object>({
           </button>
         )}
       </div>
+
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
+        {metaEntries.map((entry) => renderMetaChip(entry.label, entry.value, entry.tone))}
+      </div>
+
+      {(readOnlyReason || selectionVisibilityNote || sourceLastCheckedAt) && (
+        <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-[11px] text-slate-600 space-y-1.5">
+          {readOnlyReason && <p className="font-semibold text-slate-700">{readOnlyReason}</p>}
+          {selectionVisibilityNote && <p className="text-slate-500">{selectionVisibilityNote}</p>}
+          {sourceLastCheckedAt && (
+            <p className="text-slate-500">
+              Last checked: {formatGenericDate(sourceLastCheckedAt, true)}
+            </p>
+          )}
+        </div>
+      )}
 
       {issues.length > 0 && (
         <div className="space-y-1.5">
@@ -233,7 +374,7 @@ export default function GenericEntityDetailView<T extends object>({
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-y-2 pt-2 border-t border-slate-200 text-slate-500 font-mono text-[10px]">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-y-2 pt-2 border-t border-slate-200 text-slate-500 font-mono text-[10px]">
                   {visibleSectionFields.map((field) => {
                     const valueNode = renderDetailFieldValue(row, field);
                     const isLongText = field.type === "longText";
@@ -264,11 +405,45 @@ export default function GenericEntityDetailView<T extends object>({
 
       {childrenAfterSections}
 
+      {externalLinks.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-[10px] uppercase tracking-[0.18em] font-mono font-bold text-slate-400">External links</div>
+          <div className="flex flex-wrap gap-2">
+            {externalLinks.map((link) => {
+              const href = link.getHref?.(row) ?? link.href;
+              if (!href) return null;
+
+              return (
+                <a
+                  key={link.label}
+                  href={href}
+                  target={link.target ?? "_blank"}
+                  rel="noreferrer"
+                  className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-semibold transition-colors ${
+                    link.variant === "primary"
+                      ? "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
+                      : link.variant === "danger"
+                        ? "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
+                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                  }`}
+                  aria-label={link.description ? `${link.label}. ${link.description}` : link.label}
+                  title={link.description ?? link.label}
+                >
+                  {link.label}
+                  <ExternalLink size={11} />
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {detailActions.length > 0 && (
         <div className="pt-3 border-t border-slate-150 flex flex-wrap gap-2">
           {detailActions.map((action) => {
             const href = getActionHref(action, row);
             const disabled = action.disabled?.(row, permissionContext);
+            const disabledReason = action.disabledReason?.(row, permissionContext);
             const label = action.getLabel?.(row) ?? action.label;
 
             if (href && !disabled) {
@@ -295,9 +470,17 @@ export default function GenericEntityDetailView<T extends object>({
                 onClick={() => action.onClick?.(row)}
                 className={`flex-1 min-w-[130px] py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${getActionClass(action.variant)}`}
                 aria-label={label}
+                title={disabledReason || label}
               >
-                {action.icon}
-                {label}
+                <span className="flex flex-col items-center gap-0.5 text-center">
+                  <span className="inline-flex items-center gap-1.5">
+                    {action.icon}
+                    {label}
+                  </span>
+                  {disabledReason && (
+                    <span className="text-[10px] font-medium text-current/70">{disabledReason}</span>
+                  )}
+                </span>
               </button>
             );
           })}

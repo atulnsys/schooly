@@ -94,5 +94,9 @@ export function createClassroomAssignmentEntityDefinition({
         fields: ["dueDate", "submissionCount", "totalPoints"],
       },
     ],
+    detail: {
+      displayMode: "read-only",
+      readOnlyReason: "Assignment rows are read-only snapshots from the connected classroom feed.",
+    },
   };
 }

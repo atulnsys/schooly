@@ -264,5 +264,18 @@ export function createWorkspaceFileEntityDefinition({
         target: "_blank",
       },
     ],
+    detail: {
+      displayMode: "read-only",
+      readOnlyReason: "Workspace files are read-only in this shared view; open the source link to inspect the live file.",
+      externalLinks: [
+        {
+          label: "Open in Drive",
+          getHref: (file) => file.webViewLink,
+          target: "_blank",
+          variant: "primary",
+          description: "Open the live file in its source workspace.",
+        },
+      ],
+    },
   };
 }

@@ -63,5 +63,9 @@ export function createTeacherEntityDefinition(): GenericEntityDefinition<Teacher
         fields: ["currentCourses"],
       },
     ],
+    detail: {
+      displayMode: "read-only",
+      readOnlyReason: "Teacher rows are derived from the live staff registry and teacher allocations.",
+    },
   };
 }

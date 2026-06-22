@@ -518,5 +518,22 @@ export function createRegistryExplorerEntityDefinition(
     emptyDescription: "The registry explorer is waiting for the catalog to load.",
     defaultDisplayMode: "table",
     defaultPageSize: 20,
+    detail: {
+      displayMode: "read-only",
+      readOnlyReason: "Explorer rows are navigation records only and open the canonical page or data route.",
+      externalLinks: [
+        {
+          label: "Open data route",
+          getHref: (row) => row.dataRoute,
+          target: "_self",
+          variant: "primary",
+        },
+        {
+          label: "Open page route",
+          getHref: (row) => row.pageRoute,
+          target: "_self",
+        },
+      ],
+    },
   };
 }

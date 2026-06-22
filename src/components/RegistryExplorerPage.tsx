@@ -210,6 +210,12 @@ export default function RegistryExplorerPage({
         showSort={true}
         showDisplayModeToggle={true}
         showPagination={true}
+        detailContext={{
+          displayMode: "read-only",
+          stateLabel: "Navigation catalog",
+          sourceLabel: "Registry Explorer",
+          readOnlyReason: "Explorer entries are read-only navigation records that open the actual registry or route.",
+        }}
       />
     </div>
   );

@@ -26,6 +26,21 @@ export type GenericEntityBadgeVariant = "default" | "info" | "success" | "warnin
 export type GenericEntityActionPlacement = "list" | "detail" | "both";
 export type GenericEntityActionVariant = "primary" | "secondary" | "danger" | "ghost";
 
+export interface GenericEntityDetailLinkDefinition<T extends object> {
+  label: string;
+  href?: string;
+  getHref?: (row: T) => string | undefined;
+  description?: string;
+  target?: "_blank" | "_self";
+  variant?: GenericEntityActionVariant;
+}
+
+export interface GenericEntityDetailConfiguration<T extends object> {
+  displayMode?: "read-only" | "editable" | "restricted" | "unavailable";
+  readOnlyReason?: string;
+  externalLinks?: GenericEntityDetailLinkDefinition<T>[];
+}
+
 export interface GenericEntityPermissionContext {
   currentRole?: string;
   activeRoles?: string[];
@@ -125,6 +140,7 @@ export interface GenericEntityActionDefinition<T extends object> {
 
   hidden?: (row: T, context?: GenericEntityPermissionContext) => boolean;
   disabled?: (row: T, context?: GenericEntityPermissionContext) => boolean;
+  disabledReason?: (row: T, context?: GenericEntityPermissionContext) => string | undefined;
 
   href?: string;
   getHref?: (row: T) => string | undefined;
@@ -146,6 +162,7 @@ export interface GenericEntityDefinition<T extends object> {
   fields: GenericEntityFieldDefinition<T>[];
   sections?: GenericEntitySectionDefinition<T>[];
   actions?: GenericEntityActionDefinition<T>[];
+  detail?: GenericEntityDetailConfiguration<T>;
 
   getRowIssues?: (row: T) => GenericEntityIssue[];
 
