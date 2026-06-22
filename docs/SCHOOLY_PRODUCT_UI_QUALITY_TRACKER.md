@@ -9,12 +9,16 @@
 | Target branch | `import/enhanced-codebase` |
 | Audit date | `2026-06-22` |
 | Baseline commit | `ca4f4fe` |
-| Reviewed through commit | `a38f1f7` |
-| Verification performed | Lint passed: `npm run lint` (`tsc --noEmit`); `package.json` has no test script; TypeScript typecheck passed: `npx tsc --noEmit --pretty false`; build passed: `npm run build`; `git diff --check` passed; route smoke covered `/`, `/settings`, `/registries`, `/staff`, `/teachers`, `/students`, `/resources`, `/courses`, `/assignments`, `/classroom`, `/lesson-plans`, `/textbooks`, and `/search`; Wave 7 manual browser checklist recorded in `docs/WAVE_7_MANUAL_BROWSER_VERIFICATION.md`. |
+| Reviewed through commit | `000eca0` |
+| Verification performed | Lint passed: `npm run lint` (`tsc --noEmit`); `package.json` has no test script; TypeScript typecheck passed: `npx tsc --noEmit --pretty false`; build passed: `npm run build`; `git diff --check` passed; Wave 7 manual browser checklist recorded in `docs/WAVE_7_MANUAL_BROWSER_VERIFICATION.md`; Wave 8 manual browser checklist recorded in `docs/WAVE_8_MANUAL_BROWSER_VERIFICATION.md`; Wave 8 code verification completed for shared overlays, feedback banners, and native prompt removal; route smoke reran successfully on `/`, `/registries`, `/registers`, `/staff`, `/teachers`, `/resources`, `/lesson-plans`, `/textbooks`, `/classroom`, `/students`, `/courses`, `/assignments`, `/search`, and `/settings`. |
 
 ## Wave 7 Note
 
 Wave 7 strengthened the shared generic detail shell, added read-only/source/audit context, preserved list-to-detail focus and selection context, and hardened the writable settings controls against duplicate submission. Browser-interactive proof was not available in this run, so the new manual verification checklist captures the exact follow-up routes and action sequences.
+
+## Wave 8 Note
+
+Wave 8 standardised the overlay shell across the app, added shared feedback banners, replaced native alert and confirm prompts in the lesson and textbook flows, and kept the generic registry/resource surfaces on the same modal and accessibility path. Typecheck, build, and route smoke all passed after the refactor.
 
 ## Coverage Summary
 
