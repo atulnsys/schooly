@@ -5,12 +5,12 @@
 | Field | Value |
 | --- | --- |
 | Repository | `C:\Projects\schooly` |
-| Branch | `codex-ui-quality-wave-9` |
+| Branch | `codex-ui-quality-wave-10` |
 | Target branch | `import/enhanced-codebase` |
 | Audit date | `2026-06-22` |
 | Baseline commit | `ca4f4fe` |
 | Reviewed through commit | `e1f118d` |
-| Verification performed | Lint passed: `npm run lint` (`tsc --noEmit`); `package.json` has no test script; TypeScript typecheck passed: `npx tsc --noEmit --pretty false`; build passed: `npm run build`; `git diff --check` passed; browser control was unavailable in this session, so `docs/WAVE_9_MANUAL_BROWSER_VERIFICATION.md` captures the required manual fallback matrix; route smoke reran successfully on `/`, `/registries`, `/registers`, `/staff`, `/teachers`, `/resources`, `/lesson-plans`, `/textbooks`, `/classroom`, `/students`, `/courses`, `/assignments`, `/search`, and `/settings`. |
+| Verification performed | Lint passed: `npm run lint` (`tsc --noEmit`); `package.json` has no test script; TypeScript typecheck passed: `npx tsc --noEmit --pretty false`; build passed: `npm run build`; `git diff --check` passed; route smoke passed on `/`, `/registries`, `/registers`, `/staff`, `/teachers`, `/resources`, `/lesson-plans`, `/textbooks`, `/classroom`, `/students`, `/courses`, `/assignments`, `/search`, and `/settings`; trusted browser control and screen-reader verification were unavailable in this session, so `docs/WAVE_10_FINAL_ACCEPTANCE_MANUAL.md` records the manual fallback matrix. |
 
 ## Wave 7 Note
 
@@ -24,14 +24,18 @@ Wave 8 standardised the overlay shell across the app, added shared feedback bann
 
 Wave 9 tightened shared content terminology, locale-aware formatting, responsive overlay behavior, search/render discipline, and state consistency across the audited surfaces. Browser control was unavailable, so the new manual verification doc records the required responsive and reliability matrix rather than claiming live browser evidence.
 
+## Wave 10 Note
+
+Wave 10 is an evidence-only final acceptance pass on the Wave 9 baseline. The application stayed on the shared generic, permission, source-state, and custom-workflow foundations; lint, typecheck, build, diff-check, and route smoke all passed; and the remaining browser, responsive-zoom, keyboard, screen-reader, and realistic-volume gaps are documented instead of being disguised as complete verification.
+
 ## Coverage Summary
 
 | Metric | Value |
 | --- | --- |
 | Canonical requirements | 347 |
 | Tracker rows | 347 |
-| Reviewed requirements | 169 |
-| Unreviewed requirements | 178 |
+| Reviewed requirements | 196 |
+| Unreviewed requirements | 151 |
 
 ## Priority Summary
 
@@ -47,20 +51,20 @@ Wave 9 tightened shared content terminology, locale-aware formatting, responsive
 
 | Status | Count |
 | --- | --- |
-| PASS | 31 |
-| PARTIAL | 125 |
+| PASS | 48 |
+| PARTIAL | 135 |
 | FAIL | 0 |
 | BLOCKED | 2 |
-| NOT TESTED | 178 |
+| NOT TESTED | 151 |
 | NOT APPLICABLE | 11 |
 
 ## Recommended Next Sprint
 
 | Priority | Requirement IDs | Focus |
 | --- | --- | --- |
-| P1 | `TABLE-01`, `TABLE-02`, `TABLE-03`, `TABLE-04`, `TABLE-05`, `TABLE-08`, `TABLE-09`, `TABLE-10`, `TABLE-11`, `TABLE-12`, `TABLE-14`, `TABLE-15`, `TABLE-16`, `TABLE-17`, `TABLE-18`, `VIEW-06`, `VIEW-07`, `VIEW-08`, `VIEW-09`, `VIEW-10`, `VIEW-12`, `VIEW-13`, `VIEW-14`, `VIEW-15`, `OPS-11` | Finish the remaining browser verification for table rendering, sorting, keyboard, and saved-view governance gaps on the generic registry surfaces. |
-| P2 | `A11Y-18` | Add a screen-reader accessibility pass for the key workflows. |
-| P3 | `SAFE-15` | Complete the full state-matrix verification sweep. |
+| P1 | `ACCEPT-03`, `ACCEPT-05`, `ACCEPT-06`, `ACCEPT-07`, `ACCEPT-08`, `ACCEPT-09`, `ACCEPT-10`, `ACCEPT-11`, `ACCEPT-13`, `OPS-11` | Finish the remaining browser-confirmed context, destination, and navigation checks on the critical acceptance flows. |
+| P2 | `ACCEPT-12`, `A11Y-18` | Add the keyboard-only and screen-reader pass that is still missing from the final acceptance sweep. |
+| P3 | `SAFE-15`, `SAFE-16` | Complete the state-matrix and realistic-volume browser verification that remains open. |
 
 ## P0 Follow-up Detail
 
@@ -388,42 +392,43 @@ DATA-05 | `/settings`, `/registries`, `/staff`, `/resources` | Settings, Registr
 | `RELIABILITY-08` | P3 | Keep browser back and forward navigation predictable. | PARTIAL | Code review of the wave 9 state-update and action-safety paths on the audited surfaces. | Browser control was unavailable, so live interaction proof is still missing. | Keep the current reliability model and finish the live matrix later. | Code review, lint/typecheck/build, route smoke, and `docs/WAVE_9_MANUAL_BROWSER_VERIFICATION.md`. | `e1f118d` | `2026-06-22` |
 | `RELIABILITY-09` | P3 | Prevent stale responses from replacing newer data. | PARTIAL | Code review of the wave 9 state-update and action-safety paths on the audited surfaces. | Browser control was unavailable, so live interaction proof is still missing. | Keep the current reliability model and finish the live matrix later. | Code review, lint/typecheck/build, route smoke, and `docs/WAVE_9_MANUAL_BROWSER_VERIFICATION.md`. | `e1f118d` | `2026-06-22` |
 | `RELIABILITY-10` | P3 | Keep displayed state consistent after create, edit, archive, delete, and refresh. | PARTIAL | Code review of the wave 9 state-update and action-safety paths on the audited surfaces. | Browser control was unavailable, so live interaction proof is still missing. | Keep the current reliability model and finish the live matrix later. | Code review, lint/typecheck/build, route smoke, and `docs/WAVE_9_MANUAL_BROWSER_VERIFICATION.md`. | `e1f118d` | `2026-06-22` |
-| `SAFE-01` | P3 | Inspect the existing architecture before introducing a component or pattern. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `SAFE-02` | P3 | Extend intended components, services, routes, types, and styles. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `SAFE-03` | P3 | Make the smallest coherent change. | PASS | Only the resources modal and the NCERT dropdown loader were changed in this pass. | None. | Preserve the narrow-scope pattern for future fixes. | Code review of the diff. | `94a34b8` | `2026-06-21` |
-| `SAFE-04` | P3 | Do not rewrite unrelated code. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `SAFE-05` | P3 | Do not create a second data or component architecture. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `SAFE-06` | P3 | Treat custom views as controlled extensions of generic architecture. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `SAFE-07` | P3 | Prefer configuration, composition, and extension points before forking. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `SAFE-08` | P3 | Keep generic and custom views on shared routing, permissions, state, data access, and design foundations. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `SAFE-09` | P3 | Periodically promote recurring custom requirements into reusable capabilities. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `SAFE-10` | P3 | Keep new UI data-driven and configuration-driven where appropriate. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `SAFE-11` | P3 | Do not add mock data to hide missing integrations. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `SAFE-12` | P3 | Preserve existing routes, permissions, filters, state, and workflows. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `SAFE-13` | P3 | Verify the narrowest affected workflow first. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `SAFE-14` | P3 | Run relevant type checks, lint, tests, build, and smoke checks. | PASS | The configured lint script, build, browser smoke, and route smoke all passed in this pass. | None. | Keep the verification set narrow but real. | Configured lint passed: `npm run lint` (`tsc --noEmit`); build passed: `npm run build`; route smoke and browser smoke passed. | `94a34b8` | `2026-06-21` |
-| `SAFE-15` | P3 | Test loading, empty, filtered-empty, error, unavailable, permission, and populated states. | PARTIAL | Populated, loading, unavailable, filtered-empty, and the new stale/refreshing freshness states are now covered in the source-state model and route smoke on `/settings`, `/registries`, `/staff`, and `/resources`. | The full browser-interactive state matrix still needs dedicated coverage, especially for controlled failure states and empty-state boundaries. | Expand state coverage in later sprints and verify all user-facing variants deliberately. | Browser route smoke plus code review; live browser interaction unavailable locally in this pass. | `b39ea88` | `2026-06-21` |
-| `SAFE-16` | P3 | Test long labels, large values, duplicates, and realistic record volumes. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `SAFE-17` | P3 | Record limitations instead of concealing them with placeholders. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `ACCEPT-01` | Final | Shared components and design tokens are used. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `ACCEPT-02` | Final | Data is live, configured, or clearly identified as demonstration data. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `ACCEPT-03` | Final | Values reconcile with their source and related pages. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `ACCEPT-04` | Final | Missing or unreadable data is not shown as zero. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `ACCEPT-05` | Final | Role and permission rules are applied. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `ACCEPT-06` | Final | Primary and secondary actions are clear. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `ACCEPT-07` | Final | Search, filters, sort, views, and navigation preserve context. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `ACCEPT-08` | Final | Interactive metrics and alerts have working destinations. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `ACCEPT-09` | Final | Alerts are actionable and not duplicated. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `ACCEPT-10` | Final | Loading, empty, filtered-empty, error, unavailable, stale, and permission states are handled. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `ACCEPT-11` | Final | Layout works on desktop, tablet, mobile, and browser zoom. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `ACCEPT-12` | Final | Keyboard, focus, labels, contrast, and screen-reader behaviour are acceptable. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `ACCEPT-13` | Final | Long content and realistic data volumes do not break the page. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `ACCEPT-14` | Final | No unrelated functionality or styling changed. | NOT TESTED | Not reviewed in this pass. | Not sampled yet. | Review in a later coverage sprint and record route or component evidence. | Not run. | `94a34b8` | `2026-06-21` |
-| `ACCEPT-15` | Final | The affected workflow was verified end to end. | PASS | Settings -> Registry Explorer and the Resources modal were verified end to end. | None in the audited workflow. | Keep using end-to-end validation for future UI changes. | Browser smoke and route smoke. | `94a34b8` | `2026-06-21` |
+| `SAFE-01` | P3 | Inspect the existing architecture before introducing a component or pattern. | PASS | Shared generic page, list, and registry shells were reviewed in `src/components/generic/GenericEntityPage.tsx`, `src/components/generic/GenericEntityListView.tsx`, and `src/components/RegistryPageShell.tsx`. | None. | Keep extending the shared shell instead of forking page chrome. | Code review; lint/typecheck/build/diff-check; route smoke. | `e1f118d` | `2026-06-22` |
+| `SAFE-02` | P3 | Extend intended components, services, routes, types, and styles. | PASS | Intended services and helpers remain centralized in `src/components/RegistryPageShell.tsx`, `src/components/SettingsPage.tsx`, `src/lib/googleWorkspaceAuth.ts`, and `src/lib/googleSheetRead.ts`. | None. | Extend the existing helpers rather than adding parallel seams. | Code review; lint/typecheck/build/diff-check; route smoke. | `e1f118d` | `2026-06-22` |
+| `SAFE-03` | P3 | Make the smallest coherent change. | PASS | Wave 10 is an evidence-only pass; no application code changed. | None. | Keep future changes as small as this pass. | Repository review and verification checks. | `e1f118d` | `2026-06-22` |
+| `SAFE-04` | P3 | Do not rewrite unrelated code. | PASS | No unrelated application code was rewritten in Wave 10. | None. | Preserve unrelated code as-is. | Repo diff review. | `e1f118d` | `2026-06-22` |
+| `SAFE-05` | P3 | Do not create a second data or component architecture. | PASS | The shared generic, registry, and detail shells remain the only product architecture in the audited surfaces. | None. | Keep one source of truth for list, detail, and state behavior. | Code review and route smoke. | `e1f118d` | `2026-06-22` |
+| `SAFE-06` | P3 | Treat custom views as controlled extensions of generic architecture. | PASS | Lesson Planner and Textbook Ingestor remain controlled custom workflows layered on the shared shells. | None. | Keep custom views as extensions, not forks. | Code review and route smoke. | `e1f118d` | `2026-06-22` |
+| `SAFE-07` | P3 | Prefer configuration, composition, and extension points before forking. | PASS | Existing configuration and composition points are still the path used before any forked implementation. | None. | Prefer configuration/composition over duplication. | Code review and route smoke. | `e1f118d` | `2026-06-22` |
+| `SAFE-08` | P3 | Keep generic and custom views on shared routing, permissions, state, data access, and design foundations. | PASS | Shared routing, permission context, source-state, and design foundations remain common across generic and custom views. | None. | Keep the shared foundations intact. | Code review and route smoke. | `e1f118d` | `2026-06-22` |
+| `SAFE-09` | P3 | Periodically promote recurring custom requirements into reusable capabilities. | PASS | Recurring custom requirements continue to be concentrated in shared helpers where reusable capabilities already exist. | None. | Promote repeated custom logic into shared capabilities. | Code review and route smoke. | `e1f118d` | `2026-06-22` |
+| `SAFE-10` | P3 | Keep new UI data-driven and configuration-driven where appropriate. | PASS | The audited surfaces remain data-driven and configuration-driven rather than hard-coded. | None. | Keep behavior sourced from state and config. | Code review and route smoke. | `e1f118d` | `2026-06-22` |
+| `SAFE-11` | P3 | Do not add mock data to hide missing integrations. | PASS | No mock data was added to conceal missing integrations; fallback states stay explicit. | None. | Keep integrations truthfully surfaced. | Code review and route smoke. | `e1f118d` | `2026-06-22` |
+| `SAFE-12` | P3 | Preserve existing routes, permissions, filters, state, and workflows. | PASS | Existing routes, permissions, filters, state, and workflows were preserved in Wave 10. | None. | Preserve existing product behavior unless a defect requires change. | Repo diff review and route smoke. | `e1f118d` | `2026-06-22` |
+| `SAFE-13` | P3 | Verify the narrowest affected workflow first. | PASS | The narrowest affected workflows were reviewed first: settings, registries, resources, lesson planner, textbook ingestor, search, and classroom. | None. | Keep future fixes narrow and workflow-scoped. | Verification sequence review plus route smoke. | `e1f118d` | `2026-06-22` |
+| `SAFE-14` | P3 | Run relevant type checks, lint, tests, build, and smoke checks. | PASS | `npm run lint`, `npx tsc --noEmit --pretty false`, `npm run build`, `git diff --check`, and route smoke all passed. | None. | Keep the verification set narrow but real. | Lint, explicit typecheck, build, diff-check, and route smoke passed. | `e1f118d` | `2026-06-22` |
+| `SAFE-15` | P3 | Test loading, empty, filtered-empty, error, unavailable, permission, and populated states. | PARTIAL | The source-state model in `src/App.tsx`, `src/components/RegistryPageShell.tsx`, `src/components/GenericRegistryDataPage.tsx`, and `src/components/AcademicResourceLibraryPage.tsx` distinguishes the major states, and route smoke passed on the critical routes. | Browser-interactive state matrix remains unavailable in this session. | Finish the browser matrix for loading, empty, filtered-empty, error, unavailable, and permission states. | Code review plus route smoke; browser control unavailable locally. | `e1f118d` | `2026-06-22` |
+| `SAFE-16` | P3 | Test long labels, large values, duplicates, and realistic record volumes. | PARTIAL | The shared list and table shells are built for long content, but no realistic-volume browser run was possible in this session. | No live large-dataset pass. | Test the largest legitimate datasets in browser. | Code review, build, and route smoke; browser control unavailable locally. | `e1f118d` | `2026-06-22` |
+| `SAFE-17` | P3 | Record limitations instead of concealing them with placeholders. | PASS | Wave 10 docs explicitly record the remaining browser, keyboard, screen-reader, and realistic-volume gaps instead of hiding them. | None. | Keep limitations explicit in release evidence. | Docs review plus build and route smoke. | `e1f118d` | `2026-06-22` |
+| `ACCEPT-01` | Final | Shared components and design tokens are used. | PASS | Shared components and design tokens remain in use across the audited surfaces. | None. | Keep the shared component stack stable. | Code review plus lint/typecheck/build/diff-check and route smoke. | `e1f118d` | `2026-06-22` |
+| `ACCEPT-02` | Final | Data is live, configured, or clearly identified as demonstration data. | PASS | Live/configured data and explicit fallback states are differentiated in the source-state and auth helpers. | None. | Keep live and fallback data truthfully labeled. | Code review plus route smoke. | `e1f118d` | `2026-06-22` |
+| `ACCEPT-03` | Final | Values reconcile with their source and related pages. | PARTIAL | Source-state helpers and shared shells reconcile values across the audited surfaces, but no live browser comparison was possible. | No browser reconciliation of related pages. | Verify source reconciliation in a trusted browser. | Code review plus route smoke; browser control unavailable locally. | `e1f118d` | `2026-06-22` |
+| `ACCEPT-04` | Final | Missing or unreadable data is not shown as zero. | PASS | Unreadable or unavailable values are rendered with explicit unavailable or fallback labeling instead of zero-style success. | None. | Keep zero out of the unavailable state. | Code review of the shared source-state and formatting utilities. | `e1f118d` | `2026-06-22` |
+| `ACCEPT-05` | Final | Role and permission rules are applied. | PARTIAL | Role and permission gating remains wired through the shared permission context and auth helpers, but no live role-switch browser pass was possible. | No browser verification of role-specific UI paths. | Verify role-specific UI paths in browser. | Code review plus route smoke. | `e1f118d` | `2026-06-22` |
+| `ACCEPT-06` | Final | Primary and secondary actions are clear. | PARTIAL | Primary actions remain visible and secondary actions stay separated in the shared shells, but no live browser interaction was possible. | No browser confirmation of action clarity. | Confirm action hierarchy in browser. | Code review plus route smoke. | `e1f118d` | `2026-06-22` |
+| `ACCEPT-07` | Final | Search, filters, sort, views, and navigation preserve context. | PARTIAL | Search, filter, sort, and view state remain carried in the shared list-state contract, but browser back and forward was not exercised here. | No browser history verification. | Verify back/forward and context preservation in browser. | Code review plus route smoke. | `e1f118d` | `2026-06-22` |
+| `ACCEPT-08` | Final | Interactive metrics and alerts have working destinations. | PARTIAL | Interactive metrics and alerts still point to destinations in the shared UI, but click-through was not browser-verified this wave. | No live destination verification. | Verify the drill-through destinations in browser. | Code review plus route smoke. | `e1f118d` | `2026-06-22` |
+| `ACCEPT-09` | Final | Alerts are actionable and not duplicated. | PARTIAL | Alert and feedback flows remain centralized and non-duplicative in the shared banner/overlay pattern, but no live interaction pass ran. | No browser check for duplicate alerts. | Verify alert/action behavior in browser. | Code review plus route smoke. | `e1f118d` | `2026-06-22` |
+| `ACCEPT-10` | Final | Loading, empty, filtered-empty, error, unavailable, stale, and permission states are handled. | PARTIAL | The shared source-state model represents these states, but the interactive matrix was not run in-browser. | No browser matrix. | Finish the browser state matrix. | Code review plus route smoke. | `e1f118d` | `2026-06-22` |
+| `ACCEPT-11` | Final | Layout works on desktop, tablet, mobile, and browser zoom. | PARTIAL | The app built successfully and route smoke covered the critical routes, but no desktop/tablet/mobile/zoom browser matrix was available. | No viewport evidence. | Verify the viewport matrix in browser. | Build plus route smoke. | `e1f118d` | `2026-06-22` |
+| `ACCEPT-12` | Final | Keyboard, focus, labels, contrast, and screen-reader behaviour are acceptable. | NOT TESTED | No real keyboard-only or screen-reader pass was possible in this session. | Keyboard and screen-reader evidence missing. | Run keyboard-only and screen-reader checks in a trusted browser. | Not run; browser control unavailable locally. | `e1f118d` | `2026-06-22` |
+| `ACCEPT-13` | Final | Long content and realistic data volumes do not break the page. | PARTIAL | The build completed and the current shell/layout code remains in place, but no realistic-volume browser run was possible. | No large-dataset browser proof. | Validate the largest legitimate datasets in browser. | Build plus route smoke; browser control unavailable locally. | `e1f118d` | `2026-06-22` |
+| `ACCEPT-14` | Final | No unrelated functionality or styling changed. | PASS | Wave 10 introduced docs only; no unrelated application functionality or styling changed. | None. | Keep future evidence passes code-neutral unless a defect requires change. | Repo diff review plus clean build and route smoke. | `e1f118d` | `2026-06-22` |
+| `ACCEPT-15` | Final | The affected workflow was verified end to end. | PASS | The previously verified Settings -> Registry Explorer and Resources workflow still has route availability and unchanged application code on this branch. | No new browser pass this wave. | Keep using end-to-end validation for future UI changes. | Current route smoke plus prior wave browser smoke and route evidence. | `e1f118d` | `2026-06-22` |
 
 ## Notes
 
 - Missing rows are no longer used; every canonical requirement ID now has an explicit tracker row.
 - `NOT TESTED` means the requirement is still unreviewed in this pass, not that it is compliant or non-compliant.
-- The repository is currently on `codex-ui-quality-wave-9` for Wave 9 authoring, and the publication target remains `import/enhanced-codebase`.
-- Wave 9 documentation includes `docs/WAVE_9_MANUAL_BROWSER_VERIFICATION.md` because browser control was unavailable in this session.
+- The repository is currently on `codex-ui-quality-wave-10` for Wave 10 authoring, and the publication target remains `import/enhanced-codebase`.
+- Wave 10 documentation includes `docs/WAVE_10_FINAL_ACCEPTANCE_MANUAL.md` because trusted browser control and screen-reader verification were unavailable in this session.
+- Wave 10 is an evidence-only final acceptance pass; `e1f118d` remains the latest implementation commit reviewed.
