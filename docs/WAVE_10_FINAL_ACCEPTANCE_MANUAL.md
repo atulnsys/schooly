@@ -44,4 +44,4 @@ Use this matrix in a trusted browser when available.
 
 - This manual file is the fallback evidence bundle for Wave 10.
 - It should be completed in a trusted browser before anyone claims `READY`.
-- The application itself was not changed in Wave 10.
+- The application received one narrow auth-storage fix in Wave 10, but the browser-dependent checks still need completion.

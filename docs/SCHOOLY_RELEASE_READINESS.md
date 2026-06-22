@@ -6,9 +6,9 @@
 | --- | --- |
 | Product | Schooly UI |
 | Branch | `codex-ui-quality-wave-10` |
-| Release candidate commit | `e1f118d` |
+| Release candidate commit | `227e652` |
 | Audit date | `2026-06-22` |
-| Reviewed through commit | `e1f118d` |
+| Reviewed through commit | `227e652` |
 | Documentation commit placeholder | pending final docs commit |
 
 ## Verification Summary
@@ -25,13 +25,13 @@
 | Screen reader | Not tested in this session |
 | Realistic volume | Not fully verified in-browser this wave |
 | External provider | Code reviewed; live provider interaction not re-run in this wave |
-| Storage safety | Reviewed in code; no browser storage regressions observed from inspection |
+| Storage safety | Passed: the auth helper no longer persists Google Workspace access tokens; browser storage now keeps only non-sensitive metadata |
 
 ## Critical Workflows
 
 | Workflow | Status | Evidence | Remaining limitation | Release impact |
 | --- | --- | --- | --- | --- |
-| Settings | Conditioned | Shared settings/auth code reviewed in `src/components/SettingsPage.tsx`, `src/lib/googleWorkspaceAuth.ts`, and `src/lib/googleSheetRead.ts`; route smoke passed. | No trusted browser run for edit/save/reconnect and no keyboard-only pass. | Release-safe if browser follow-up confirms the save and connection matrix. |
+| Settings | Conditioned | Shared settings/auth code reviewed in `src/components/SettingsPage.tsx`, `src/lib/googleWorkspaceAuth.ts`, and `src/lib/googleSheetRead.ts`; route smoke passed; token persistence was removed from browser storage in `src/lib/googleWorkspaceAuth.ts`. | No trusted browser run for edit/save/reconnect and no keyboard-only pass. | Release-safe if browser follow-up confirms the save and connection matrix. |
 | Registries | Conditioned | Shared registry shell and generic list/detail foundations reviewed in `src/components/RegistryPageShell.tsx`, `src/components/GenericRegistryDataPage.tsx`, `src/components/generic/GenericEntityPage.tsx`, and `src/components/generic/GenericEntityListView.tsx`; route smoke passed. | No browser pass for search, filters, sort, views, back/forward, or detail close/reopen. | Release-safe if the browser matrix remains stable. |
 | Resources | Conditioned | Source-state and filter overlay paths reviewed in `src/components/AcademicResourceLibraryPage.tsx`; route smoke passed. | No browser verification of the modal, filter overlay, and responsive layout this wave. | Release-safe if the existing overlay behavior holds in-browser. |
 | Lesson Planner | Conditioned | Custom workflow remained intact in `src/components/LessonPlanner.tsx`; route smoke passed. | No browser verification of approval, duplicate-submit prevention, or failure retention this wave. | Release-safe with a follow-up browser pass. |
@@ -87,12 +87,12 @@
 
 ## Rollback Considerations
 
-- No application code changed in Wave 10, so rollback is not required for the app itself.
-- If a later browser pass finds a regression, the app state still corresponds to the reviewed implementation at `e1f118d`.
+- A narrow application fix changed `src/lib/googleWorkspaceAuth.ts`; rollback would be to revert `227e652` if needed.
+- If a later browser pass finds a regression, the app state still corresponds to the reviewed implementation at `227e652`.
 - The documentation commit can be reverted independently if needed.
 
 ## Final Recommendation
 
 `CONDITIONALLY READY`
 
-The application build, lint, typecheck, route smoke, and code review all support release continuation, but the lack of trusted browser control, keyboard-only evidence, screen-reader evidence, and realistic-volume browser evidence means the release cannot be called `READY` yet.
+The application build, lint, typecheck, route smoke, code review, and the storage-safety fix all support release continuation, but the lack of trusted browser control, keyboard-only evidence, screen-reader evidence, and realistic-volume browser evidence means the release cannot be called `READY` yet.

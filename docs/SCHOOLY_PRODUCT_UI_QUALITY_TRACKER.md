@@ -9,8 +9,8 @@
 | Target branch | `import/enhanced-codebase` |
 | Audit date | `2026-06-22` |
 | Baseline commit | `ca4f4fe` |
-| Reviewed through commit | `e1f118d` |
-| Verification performed | Lint passed: `npm run lint` (`tsc --noEmit`); `package.json` has no test script; TypeScript typecheck passed: `npx tsc --noEmit --pretty false`; build passed: `npm run build`; `git diff --check` passed; route smoke passed on `/`, `/registries`, `/registers`, `/staff`, `/teachers`, `/resources`, `/lesson-plans`, `/textbooks`, `/classroom`, `/students`, `/courses`, `/assignments`, `/search`, and `/settings`; trusted browser control and screen-reader verification were unavailable in this session, so `docs/WAVE_10_FINAL_ACCEPTANCE_MANUAL.md` records the manual fallback matrix. |
+| Reviewed through commit | `227e652` |
+| Verification performed | Lint passed: `npm run lint` (`tsc --noEmit`); `package.json` has no test script; TypeScript typecheck passed: `npx tsc --noEmit --pretty false`; build passed: `npm run build`; `git diff --check` passed; route smoke passed on `/`, `/registries`, `/registers`, `/staff`, `/teachers`, `/resources`, `/lesson-plans`, `/textbooks`, `/classroom`, `/students`, `/courses`, `/assignments`, `/search`, and `/settings`; the narrow auth-storage fix removed Google Workspace access-token persistence from browser storage; trusted browser control and screen-reader verification were unavailable in this session, so `docs/WAVE_10_FINAL_ACCEPTANCE_MANUAL.md` records the manual fallback matrix. |
 
 ## Wave 7 Note
 
@@ -26,7 +26,7 @@ Wave 9 tightened shared content terminology, locale-aware formatting, responsive
 
 ## Wave 10 Note
 
-Wave 10 is an evidence-only final acceptance pass on the Wave 9 baseline. The application stayed on the shared generic, permission, source-state, and custom-workflow foundations; lint, typecheck, build, diff-check, and route smoke all passed; and the remaining browser, responsive-zoom, keyboard, screen-reader, and realistic-volume gaps are documented instead of being disguised as complete verification.
+Wave 10 combines a narrow auth-storage security fix with the final acceptance pass on the Wave 9 baseline. The application stayed on the shared generic, permission, source-state, and custom-workflow foundations; lint, typecheck, build, diff-check, and route smoke all passed; and the remaining browser, responsive-zoom, keyboard, screen-reader, and realistic-volume gaps are documented instead of being disguised as complete verification.
 
 ## Coverage Summary
 
@@ -394,8 +394,8 @@ DATA-05 | `/settings`, `/registries`, `/staff`, `/resources` | Settings, Registr
 | `RELIABILITY-10` | P3 | Keep displayed state consistent after create, edit, archive, delete, and refresh. | PARTIAL | Code review of the wave 9 state-update and action-safety paths on the audited surfaces. | Browser control was unavailable, so live interaction proof is still missing. | Keep the current reliability model and finish the live matrix later. | Code review, lint/typecheck/build, route smoke, and `docs/WAVE_9_MANUAL_BROWSER_VERIFICATION.md`. | `e1f118d` | `2026-06-22` |
 | `SAFE-01` | P3 | Inspect the existing architecture before introducing a component or pattern. | PASS | Shared generic page, list, and registry shells were reviewed in `src/components/generic/GenericEntityPage.tsx`, `src/components/generic/GenericEntityListView.tsx`, and `src/components/RegistryPageShell.tsx`. | None. | Keep extending the shared shell instead of forking page chrome. | Code review; lint/typecheck/build/diff-check; route smoke. | `e1f118d` | `2026-06-22` |
 | `SAFE-02` | P3 | Extend intended components, services, routes, types, and styles. | PASS | Intended services and helpers remain centralized in `src/components/RegistryPageShell.tsx`, `src/components/SettingsPage.tsx`, `src/lib/googleWorkspaceAuth.ts`, and `src/lib/googleSheetRead.ts`. | None. | Extend the existing helpers rather than adding parallel seams. | Code review; lint/typecheck/build/diff-check; route smoke. | `e1f118d` | `2026-06-22` |
-| `SAFE-03` | P3 | Make the smallest coherent change. | PASS | Wave 10 is an evidence-only pass; no application code changed. | None. | Keep future changes as small as this pass. | Repository review and verification checks. | `e1f118d` | `2026-06-22` |
-| `SAFE-04` | P3 | Do not rewrite unrelated code. | PASS | No unrelated application code was rewritten in Wave 10. | None. | Preserve unrelated code as-is. | Repo diff review. | `e1f118d` | `2026-06-22` |
+| `SAFE-03` | P3 | Make the smallest coherent change. | PASS | The only Wave 10 application change removed Google Workspace access-token persistence from session storage. | None. | Keep future changes as small as this pass. | Repository review and verification checks. | `227e652` | `2026-06-22` |
+| `SAFE-04` | P3 | Do not rewrite unrelated code. | PASS | No unrelated application code was rewritten outside the auth-storage seam in Wave 10. | None. | Preserve unrelated code as-is. | Repo diff review. | `227e652` | `2026-06-22` |
 | `SAFE-05` | P3 | Do not create a second data or component architecture. | PASS | The shared generic, registry, and detail shells remain the only product architecture in the audited surfaces. | None. | Keep one source of truth for list, detail, and state behavior. | Code review and route smoke. | `e1f118d` | `2026-06-22` |
 | `SAFE-06` | P3 | Treat custom views as controlled extensions of generic architecture. | PASS | Lesson Planner and Textbook Ingestor remain controlled custom workflows layered on the shared shells. | None. | Keep custom views as extensions, not forks. | Code review and route smoke. | `e1f118d` | `2026-06-22` |
 | `SAFE-07` | P3 | Prefer configuration, composition, and extension points before forking. | PASS | Existing configuration and composition points are still the path used before any forked implementation. | None. | Prefer configuration/composition over duplication. | Code review and route smoke. | `e1f118d` | `2026-06-22` |
@@ -422,7 +422,7 @@ DATA-05 | `/settings`, `/registries`, `/staff`, `/resources` | Settings, Registr
 | `ACCEPT-11` | Final | Layout works on desktop, tablet, mobile, and browser zoom. | PARTIAL | The app built successfully and route smoke covered the critical routes, but no desktop/tablet/mobile/zoom browser matrix was available. | No viewport evidence. | Verify the viewport matrix in browser. | Build plus route smoke. | `e1f118d` | `2026-06-22` |
 | `ACCEPT-12` | Final | Keyboard, focus, labels, contrast, and screen-reader behaviour are acceptable. | NOT TESTED | No real keyboard-only or screen-reader pass was possible in this session. | Keyboard and screen-reader evidence missing. | Run keyboard-only and screen-reader checks in a trusted browser. | Not run; browser control unavailable locally. | `e1f118d` | `2026-06-22` |
 | `ACCEPT-13` | Final | Long content and realistic data volumes do not break the page. | PARTIAL | The build completed and the current shell/layout code remains in place, but no realistic-volume browser run was possible. | No large-dataset browser proof. | Validate the largest legitimate datasets in browser. | Build plus route smoke; browser control unavailable locally. | `e1f118d` | `2026-06-22` |
-| `ACCEPT-14` | Final | No unrelated functionality or styling changed. | PASS | Wave 10 introduced docs only; no unrelated application functionality or styling changed. | None. | Keep future evidence passes code-neutral unless a defect requires change. | Repo diff review plus clean build and route smoke. | `e1f118d` | `2026-06-22` |
+| `ACCEPT-14` | Final | No unrelated functionality or styling changed. | PASS | Wave 10 introduced one narrow auth-storage fix and docs; no unrelated application functionality or styling changed. | None. | Keep future evidence passes code-neutral unless a defect requires change. | Repo diff review plus clean build and route smoke. | `227e652` | `2026-06-22` |
 | `ACCEPT-15` | Final | The affected workflow was verified end to end. | PASS | The previously verified Settings -> Registry Explorer and Resources workflow still has route availability and unchanged application code on this branch. | No new browser pass this wave. | Keep using end-to-end validation for future UI changes. | Current route smoke plus prior wave browser smoke and route evidence. | `e1f118d` | `2026-06-22` |
 
 ## Notes
@@ -431,4 +431,5 @@ DATA-05 | `/settings`, `/registries`, `/staff`, `/resources` | Settings, Registr
 - `NOT TESTED` means the requirement is still unreviewed in this pass, not that it is compliant or non-compliant.
 - The repository is currently on `codex-ui-quality-wave-10` for Wave 10 authoring, and the publication target remains `import/enhanced-codebase`.
 - Wave 10 documentation includes `docs/WAVE_10_FINAL_ACCEPTANCE_MANUAL.md` because trusted browser control and screen-reader verification were unavailable in this session.
-- Wave 10 is an evidence-only final acceptance pass; `e1f118d` remains the latest implementation commit reviewed.
+- Wave 10 includes one narrow auth-storage security fix in `src/lib/googleWorkspaceAuth.ts` that removed Google Workspace access-token persistence from browser storage.
+- Wave 10 now reviews the corrected implementation at `227e652`.
