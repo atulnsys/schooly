@@ -335,7 +335,7 @@ export default function MockDataStudio() {
                   title="Validate key structures"
                 >
                   <Play size={12} className="text-slate-500 fill-slate-500" />
-                  <span>Verify JSON</span>
+                  <span>Validate JSON structure</span>
                 </button>
 
                 <button
@@ -344,7 +344,7 @@ export default function MockDataStudio() {
                   className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer select-none disabled:opacity-50"
                 >
                   <Save size={13} />
-                  <span>{isSaving ? "Saving..." : "Save Database Changes"}</span>
+                  <span>{isSaving ? "Saving..." : "Save changes"}</span>
                 </button>
               </div>
             </div>
@@ -361,7 +361,7 @@ export default function MockDataStudio() {
               <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-sans rounded-xl flex gap-2">
                 <AlertTriangle size={16} className="text-rose-600 shrink-0" />
                 <div className="space-y-1">
-                  <span className="font-bold">Structure Fault:</span>
+                  <span className="font-bold">Validation error:</span>
                   <p className="leading-normal font-mono text-[10.5px] break-all">{jsonError}</p>
                 </div>
               </div>
@@ -407,7 +407,7 @@ export default function MockDataStudio() {
                     onClick={() => setConnectorLog([])}
                     className="text-slate-500 hover:text-slate-350 text-[10px] uppercase font-bold"
                   >
-                    Clear Terminal
+                  Clear log
                   </button>
                 </div>
                 <div className="space-y-1.5 max-h-[140px] overflow-y-auto">

@@ -43,6 +43,7 @@ import {
   hasGenericPermission,
   sortGenericRows,
 } from "../../lib/genericEntityView";
+import { formatSchoolyDate } from "../../lib/schoolyFormatting";
 import type { GenericEntityListState } from "./useGenericEntityListState";
 import OverlaySurface from "../common/OverlaySurface";
 
@@ -1040,7 +1041,7 @@ export default function GenericEntityListView<T extends object>({
                               )}
                             </div>
                             <div className="mt-1 text-[11px] text-slate-500">
-                              Updated {new Date(view.updatedAt).toLocaleString()}
+                              Updated {formatSchoolyDate(view.updatedAt, { includeTime: true })}
                             </div>
                           </button>
                           {isActive && (
@@ -1265,7 +1266,7 @@ export default function GenericEntityListView<T extends object>({
                 className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[10.5px] font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
                 <X size={11} />
-                Clear Search
+                Clear search
               </button>
             )}
             {hasActiveFilters && (
@@ -1275,7 +1276,7 @@ export default function GenericEntityListView<T extends object>({
                 className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[10.5px] font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
                 <X size={11} />
-                Clear Filters
+                Clear filters
               </button>
             )}
           </div>
@@ -1329,7 +1330,7 @@ export default function GenericEntityListView<T extends object>({
                   aria-label="Columns"
                 >
                   <LayoutGrid size={13} />
-                  Columns
+                  Choose columns
                 </button>
                 <button
                   type="button"
@@ -1342,7 +1343,7 @@ export default function GenericEntityListView<T extends object>({
                   aria-label="Views"
                 >
                   <ChevronLeft size={13} className="rotate-180" />
-                  Views
+                  Saved views
                 </button>
               </>
             )}
@@ -1353,8 +1354,8 @@ export default function GenericEntityListView<T extends object>({
                   type="button"
                   onClick={() => updateDisplayMode("cards")}
                   className={`p-1.5 rounded-md cursor-pointer ${activeDisplayMode === "cards" ? "bg-blue-50 text-blue-700" : "text-slate-400 hover:text-slate-700"}`}
-                  title="Card view"
-                  aria-label="Card view"
+                  title="Show cards"
+                  aria-label="Show cards"
                   aria-pressed={activeDisplayMode === "cards"}
                 >
                   <LayoutGrid size={13} />
@@ -1363,8 +1364,8 @@ export default function GenericEntityListView<T extends object>({
                   type="button"
                   onClick={() => updateDisplayMode("table")}
                   className={`p-1.5 rounded-md cursor-pointer ${activeDisplayMode === "table" ? "bg-blue-50 text-blue-700" : "text-slate-400 hover:text-slate-700"}`}
-                  title="Table view"
-                  aria-label="Table view"
+                  title="Show table"
+                  aria-label="Show table"
                   aria-pressed={activeDisplayMode === "table"}
                 >
                   <List size={13} />
@@ -1505,7 +1506,7 @@ export default function GenericEntityListView<T extends object>({
                   onClick={clearControls}
                   className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
-                  Clear All
+                  Clear all
                 </button>
               </div>
             )}

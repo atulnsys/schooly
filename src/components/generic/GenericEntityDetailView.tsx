@@ -12,6 +12,7 @@ import {
   GenericEntityPermissionContext,
   hasGenericPermission,
 } from "../../lib/genericEntityView";
+import { formatSchoolyDate } from "../../lib/schoolyFormatting";
 
 interface GenericEntityDetailContext {
   displayMode?: "read-only" | "editable" | "restricted" | "unavailable";
@@ -114,7 +115,7 @@ function renderDetailFieldValue<T extends object>(
         rel="noreferrer"
         className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 hover:underline font-bold"
       >
-        Open link <ExternalLink size={11} />
+        Open related link <ExternalLink size={11} />
       </a>
     );
   }
@@ -210,7 +211,7 @@ export default function GenericEntityDetailView<T extends object>({
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50"
           >
             <X size={12} />
-            Close detail
+            Close details
           </button>
         )}
       </div>
@@ -322,7 +323,7 @@ export default function GenericEntityDetailView<T extends object>({
           {selectionVisibilityNote && <p className="text-slate-500">{selectionVisibilityNote}</p>}
           {sourceLastCheckedAt && (
             <p className="text-slate-500">
-              Last checked: {formatGenericDate(sourceLastCheckedAt, true)}
+              Last checked: {formatSchoolyDate(sourceLastCheckedAt, { includeTime: true })}
             </p>
           )}
         </div>

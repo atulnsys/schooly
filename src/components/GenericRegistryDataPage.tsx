@@ -284,7 +284,7 @@ function RegistryDetailFallback({
                 href={row.pageRoute}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] font-bold text-blue-700 hover:bg-blue-100 cursor-pointer"
               >
-                Open first-class page <ExternalLink size={12} />
+                Open primary page <ExternalLink size={12} />
               </a>
             )}
           </div>
@@ -312,7 +312,7 @@ function RegistryDetailFallback({
         <div className="grid gap-2 md:grid-cols-2">
           <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-[11px] text-slate-600 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Mandatory Fields</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Mandatory fields</span>
               <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${
                 detailSummary.mandatoryFieldLabel === "Mandatory values available in live rows"
                   ? "bg-emerald-50 text-emerald-700 border-emerald-100"

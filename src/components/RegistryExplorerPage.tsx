@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import GenericEntityPage from "./generic/GenericEntityPage";
 import type { GenericEntityStorageContext } from "../lib/genericEntityTableState";
+import { formatSchoolyDate } from "../lib/schoolyFormatting";
 import {
   createRegistryExplorerEntityDefinition,
   getRegistryExplorerRows,
@@ -81,9 +82,7 @@ export default function RegistryExplorerPage({
   };
 
   function formatTimestamp(value: string | null | undefined): string {
-    if (!value) return "Not yet synced";
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
+    return formatSchoolyDate(value, { includeTime: true, fallback: "Not yet synced" });
   }
 
   const countLabel = (count: number, state?: LiveRegisterCardSourceState) => {
@@ -138,7 +137,7 @@ export default function RegistryExplorerPage({
               Embedded {summary.embeddedSurfaceEntries}
             </span>
             <span className="text-[10px] font-black px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-100">
-              Source-unavailable {summary.sourceUnavailableEntries}
+              Source unavailable {summary.sourceUnavailableEntries}
             </span>
           </div>
         </div>

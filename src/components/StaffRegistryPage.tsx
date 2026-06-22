@@ -63,10 +63,10 @@ export default function StaffRegistryPage({ staffRows, currentRole, storageConte
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <StaffKpiCard label="Total Staff" value={staffKpis.totalStaff} />
-        <StaffKpiCard label="Active Staff" value={staffKpis.activeStaff} />
-        <StaffKpiCard label="Teaching Staff" value={staffKpis.teachingStaff} />
-        <StaffKpiCard label="Non-Teaching Staff" value={staffKpis.nonTeachingStaff} />
+        <StaffKpiCard label="Total staff" value={staffKpis.totalStaff} />
+        <StaffKpiCard label="Active staff" value={staffKpis.activeStaff} />
+        <StaffKpiCard label="Teaching staff" value={staffKpis.teachingStaff} />
+        <StaffKpiCard label="Non-teaching staff" value={staffKpis.nonTeachingStaff} />
         <StaffKpiCard label="Departments" value={staffKpis.departments} />
       </div>
 

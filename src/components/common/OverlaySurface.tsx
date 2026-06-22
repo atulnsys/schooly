@@ -119,7 +119,7 @@ export default function OverlaySurface({
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
-        className={`flex max-h-[90vh] w-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl ${maxWidthClassName} ${panelClassName}`}
+        className={`flex max-h-[calc(100vh-2rem)] sm:max-h-[90vh] w-full flex-col overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200 bg-white shadow-2xl ${maxWidthClassName} ${panelClassName}`}
         onKeyDown={(event) => trapDialogKeyboard(event, onClose, { closeOnEscape })}
         onClick={(event) => event.stopPropagation()}
       >

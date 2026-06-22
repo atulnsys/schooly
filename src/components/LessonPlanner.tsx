@@ -2637,7 +2637,7 @@ export default function LessonPlanner({
                             className="w-full bg-[#f8fafc] border border-slate-250 text-slate-705 hover:bg-slate-100 font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-1 cursor-pointer transition-all"
                           >
                             <Sparkles size={12} className="text-[#2454d6]" />
-                            Open Workbook Workspace
+                            Open lesson workspace
                           </button>
                         </div>
 
@@ -2667,7 +2667,7 @@ export default function LessonPlanner({
 
                       {/* Doc Type selection */}
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold font-mono uppercase text-slate-500">Document Category :</label>
+                        <label className="text-[10px] font-bold font-mono uppercase text-slate-500">Document category</label>
                         <select
                           value={selectedConfigType}
                           onChange={(e) => setSelectedConfigType(e.target.value)}
@@ -2700,7 +2700,7 @@ export default function LessonPlanner({
                               <button
                                 onClick={() => handleRemoveChecklistItem(selectedConfigType, item.id)}
                                 className="text-slate-400 hover:text-red-500 font-bold p-1 hover:bg-slate-100 rounded-md transition-all shrink-0 text-xs"
-                                title="Delete Rule"
+                                title="Delete rule"
                               >
                                 ×
                               </button>
@@ -2717,7 +2717,7 @@ export default function LessonPlanner({
 
                       {/* Add Custom Criterion Form */}
                       <div className="space-y-2 pt-2 border-t border-slate-100">
-                        <span className="text-[10px] font-bold font-mono uppercase text-slate-500 block">Add Custom Review Checklist Item :</span>
+                        <span className="text-[10px] font-bold font-mono uppercase text-slate-500 block">Add custom review checklist item</span>
                         <form
                           onSubmit={(e) => {
                             e.preventDefault();
@@ -2781,7 +2781,7 @@ export default function LessonPlanner({
                 }}
                 className="cursor-pointer bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 p-2 rounded-xl text-xs flex items-center gap-1 font-semibold shadow-sm transition-all"
               >
-                <ArrowLeft size={13} /> {localStorage.getItem("edu_came_from_ingestor") === "true" ? "Back to Textbook Ingestor" : "Back to Registry"}
+                <ArrowLeft size={13} /> {localStorage.getItem("edu_came_from_ingestor") === "true" ? "Back to textbook ingestor" : "Back to registry"}
               </button>
               
               <div>
@@ -2812,7 +2812,7 @@ export default function LessonPlanner({
                 }`}
               >
                 <Edit size={13} />
-                {isEditing ? "Finish Editing" : "Manual Code Edit"}
+                {isEditing ? "Done editing" : "Edit manually"}
               </button>
 
               <button

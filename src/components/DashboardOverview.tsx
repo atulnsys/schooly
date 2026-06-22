@@ -64,6 +64,7 @@ import {
 } from "../lib/schemaEngine";
 import { loadDashboardData, DashboardSourceState, DashboardBlueprintCard, DashboardRegistrySourceStatus } from "../lib/dashboardDataResolver";
 import { DEFAULT_DASHBOARD_SHEET_URL } from "../lib/dashboardConfig";
+import { formatSchoolyDate } from "../lib/schoolyFormatting";
 import { DASHBOARD_ROLE_TITLES, getDashboardRoleCards, toDashboardCardModel, type DashboardCardModel, type DashboardRoleKey, type DashboardRoleCardDefinition } from "../lib/dashboardRoleCards";
 import { compareClassLabels, formatClassLabel } from "../lib/classSort";
 import { resetSavedRegistryUrlsToDefaults } from "../lib/seededRegistryConfig";
@@ -368,10 +369,7 @@ function parseDashboardDateValue(value: string): Date | null {
 }
 
 function formatDashboardDateValue(value: string): string {
-  const raw = String(value || "").trim();
-  const parsed = parseDashboardDateValue(raw);
-  if (!parsed) return raw;
-  return `${String(parsed.getDate()).padStart(2, "0")}-${parsed.toLocaleString("en-US", { month: "short" })}-${String(parsed.getFullYear()).slice(-2)}`;
+  return formatSchoolyDate(value) || String(value || "").trim();
 }
 
 function formatTeacherDashboardDate(value: string): string {

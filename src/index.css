@@ -9,6 +9,17 @@
 body {
   font-family: var(--font-sans);
   background-color: #F8FAFC;
+  color: #0f172a;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
 .skip-to-content {

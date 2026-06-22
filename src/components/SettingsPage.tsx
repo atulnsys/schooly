@@ -344,7 +344,7 @@ export default function SettingsPage({
 
   const sectionButtons: Array<{ id: SettingsSection; label: string }> = [
     { id: "organization", label: "Organization" },
-    { id: "registry", label: "Registry Connection" },
+    { id: "registry", label: "Registry connection" },
     { id: "application", label: "Application" },
     { id: "advanced", label: "Advanced" }
   ];
@@ -427,7 +427,7 @@ export default function SettingsPage({
         routeLabel: "Open in Registry Explorer"
       },
       {
-        displayName: "Student Enrolments",
+        displayName: "Student enrollments",
         registryId: "masterDataRegistryUrl__student-enrollment",
         sourceFamily: "Connected Google Registry",
         sourceFile: activeConnectionValidation?.masterWorkbook.label || "Connected workbook",
@@ -535,7 +535,7 @@ export default function SettingsPage({
         sourceFile: "Schooly runtime data",
         sourceTab: "Classroom API",
         sourceMode: "runtime",
-        sourceState: courses.length > 0 ? "Application runtime â€” source not verified" : "Source unavailable",
+        sourceState: courses.length > 0 ? "Application runtime - source not verified" : "Source unavailable",
         rawRecords: courses.length > 0 ? courses.length : null,
         usableRecords: courses.length > 0 ? courses.length : null,
         excludedRecords: courses.length > 0 ? 0 : null,
@@ -552,7 +552,7 @@ export default function SettingsPage({
         sourceFile: "Schooly runtime data",
         sourceTab: "Classroom API",
         sourceMode: "runtime",
-        sourceState: assignments.length > 0 ? "Application runtime â€” source not verified" : "Source unavailable",
+        sourceState: assignments.length > 0 ? "Application runtime - source not verified" : "Source unavailable",
         rawRecords: assignments.length > 0 ? assignments.length : null,
         usableRecords: assignments.length > 0 ? assignments.length : null,
         excludedRecords: assignments.length > 0 ? 0 : null,

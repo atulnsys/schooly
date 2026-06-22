@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { WorkspaceFile } from "../types";
 import { schoolyFetch } from "../lib/safeFetch";
 import GenericEntityDetailView from "./generic/GenericEntityDetailView";
@@ -102,7 +102,7 @@ export default function UniversalSearch({
   // --- Google Workspace SSO & Link States ---
   const [workspaceUrl, setWorkspaceUrl] = useState("https://drive.google.com/drive/folders/ap-courses-root");
   const [loginEmail, setLoginEmail] = useState(currentUser);
-  const [loginPassword, setLoginPassword] = useState("••••••••••••••");
+  const [loginPassword, setLoginPassword] = useState("**************");
   const [ssoConnected, setSsoConnected] = useState(true); // Default to connected to show active status
   const [showAdvancedConn, setShowAdvancedConn] = useState(false);
   const [linkingPhase, setLinkingPhase] = useState<'idle' | 'auth' | 'synced'>('idle');
@@ -139,32 +139,35 @@ export default function UniversalSearch({
   }, [feedbackMsg]);
 
   // Unique list of tags
-  const allTags = ["All", ...Array.from(new Set(files.flatMap(f => f.tags)))];
+  const allTags = useMemo(() => ["All", ...Array.from(new Set(files.flatMap((file) => file.tags)))], [files]);
 
   // Filters calculation (Phase 19 compliance)
-  const filteredFiles = files.filter(file => {
-    // Student Safety Boundary Rule: Only allow designated safe files
-    const isStudent = currentRole === "Student";
-    if (isStudent) {
-      const allowedStudentFile = 
-        file.source === "Classroom" || 
-        file.type === "classroom_material" || 
-        file.sharingRule?.toLowerCase().includes("public");
-      
-      if (!allowedStudentFile) return false;
-    }
+  const filteredFiles = useMemo(() => {
+    return files.filter((file) => {
+      // Student Safety Boundary Rule: Only allow designated safe files
+      const isStudent = currentRole === "Student";
+      if (isStudent) {
+        const allowedStudentFile =
+          file.source === "Classroom" ||
+          file.type === "classroom_material" ||
+          file.sharingRule?.toLowerCase().includes("public");
 
-    const matchesSearch = 
-      file.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      file.contentSum.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      file.owner.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      file.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
-    
-    const matchesSource = sourceFilter === "All" || file.source === sourceFilter;
-    const matchesTag = selectedTag === "All" || file.tags.includes(selectedTag);
+        if (!allowedStudentFile) return false;
+      }
 
-    return matchesSearch && matchesSource && matchesTag;
-  });
+      const searchTerm = searchQuery.toLowerCase();
+      const matchesSearch =
+        file.name.toLowerCase().includes(searchTerm) ||
+        file.contentSum.toLowerCase().includes(searchTerm) ||
+        file.owner.toLowerCase().includes(searchTerm) ||
+        file.tags.some((tag) => tag.toLowerCase().includes(searchTerm));
+
+      const matchesSource = sourceFilter === "All" || file.source === sourceFilter;
+      const matchesTag = selectedTag === "All" || file.tags.includes(selectedTag);
+
+      return matchesSearch && matchesSource && matchesTag;
+    });
+  }, [currentRole, files, searchQuery, selectedTag, sourceFilter]);
 
   const workspaceFileDefinition = createWorkspaceFileEntityDefinition({
     currentRole,
@@ -323,7 +326,7 @@ export default function UniversalSearch({
 
       const data = await res.json();
       if (res.ok && data.success) {
-        setCreationStatus("✓ Document integrated into indexing systems!");
+        setCreationStatus("Document integrated into indexing systems.");
         
         setFeedbackMsg({ type: "success", text: "Document integrated into the repository successfully." });
         // Refresh files in parent state
@@ -417,7 +420,7 @@ export default function UniversalSearch({
     onUpdateTags(selectedFile.id, updatedTags);
     
     // Update local sidebar render
-    selectedFile.tags = updatedTags;
+    setSelectedFile((current) => (current ? { ...current, tags: updatedTags } : current));
 
     // Filter out from suggestions pool
     setSelectedFileSuggestions(prev => prev.filter(t => t !== tag));
@@ -493,9 +496,9 @@ export default function UniversalSearch({
   // Remove tag handler
   const handleRemoveTag = (tag: string) => {
     if (!selectedFile) return;
-    const newTags = selectedFile.tags.filter(t => t !== tag);
+    const newTags = selectedFile.tags.filter((existingTag) => existingTag !== tag);
     onUpdateTags(selectedFile.id, newTags);
-    selectedFile.tags = newTags;
+    setSelectedFile((current) => (current ? { ...current, tags: newTags } : current));
   };
 
   // Manual Add tag handler
@@ -503,7 +506,7 @@ export default function UniversalSearch({
     if (!selectedFile || !newTagInput.trim()) return;
     const newTags = Array.from(new Set([...selectedFile.tags, newTagInput.trim()]));
     onUpdateTags(selectedFile.id, newTags);
-    selectedFile.tags = newTags;
+    setSelectedFile((current) => (current ? { ...current, tags: newTags } : current));
     setNewTagInput("");
   };
 
@@ -867,7 +870,7 @@ export default function UniversalSearch({
                           onClick={() => setAcceptedTags([])}
                           className="text-[10px] text-slate-500 font-bold hover:underline cursor-pointer"
                         >
-                          Clear Selection
+                          Clear selection
                         </button>
                       </div>
                     </div>
@@ -1134,7 +1137,7 @@ export default function UniversalSearch({
                           className="text-slate-500 hover:text-slate-300 text-xs font-sans px-1 cursor-pointer bg-slate-900 hover:bg-slate-800 rounded-md py-0.5 border border-slate-800"
                           title="Reset response"
                         >
-                          Clear
+                          Clear filters
                         </button>
                       </div>
                       <p className="leading-relaxed whitespace-pre-line text-xs font-medium text-slate-100 antialiased font-sans">

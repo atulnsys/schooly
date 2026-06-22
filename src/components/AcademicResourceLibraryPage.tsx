@@ -1622,7 +1622,7 @@ export default function AcademicResourceLibraryPage({
                   onClick={clearFilterDraft}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-extrabold text-slate-700 hover:bg-slate-50"
                 >
-                  Clear All
+                  Clear all
                 </button>
                 <button
                   type="button"

@@ -7,6 +7,7 @@ import {
   getGenericFieldValue,
   isGenericValueEmpty,
 } from "../lib/genericEntityView";
+import { formatSchoolyDate } from "../lib/schoolyFormatting";
 import type { SchoolRegistrySourceStatus } from "../lib/schoolRegistry";
 import {
   getRegistryCatalogEntry,
@@ -47,9 +48,7 @@ interface RegistryHeaderSummary {
 }
 
 function formatRegistryTimestamp(value: string | null | undefined): string {
-  if (!value) return "Not yet synced";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
+  return formatSchoolyDate(value, { includeTime: true, fallback: "Not yet synced" });
 }
 
 function formatSchoolRegistrySourceStatus(status?: SchoolRegistrySourceStatus | null): string {
@@ -211,7 +210,7 @@ function CapabilityMetadataStrip({ metadata }: { metadata: RegistryCapabilityMet
     <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-3 space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[10px] font-black uppercase tracking-wider text-blue-700">
-          Capability Metadata
+          Capability metadata
         </span>
         <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-white border border-blue-100 text-blue-700">
           {metadata.status}
@@ -242,10 +241,10 @@ function CapabilityMetadataStrip({ metadata }: { metadata: RegistryCapabilityMet
           <MetadataPill label="Tab Name" value={metadata.tabName} />
         )}
         <div className="md:col-span-2 xl:col-span-3 rounded-xl border border-white/80 bg-white px-3 py-2 shadow-sm">
-          <div className="text-[9px] uppercase tracking-wider font-mono font-bold text-slate-400">Discovery Notes</div>
+          <div className="text-[9px] uppercase tracking-wider font-mono font-bold text-slate-400">Discovery notes</div>
           <div className="mt-0.5 text-[11px] text-slate-700 leading-relaxed">{metadata.discoveryNotes}</div>
         </div>
-        <MetadataPill label="Duplicate Search Policy" value={metadata.duplicateSearchPolicy} />
+        <MetadataPill label="Duplicate search policy" value={metadata.duplicateSearchPolicy} />
       </div>
     </div>
   );
@@ -272,7 +271,7 @@ function renderRegistryDetailSummary<T extends object>(row: T, definition: Gener
     return (
       <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-[11px] text-slate-600 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Mandatory Fields</span>
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Mandatory fields</span>
           <span className="text-[10px] font-black px-2 py-1 rounded-lg border bg-slate-50 text-slate-600 border-slate-200">
             Mandatory field metadata unavailable
           </span>
@@ -301,7 +300,7 @@ function renderRegistryDetailSummary<T extends object>(row: T, definition: Gener
     <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-[11px] text-slate-600 space-y-3">
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Mandatory Fields</span>
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Mandatory fields</span>
           <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${
             missingFields.length === 0
               ? "bg-emerald-50 text-emerald-700 border-emerald-100"

@@ -831,7 +831,7 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
               className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[10.5px] font-bold text-slate-700 transition-colors hover:bg-slate-100 cursor-pointer"
             >
               <ExternalLink size={11} />
-              Open Resource Library
+              Open resource library
             </button>
           )}
         </div>
@@ -1008,7 +1008,7 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
                       <div className="font-bold text-blue-900">Live Match Found: {discoveredBooks[0].bookName}</div>
                       <div className="text-slate-600 font-mono text-[10px]">NCERT ID: {discoveredBooks[0].ncertBookCode} | Extracted Units: {discoveredBooks[0].chapterCount}</div>
                       <a href={discoveredBooks[0].accessPaths?.pdf} target="_blank" rel="noreferrer" className="text-blue-700 underline font-semibold flex items-center gap-1 mt-1 text-[11px]">
-                        Open NCERT PDF Source Book <ChevronRight size={11} />
+                        Open NCERT PDF source book <ChevronRight size={11} />
                       </a>
                     </div>
                   )}
@@ -1172,7 +1172,7 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
                       }}
                       className="text-blue-600 hover:text-blue-800 text-xs font-bold cursor-pointer"
                     >
-                      + Add Row
+                      Add row
                     </button>
                   </div>
 
@@ -1291,7 +1291,7 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
                   Syllabus & Lesson Plans Registry
                 </h2>
                 <p className="text-[11px] text-slate-500 font-sans mt-0.5">
-                  Synchronized with Google Drive · Showing items matching <strong>{classId} · {subjectId}</strong>
+                  Synchronized with Google Drive | Showing items matching <strong>{classId} | {subjectId}</strong>
                 </p>
               </div>
               <span className="text-[10px] bg-slate-50 border border-slate-200 text-slate-500 font-mono font-bold px-2 py-1 rounded-full select-none w-max">
@@ -1546,7 +1546,7 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
                     className="flex-1 bg-white hover:bg-slate-100 text-slate-850 hover:text-slate-900 border border-slate-250 font-bold py-1.5 px-2.5 rounded text-[10px] flex items-center justify-center gap-1 cursor-pointer transition-all disabled:opacity-40"
                   >
                     <Download size={11} />
-                    {publishingDrive ? "Saving..." : "Save to Google Drive"}
+                  {publishingDrive ? "Saving..." : "Save to Google Drive"}
                   </button>
                 </div>
               </div>
