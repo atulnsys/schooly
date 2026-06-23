@@ -519,10 +519,10 @@ export default function UniversalSearch({
         {ssoConnected ? (
           <div className="flex flex-col lg:flex-row lg:items-center justify-between border-b border-slate-100 pb-4 gap-4">
             <div className="space-y-1">
-              <span className="text-base font-sans font-black text-blue-600 uppercase tracking-widest block">SCHOOL FILE SEARCH</span>
-              <span className="text-xs font-bold text-slate-800 block">Showing files your account can access.</span>
+              <span className="text-base font-sans font-black text-blue-600 uppercase tracking-widest block">Search</span>
+              <span className="text-xs font-bold text-slate-800 block">Find files your account can access.</span>
               <p className="text-[10.5px] text-slate-500 leading-normal max-w-xl font-sans" id="sec-search-banner-notice">
-                Schooly organises your school files, but Google Workspace controls who can open them.
+                Google Workspace still controls who can open each result.
               </p>
             </div>
 
@@ -567,10 +567,10 @@ export default function UniversalSearch({
         ) : (
           <div className="flex flex-col lg:flex-row lg:items-start justify-between border-b border-slate-100 pb-4 gap-4">
             <div className="space-y-1">
-              <span className="text-base font-sans font-black text-blue-600 uppercase tracking-widest block">SCHOOL FILE SEARCH</span>
-              <span className="text-xs font-bold text-slate-800 block">Showing files your account can access.</span>
+              <span className="text-base font-sans font-black text-blue-600 uppercase tracking-widest block">Search</span>
+              <span className="text-xs font-bold text-slate-800 block">Find files your account can access.</span>
               <p className="text-[10.5px] text-slate-500 leading-normal max-w-xl font-sans" id="sec-search-banner-notice">
-                Schooly organises your school files, but Google Workspace controls who can open them.
+                Google Workspace still controls who can open each result.
               </p>
             </div>
 

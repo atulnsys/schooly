@@ -1660,7 +1660,7 @@ export default function LessonPlanner({
       }
     } catch (err) {
       console.error(err);
-      setFeedbackMsg({ type: "error", text: "Error saving lesson plan to Workspace server." });
+      setFeedbackMsg({ type: "error", text: "Error saving lesson plan." });
     } finally {
       setIsSaving(false);
     }
@@ -1894,9 +1894,9 @@ export default function LessonPlanner({
         <div className="absolute inset-0 bg-grid-white/[0.05] bg-[size:20px_20px]" />
         <div className="relative max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="space-y-1">
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight mt-1">Lesson Plans Workspace</h1>
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight mt-1">Lesson Plans</h1>
             <p className="text-xs text-white/80 max-w-3xl leading-relaxed">
-              Verify CBSE/SQAA compliance checklists across classroom plans, and edit curated teacher materials in the integrated Workspace.
+              Plan lessons, review checkpoints, and edit classroom materials in one place.
             </p>
             {setActiveTab && (
               <button
@@ -1905,17 +1905,12 @@ export default function LessonPlanner({
                 className="inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-[10.5px] font-bold text-white transition-colors hover:bg-white/20 cursor-pointer"
               >
                 <ExternalLink size={12} />
-                Open Resource Library
+                Open Resources
               </button>
             )}
           </div>
         </div>
       </header>
-
-      <div className="rounded-2xl border border-blue-100 bg-blue-50/50 px-4 py-3 text-[11px] text-slate-600 shadow-sm" id="lesson-plan-custom-workspace-note">
-        <span className="font-semibold text-slate-800">Custom list/detail workspace:</span>{" "}
-        Lesson Plans stays specialized. Registry rows can be inspected through Registry Explorer where available, but planning, AI review, checklist, and editing remain custom workflows.
-      </div>
 
       {feedbackMsg && (
         <FeedbackBanner
@@ -1935,7 +1930,7 @@ export default function LessonPlanner({
                 <LayoutList size={20} />
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 font-semibold uppercase block font-mono">Classroom Sync'd</span>
+                <span className="text-[10px] text-slate-400 font-semibold uppercase block font-mono">Classroom sync</span>
                 <strong className="text-lg font-bold text-slate-800 font-mono">{classroomPlans.length} plans</strong>
               </div>
             </div>
@@ -1957,7 +1952,7 @@ export default function LessonPlanner({
                 <Clock size={20} />
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 font-semibold uppercase block font-mono">Pending Audit</span>
+                <span className="text-[10px] text-slate-400 font-semibold uppercase block font-mono">Needs review</span>
                 <strong className="text-lg font-bold text-amber-500 font-mono font-sans">
                   {classroomPlans.filter(p => p.reviewStatus === "Pending Review").length} plans
                 </strong>
@@ -1969,7 +1964,7 @@ export default function LessonPlanner({
                 <AlertCircle size={20} />
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 font-semibold uppercase block font-mono">QA Flags / Action</span>
+                <span className="text-[10px] text-slate-400 font-semibold uppercase block font-mono">Needs attention</span>
                 <strong className="text-lg font-bold text-red-500 font-mono font-sans">
                   {classroomPlans.filter(p => p.reviewStatus === "Non-Compliant" || p.reviewStatus === "Approved with Recommendations").length} plans
                 </strong>
@@ -1989,7 +1984,7 @@ export default function LessonPlanner({
                     Lesson Plan Registry
                   </h2>
                   <p className="text-[11.5px] text-slate-400 block mt-0.5 font-normal font-sans">
-                    Monitor compliance scores, run quality audits on classroom items, and configure required criteria.
+                    Review lesson-plan rows and keep the checklist criteria current.
                   </p>
                 </div>
                 
@@ -2002,7 +1997,7 @@ export default function LessonPlanner({
                     id="sync-drive-lessons-btn"
                   >
                     <RotateCw size={13} className={syncingFromDrive ? "animate-spin text-blue-600" : "text-blue-600"} />
-                    <span>{syncingFromDrive ? "Scanning Drive..." : "Sync Drive Lessons"}</span>
+                    <span>{syncingFromDrive ? "Scanning Drive..." : "Sync lessons"}</span>
                   </button>
 
                   <button
@@ -2012,10 +2007,10 @@ export default function LessonPlanner({
                         ? "bg-slate-800 text-white border-slate-900 hover:bg-slate-900" 
                         : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                     }`}
-                    title="Configure advanced folder patterns and naming formats for Google Drive discovery"
+                    title="Configure folder rules for Google Drive discovery"
                   >
                     <Settings size={13} />
-                    <span>Discovery Rules</span>
+                    <span>Folder rules</span>
                   </button>
 
                   <div className="flex items-center gap-1.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
@@ -2054,7 +2049,7 @@ export default function LessonPlanner({
                     {/* Folder Path Pattern */}
                     <div className="md:col-span-8 space-y-1">
                       <label className="text-[10.5px] font-semibold text-slate-600 block select-none">
-                        Google Drive Search & Extraction Path Pattern
+                        Folder pattern
                       </label>
                       <input
                         type="text"
@@ -2071,7 +2066,7 @@ export default function LessonPlanner({
                     {/* File naming keywords */}
                     <div className="md:col-span-4 space-y-1">
                       <label className="text-[10.5px] font-semibold text-slate-600 block select-none">
-                        File Name Keyword Filters
+                        File keywords
                       </label>
                       <input
                         type="text"
@@ -2081,7 +2076,7 @@ export default function LessonPlanner({
                         placeholder="e.g. lesson, plan, curriculum"
                       />
                       <p className="text-[10px] text-slate-400 font-sans">
-                        Comma-separated terms. Finds files with any match. Leave empty for all files.
+                        Comma-separated terms. Leave empty to include every file.
                       </p>
                     </div>
                   </div>
@@ -2090,7 +2085,7 @@ export default function LessonPlanner({
                     {/* Allowed file extensions */}
                     <div className="md:col-span-6 space-y-1.5">
                       <label className="text-[10.5px] font-semibold text-slate-600 block select-none">
-                        Allowed Document Extensions
+                        File types
                       </label>
                       <div className="flex select-none items-center gap-2 flex-wrap">
                         {['.md', '.pdf', '.doc', '.docx', '.xls', '.xlsx'].map(ext => {

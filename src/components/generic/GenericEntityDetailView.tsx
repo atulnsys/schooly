@@ -33,6 +33,7 @@ interface GenericEntityDetailViewProps<T extends object> {
   onClearSelection?: () => void;
   permissionContext?: GenericEntityPermissionContext;
   detailContext?: GenericEntityDetailContext | null;
+  backLabel?: string;
   className?: string;
   childrenBeforeSections?: React.ReactNode;
   childrenAfterSections?: React.ReactNode;
@@ -139,6 +140,7 @@ export default function GenericEntityDetailView<T extends object>({
   onClearSelection,
   permissionContext,
   detailContext,
+  backLabel,
   className = "",
   childrenBeforeSections,
   childrenAfterSections,
@@ -209,9 +211,10 @@ export default function GenericEntityDetailView<T extends object>({
             type="button"
             onClick={onClearSelection}
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50"
+            aria-label={backLabel ?? `Back to ${definition.entityNamePlural}`}
           >
             <X size={12} />
-            Close details
+            {backLabel ?? `Back to ${definition.entityNamePlural}`}
           </button>
         )}
       </div>

@@ -106,63 +106,49 @@ export default function RegistryExplorerPage({
 
   return (
     <div id="registries-registry-page" data-testid="registries-registry-page" tabIndex={-1} className="outline-none">
-      <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-1.5">
-            <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">
-              Registry Explorer
-            </div>
-            <h2 className="text-lg font-extrabold text-slate-900">
-              Showing {summary.totalEntries} explorer entries
-            </h2>
-            <p className="text-xs text-slate-600 max-w-3xl">
-              This view is broader than the canonical capability catalog because it also includes derived views, relationship registries, schema tabs, and embedded surfaces that still need a metadata route for inspection.
-            </p>
+      <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+        <div className="space-y-1.5">
+          <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">
+            Registry Explorer
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-lg font-extrabold text-slate-900">Registry Explorer</h2>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600">
+              {summary.totalEntries} entries
+            </span>
+          </div>
+          <p className="text-xs text-slate-600 max-w-3xl">
+            Review available school registers and data sources.
+          </p>
+        </div>
 
-          <div className="flex flex-wrap gap-2">
-            <span className="text-[10px] font-black px-2.5 py-1 rounded-lg bg-slate-50 text-slate-600 border border-slate-200">
-              Canonical {summary.canonicalPageEntries}
-            </span>
-            <span className="text-[10px] font-black px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-100">
-              Derived {summary.derivedViewEntries}
-            </span>
-            <span className="text-[10px] font-black px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-100">
-              Relationship {summary.relationshipEntries}
-            </span>
-            <span className="text-[10px] font-black px-2.5 py-1 rounded-lg bg-violet-50 text-violet-700 border border-violet-100">
-              Schema tabs {summary.registryTabEntries}
-            </span>
-            <span className="text-[10px] font-black px-2.5 py-1 rounded-lg bg-cyan-50 text-cyan-700 border border-cyan-100">
-              Embedded {summary.embeddedSurfaceEntries}
-            </span>
-            <span className="text-[10px] font-black px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-100">
-              Source unavailable {summary.sourceUnavailableEntries}
-            </span>
-          </div>
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600">Canonical {summary.canonicalPageEntries}</span>
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600">Derived {summary.derivedViewEntries}</span>
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600">Relationships {summary.relationshipEntries}</span>
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600">Schema tabs {summary.registryTabEntries}</span>
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600">Embedded {summary.embeddedSurfaceEntries}</span>
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600">Unavailable {summary.sourceUnavailableEntries}</span>
         </div>
       </div>
 
       {liveRegisterCards && liveRegisterCards.length > 0 && (
-        <div className="mb-6 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-white p-5 shadow-sm space-y-4">
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between gap-3">
             <div className="space-y-1">
               <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">
-                Live school registers
+                School registers
               </div>
-              <h3 className="text-base font-extrabold text-slate-900">Registry KPI cards moved here</h3>
-              <p className="text-xs text-slate-600 max-w-3xl">
-                Registry Explorer is now the main system and data entry point. The live register summaries stay visible here instead of taking up a separate sidebar section.
-              </p>
+              <h3 className="text-base font-extrabold text-slate-900">School registers</h3>
             </div>
-            <span className="text-[10px] font-black px-2.5 py-1 rounded-lg bg-white text-blue-700 border border-blue-100">
-              {liveRegisterCards.length} live summaries
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600">
+              {liveRegisterCards.length} registers
             </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
             {liveRegisterCards.map((card) => (
-              <div key={card.title} className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
+              <div key={card.title} className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
                 <button
                   type="button"
                   onClick={() => openLiveRegisterCard(card.drillTarget)}
@@ -181,12 +167,11 @@ export default function RegistryExplorerPage({
                   </span>
                 </button>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-slate-50 text-slate-600 border border-slate-200">
+                  <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-white text-slate-600 border border-slate-200">
                     {countLabel(card.count, card.sourceState)}
                   </span>
-                  <span className="text-[10px] font-semibold text-slate-500">{card.source}</span>
                   {card.lastSyncedAt !== undefined && (
-                    <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100">
+                    <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-white text-slate-600 border border-slate-200">
                       Last synced {formatTimestamp(card.lastSyncedAt)}
                     </span>
                   )}
@@ -215,6 +200,7 @@ export default function RegistryExplorerPage({
           sourceLabel: "Registry Explorer",
           readOnlyReason: "Explorer entries are read-only navigation records that open the actual registry or route.",
         }}
+        backLabel="Back to Registry Explorer"
       />
     </div>
   );

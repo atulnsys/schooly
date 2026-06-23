@@ -340,54 +340,6 @@ export function sanitizeStudentTerminology(text: string, isStudent: boolean): st
     .replace(/Workflow Automation Builder/gi, "Class updates");
 }
 
-function getPlainLanguagePermissions(roles: string[]): string[] {
-  const isStudent = roles.includes("Student");
-  const isTeacher = roles.includes("Teacher");
-  const isCoordinator = roles.includes("School Coordinator") || roles.includes("Examination Chair");
-  const isAdminOrPrincipal = roles.includes("School Admin") || roles.includes("Principal");
-
-  if (isStudent) {
-    return [
-      "view your learning dashboard",
-      "search materials shared with you",
-      "view tasks and class updates"
-    ];
-  }
-  if (isTeacher) {
-    return [
-      "view your dashboard",
-      "search files shared with you",
-      "manage your tasks",
-      "review Classroom activity",
-      "use AI Assistant"
-    ];
-  }
-  if (isCoordinator) {
-    return [
-      "review school dashboards",
-      "manage department curricula",
-      "track tasks and assignments",
-      "oversee Classroom sync",
-      "use AI Assistant"
-    ];
-  }
-  if (isAdminOrPrincipal) {
-    return [
-      "review school dashboards",
-      "manage academic-year workflows",
-      "review governance and audit records",
-      "check school drive structure",
-      "configure roles and access"
-    ];
-  }
-  // Default fallback for other roles (e.g., Parent Representative, Finance, HR)
-  return [
-    "view allocated dashboard panels",
-    "search documents permitted for your role",
-    "manage assigned checklist items"
-  ];
-}
-
 const ROUTE_TABS = new Set([
   "overview",
   "role-cards",
@@ -489,7 +441,6 @@ function getPathnameFromRouteState(tab: string, registryId: string | null, setti
 export default function App() {
   // Mobile UI States
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [showCapabilities, setShowCapabilities] = useState(false);
 
   // Active Tab
   const initialRouteState = useMemo(() => {
@@ -502,6 +453,19 @@ export default function App() {
   const [selectedRegistryId, setSelectedRegistryId] = useState<string | null>(initialRouteState.registryId);
   const [settingsSection, setSettingsSection] = useState<string | null>(initialRouteState.settingsSection);
   const lastRouteFocusKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [mobileMenuOpen]);
 
   // Databases States
   const [files, setFiles] = useState<WorkspaceFile[]>([]);
@@ -1334,7 +1298,7 @@ export default function App() {
   ];
   const getDisplayNavName = (item: { id: string; name: string }) => {
     if (item.id === "lesson-plans") {
-      return "Lessons Workspace";
+      return "Lessons";
     }
     if (item.id === "role-cards") {
       return "Role Dashboards";
@@ -1344,6 +1308,9 @@ export default function App() {
     }
     if (item.id === "registries") {
       return "Registry Explorer";
+    }
+    if (item.id === "textbooks") {
+      return "Textbooks";
     }
     if (item.id === "resources") {
       return "Resources";
@@ -1442,7 +1409,12 @@ export default function App() {
       }
     ];
   }, [assignments.length, courses.length, schoolRegistry, schoolRegistryLoading, students.length, tasks.length, teachers.length]);
-  const hideRolePersonaWidget = currentRole === "Principal" || currentRole === "Manager";
+  const showRolePersonaWidget =
+    isWorkspaceMock &&
+    (currentRole === "Principal" ||
+      currentRole === "School Admin" ||
+      activeCapabilities.includes("Administration") ||
+      activeCapabilities.includes("Governance"));
 
   const renderDashboardWorkspace = (dashboardView?: "overview" | "role-cards" | "registers" | "data-source" | "setup" | "registry-detail") => (
     <DashboardOverview
@@ -1589,128 +1561,55 @@ export default function App() {
             </div>
             <div>
               <span className="font-bold tracking-tight text-slate-950 text-sm block">Schooly AI</span>
-              <span className="text-[10px] text-blue-600 font-bold font-mono uppercase tracking-wide px-0.5 shadow-2xs">Enterprise</span>
+              <span className="text-[10px] text-blue-600 font-bold tracking-wide px-0.5">School workspace</span>
             </div>
           </div>
 
-          {/* Sidenav Role Simulation Controller widget */}
-          {!hideRolePersonaWidget && (
-          <div className="px-2 bg-slate-50/50 border border-slate-100 p-3 text-left rounded-2xl space-y-3" id="sandbox-preview-bar">
-            <div className="flex items-center justify-between gap-2">
-              <label className="text-[9px] text-slate-400 font-mono font-bold block uppercase tracking-wider">
-                Role context
-              </label>
-              {isWorkspaceMock && (
-                <span className="text-[8.5px] text-blue-600 font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 border border-blue-100">
-                  Preview
-                </span>
-              )}
-            </div>
+          {showRolePersonaWidget && (
+            <div className="px-3 py-3 text-left rounded-2xl border border-slate-100 bg-slate-50/70 space-y-3" id="sandbox-preview-bar">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold text-slate-700">Admin preview</span>
+                <span className="rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">Preview</span>
+              </div>
 
-            <select
-              value={currentRole}
-              onChange={(e) => {
-                const nextRole = e.target.value;
-                const nextOptions = nextRole === "Student"
-                  ? buildStudentPersonaOptions(schoolRegistry?.studentDirectory || [], schoolRegistry?.studentEnrollment || [])
-                  : buildStaffPersonaOptions(schoolRegistry?.staffDirectory || [], nextRole);
-                const fallbackRole = schema.roles.find((r) => r.roleName === nextRole || r.roleId === nextRole.toLowerCase().replace(/\s+/g, "-"));
-                handleSwitchRole(nextRole, nextOptions[0]?.value || fallbackRole?.defaultEmail || currentUser);
-              }}
-              className="w-full text-[11.5px] font-semibold bg-white border border-slate-200 text-slate-700 py-2 px-2 rounded-xl cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-sans shadow-2xs"
-            >
-              {schema.roles.map((r) => (
-                <option key={r.roleId} value={r.roleName}>
-                  {r.roleName}
-                </option>
-              ))}
-            </select>
-
-            {personaOptions.length > 0 ? (
               <select
-                value={currentUser}
-                onChange={(e) => setCurrentUser(e.target.value)}
-                disabled={schoolRegistryLoading}
-                className="w-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-700 py-2 px-2 rounded-xl cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-sans shadow-2xs disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
-                title={currentRole === "Student" ? "Select the student for the current role." : "Select the staff member for the current role."}
+                value={currentRole}
+                onChange={(e) => {
+                  const nextRole = e.target.value;
+                  const nextOptions = nextRole === "Student"
+                    ? buildStudentPersonaOptions(schoolRegistry?.studentDirectory || [], schoolRegistry?.studentEnrollment || [])
+                    : buildStaffPersonaOptions(schoolRegistry?.staffDirectory || [], nextRole);
+                  const fallbackRole = schema.roles.find((r) => r.roleName === nextRole || r.roleId === nextRole.toLowerCase().replace(/\s+/g, "-"));
+                  handleSwitchRole(nextRole, nextOptions[0]?.value || fallbackRole?.defaultEmail || currentUser);
+                }}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-2xs focus:outline-hidden focus:ring-1 focus:ring-blue-500"
               >
-                {personaOptions.map((person) => (
-                  <option key={`${person.value}-${person.email || person.staffId}`} value={person.value}>
-                    {person.displayLabel}
+                {schema.roles.map((r) => (
+                  <option key={r.roleId} value={r.roleName}>
+                    {r.roleName}
                   </option>
                 ))}
               </select>
-            ) : currentRole === "Student" ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-semibold text-amber-800">
-                No student profile found for this role.
-              </div>
-            ) : (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-semibold text-amber-800">
-                No additional profile found for this role.
-              </div>
-            )}
 
-            {isWorkspaceMock && personaOptions.length > 0 && (
-              <div className="text-[9px] text-slate-500 font-mono bg-white px-2 py-1.5 rounded-lg border border-slate-100">
-                {currentRole === "Student"
-                  ? `${personaOptions.length} student rows loaded`
-                  : `${personaOptions.length} staff rows loaded`}
-              </div>
-            )}
-
-            {isWorkspaceMock && activeRoles.length > 1 && (
-              <div className="text-[9.5px] text-blue-600 font-mono bg-blue-50 px-2 py-1.5 rounded-lg border border-blue-100 uppercase font-bold leading-normal">
-                Merged Capabilities: {activeRoles.length} Active Roles
-              </div>
-            )}
-
-            {isWorkspaceMock && (
-              <div className="pt-2 border-t border-slate-100 space-y-2" id="plain-permissions-sidebar-panel">
-                <button
-                  type="button"
-                  onClick={() => setShowCapabilities(!showCapabilities)}
-                  className="w-full flex items-center justify-between text-left text-[9px] text-slate-500 font-bold uppercase tracking-wider hover:text-slate-705 transition-colors cursor-pointer"
+              {personaOptions.length > 0 ? (
+                <select
+                  value={currentUser}
+                  onChange={(e) => setCurrentUser(e.target.value)}
+                  disabled={schoolRegistryLoading}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-2xs focus:outline-hidden focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
                 >
-                  <span className="font-sans">What you can do</span>
-                  <span className="font-sans text-[9px]">{showCapabilities ? 'Hide' : 'Show'}</span>
-                </button>
-
-                {showCapabilities && (
-                  <div className="space-y-2.5 pl-1.5 mt-1 transition-all">
-                    <ul className="list-disc list-inside space-y-1 text-[10px] text-slate-500 font-sans leading-tight">
-                      {getPlainLanguagePermissions(activeRoles).map((perm, idx) => (
-                        <li key={idx} className="capitalize">
-                          {sanitizeStudentTerminology(perm, activeRoles.includes("Student"))}
-                        </li>
-                      ))}
-                    </ul>
-
-                    {(activeCapabilities.includes("Administration") ||
-                      activeCapabilities.includes("Governance") ||
-                      activeCapabilities.includes("Academic Leadership") ||
-                      activeRoles.includes("School Admin")) && (
-                      <div className="mt-2.5 pt-2 border-t border-dashed border-slate-100 space-y-1">
-                        <span className="text-[8px] font-mono font-bold text-slate-400 uppercase tracking-wider block">
-                          Advanced access details
-                        </span>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {activeCapabilities.map(cap => (
-                            <span
-                              key={cap}
-                              className="text-[8px] font-mono bg-slate-50 text-slate-500 px-1 py-0.5 rounded border border-slate-150"
-                              title={`Capability string: ${cap}`}
-                            >
-                              {cap}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+                  {personaOptions.map((person) => (
+                    <option key={`${person.value}-${person.email || person.staffId}`} value={person.value}>
+                      {person.displayLabel}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600">
+                  No alternate profile available.
+                </div>
+              )}
+            </div>
           )}
 
           {primaryNavItems.length > 0 && (
@@ -1749,7 +1648,7 @@ export default function App() {
                 return (
                   <div key={group.label || `flat-group-${groupIdx}`} className="space-y-1 bg-transparent">
                     {group.label && (
-                      <span className="text-[9px] font-bold text-slate-400 block px-2.5 uppercase tracking-wider mb-1.5 border-l-2 border-slate-200 font-mono">
+                      <span className="mb-1.5 block border-l-2 border-slate-200 px-2.5 text-[11px] font-semibold text-slate-500">
                         {sanitizeStudentTerminology(group.label, currentRole === "Student")}
                       </span>
                     )}
@@ -1772,11 +1671,6 @@ export default function App() {
                           <Icon size={14} className="shrink-0 mt-0.5" />
                           <div className="flex flex-col text-left">
                             <span className="font-semibold">{getDisplayNavName(item)}</span>
-                            {item.helperText && (
-                              <span className="text-[9.5px] font-normal leading-normal text-slate-400 group-hover:text-slate-500 transition-colors mt-0.5 font-sans">
-                                {sanitizeStudentTerminology(item.helperText, currentRole === "Student")}
-                              </span>
-                            )}
                           </div>
                         </button>
                       );
@@ -1806,11 +1700,6 @@ export default function App() {
                       <Icon size={16} className="shrink-0 mt-0.5" />
                       <div className="flex flex-col text-left">
                         <span className="font-semibold">{getDisplayNavName(item)}</span>
-                        {item.helperText && (
-                          <span className="text-[9.5px] font-normal leading-normal text-slate-450 group-hover:text-slate-500 transition-colors mt-0.5 font-sans">
-                            {sanitizeStudentTerminology(item.helperText, currentRole === "Student")}
-                          </span>
-                        )}
                       </div>
                     </button>
                   );
@@ -1843,42 +1732,19 @@ export default function App() {
 
         {/* Sidebar Footer segment */}
         <div className="pt-4 border-t border-slate-150 font-mono">
-          <div className="setup-card-shell rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 font-sans shadow-sm space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 space-y-0.5">
-                <div className="text-[8.5px] font-mono font-bold text-slate-400 uppercase tracking-wider">CONNECTION STATUS</div>
-                <div className="text-[10px] font-bold text-slate-700">Profile Role: {currentRole || "Not set"}</div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 font-sans shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold text-slate-600">Connection</div>
+                <div className="text-sm font-bold text-slate-800 truncate">{getSidebarDriveStatus()} · {getSidebarRegistryStatus()}</div>
               </div>
-            </div>
-
-            <div className="space-y-2">
-              {[
-                {
-                  label: "Drive status",
-                  status: getSidebarDriveStatus(),
-                  action: openSettingsDriveSync
-                },
-                {
-                  label: "Registry data",
-                  status: getSidebarRegistryStatus(),
-                  action: openSetupCentre
-                }
-              ].map((row) => (
-                <div key={row.label} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
-                  <div className="min-w-0 flex items-center gap-2">
-                    <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${getSidebarStatusDot(row.status)}`} />
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">{row.label}</span>
-                    <span className="text-[10px] font-extrabold text-slate-900 truncate">{row.status}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={row.action}
-                    className="shrink-0 text-[10px] font-extrabold uppercase tracking-wider text-blue-700 hover:text-blue-800"
-                  >
-                    Configure
-                  </button>
-                </div>
-              ))}
+              <button
+                type="button"
+                onClick={openSetupCentre}
+                className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                Settings
+              </button>
             </div>
           </div>
         </div>
@@ -1894,7 +1760,7 @@ export default function App() {
 
       {/* Main Content Workspace viewport */}
       <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 w-full space-y-6 overflow-x-hidden" id="viewport-workspace" tabIndex={-1}>
-        <div className="mx-auto w-full max-w-[1440px] space-y-6">
+        <div className="w-full space-y-6">
 
         {/* Dynamic Route Switch Panel */}
         {activeTab === "overview" && (

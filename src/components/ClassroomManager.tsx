@@ -83,22 +83,20 @@ export default function ClassroomManager({
         </div>
       )}
 
-      {/* Decoupled School Digital Drive Governance Banner */}
-      <div className="bg-slate-50 border border-slate-205 rounded-xl p-4 flex flex-col md:flex-row gap-3 items-start md:items-center justify-between text-left font-sans">
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col md:flex-row gap-3 items-start md:items-center justify-between text-left font-sans">
         <div className="space-y-1">
           <h4 className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5 uppercase font-mono tracking-wide">
             <Info size={14} className="text-blue-600 uppercase" />
-            LMS DELIVERY LAYER STANDARDS
+            Classroom sync
           </h4>
           <p className="text-[11px] text-slate-500 leading-relaxed max-w-2xl">
-            Google Classroom acts as the interactive <strong>Delivery Layer</strong> synchronizing with core blueprints. 
-            All standard classroom topics (<em>Weekly Planner, Remedial, Assessments</em>) utilize mandated template designations.
+            Google Classroom stays connected to the shared course list so teachers can review announcements, assignments, and student progress in one place.
           </p>
         </div>
         <div className="text-[10px] font-mono text-slate-450 bg-white border border-slate-150 rounded-xl p-2 font-medium space-y-0.5 shrink-0">
-          <div><strong className="text-slate-700">Topic Standards:</strong> admin-owned topics</div>
-          <div><strong className="text-slate-700">Teacher Permission:</strong> Posting only (No creates/renames)</div>
-          <div><strong className="text-slate-700">Knowledge Source:</strong> Academic Repository Root</div>
+          <div><strong className="text-slate-700">Topics:</strong> admin-owned</div>
+          <div><strong className="text-slate-700">Teacher access:</strong> Post and review</div>
+          <div><strong className="text-slate-700">Source:</strong> Academic repository</div>
         </div>
       </div>
 
@@ -132,9 +130,9 @@ export default function ClassroomManager({
           
           {/* Active Announcements & Information Card */}
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm" id="classroom-stream">
-            <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
               <BookOpen size={16} className="text-blue-500 font-bold" />
-              Classroom Stream & Announcements
+              Classroom stream and announcements
             </h3>
             
             <div className="space-y-3">
@@ -149,7 +147,7 @@ export default function ClassroomManager({
 
           {/* Assignments Status and Grading Tracking */}
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm" id="assignments-tracker-panel">
-            <h3 className="text-sm font-bold text-slate-900 mb-4">Classroom Assignments & Grade Status</h3>
+            <h3 className="text-sm font-bold text-slate-900 mb-4">Assignments and status</h3>
 
             {courseAssignments.length === 0 ? (
               <p className="text-sm text-slate-400 text-center py-6">No assignments synchronized for this folder.</p>
@@ -170,7 +168,7 @@ export default function ClassroomManager({
 
           {/* Reference Materials & Course Folders */}
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm" id="materials-indexer-panel">
-            <h3 className="text-sm font-bold text-slate-900 mb-4 block">Material Indexes & Assets</h3>
+            <h3 className="text-sm font-bold text-slate-900 mb-4 block">Materials</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-35">
               {selectedCourse?.materials.map((mat, idx) => (
                 <div key={idx} className="p-3.5 border border-slate-150 rounded-xl hover:border-slate-300 hover:bg-slate-50/40 flex items-center justify-between transition-colors">
@@ -193,7 +191,7 @@ export default function ClassroomManager({
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm" id="student-risks-panel">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-900">Synced SIS Pupil Roster</h3>
+                <h3 className="text-sm font-bold text-slate-900">Student roster</h3>
                 <span className="p-1 text-slate-400 hover:text-slate-600 rounded-md cursor-pointer">
                   <Info size={14} title="Roster syncing via active cloud registers" />
                 </span>
@@ -204,7 +202,7 @@ export default function ClassroomManager({
                   onClick={onOpenStudents}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 text-[10px] font-extrabold text-blue-700 hover:bg-blue-50 cursor-pointer transition-colors"
                 >
-                  View all students
+                  Open students
                 </button>
               )}
             </div>

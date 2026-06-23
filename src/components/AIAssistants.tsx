@@ -758,13 +758,13 @@ export default function AIAssistants({
             </div>
           </>
         ) : (
-          <div className="space-y-4 pt-1.5 font-sans">
-            <div className="p-4 bg-blue-50/50 text-blue-800 border border-blue-100 rounded-2xl space-y-2.5">
-              <span className="text-[10px] uppercase font-bold tracking-wider font-mono text-blue-700 block">How automations help you</span>
+            <div className="space-y-4 pt-1.5 font-sans">
+              <div className="p-4 bg-blue-50/50 text-blue-800 border border-blue-100 rounded-2xl space-y-2.5">
+              <span className="text-[10px] uppercase font-bold tracking-wider font-mono text-blue-700 block">Automations</span>
               <p className="text-[11px] leading-relaxed text-slate-600">
-                Your school administrators configure automatic workflows to sync materials, send notifications, and align Classroom documents with curriculum guidelines automatically.
+                Use automation to keep routine school tasks moving without repeating the same steps.
               </p>
-            </div>
+              </div>
             <div className="space-y-3 pt-1">
               <span className="text-[10px] font-bold text-slate-400 tracking-wider block font-mono">POPULAR REMINDERS FOR TEACHERS</span>
               <div className="space-y-2.5">

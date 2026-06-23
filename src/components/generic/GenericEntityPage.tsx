@@ -27,6 +27,7 @@ interface GenericEntityPageProps<T extends object> {
 
   renderDetailBeforeSections?: (row: T) => React.ReactNode;
   renderDetailAfterSections?: (row: T) => React.ReactNode;
+  backLabel?: string;
   detailContext?: {
     displayMode?: "read-only" | "editable" | "restricted" | "unavailable";
     stateLabel?: string | null;
@@ -53,6 +54,7 @@ export default function GenericEntityPage<T extends object>({
   renderToolbarActions,
   renderDetailBeforeSections,
   renderDetailAfterSections,
+  backLabel,
   detailContext,
 }: GenericEntityPageProps<T>) {
   const listState = useGenericEntityListState({
@@ -108,9 +110,11 @@ export default function GenericEntityPage<T extends object>({
     });
   };
 
+  const hasSelection = Boolean(listState.selectedRowId);
+
   return (
-    <div ref={pageRef} tabIndex={-1} className={`grid grid-cols-1 lg:grid-cols-3 gap-6 outline-none ${className}`}>
-      <div className="lg:col-span-2">
+    <div ref={pageRef} tabIndex={-1} className={`grid grid-cols-1 gap-6 outline-none ${className} ${hasSelection ? "lg:grid-cols-3" : ""}`}>
+      <div className={hasSelection ? "lg:col-span-2" : "lg:col-span-3"}>
         <GenericEntityListView
           definition={definition}
           rows={rows}
@@ -139,23 +143,26 @@ export default function GenericEntityPage<T extends object>({
         />
       </div>
 
-      <div ref={detailRef} className="space-y-4" tabIndex={-1}>
-        <GenericEntityDetailView
-          definition={definition}
-          row={listState.selectedRow}
-          selectedRowId={listState.selectedRowId}
-          selectedRowIsVisible={selectedRowIsVisible}
-          onClearSelection={handleClearSelection}
-          permissionContext={permissionContext}
-          detailContext={detailContext}
-          childrenBeforeSections={
-            listState.selectedRow ? renderDetailBeforeSections?.(listState.selectedRow) : null
-          }
-          childrenAfterSections={
-            listState.selectedRow ? renderDetailAfterSections?.(listState.selectedRow) : null
-          }
-        />
-      </div>
+      {hasSelection && (
+        <div ref={detailRef} className="space-y-4" tabIndex={-1}>
+          <GenericEntityDetailView
+            definition={definition}
+            row={listState.selectedRow}
+            selectedRowId={listState.selectedRowId}
+            selectedRowIsVisible={selectedRowIsVisible}
+            onClearSelection={handleClearSelection}
+            permissionContext={permissionContext}
+            detailContext={detailContext}
+            backLabel={backLabel ?? `Back to ${definition.entityNamePlural}`}
+            childrenBeforeSections={
+              listState.selectedRow ? renderDetailBeforeSections?.(listState.selectedRow) : null
+            }
+            childrenAfterSections={
+              listState.selectedRow ? renderDetailAfterSections?.(listState.selectedRow) : null
+            }
+          />
+        </div>
+      )}
     </div>
   );
 }

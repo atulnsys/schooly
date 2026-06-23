@@ -499,8 +499,8 @@ export default function DashboardOverview({
         success: isConnected,
         timestamp: new Date().toLocaleTimeString(),
         message: isConnected 
-          ? `Workspace link connected: ${workspaceUrl || "Default Root Google Drive"}.`
-          : `Workspace link is not configured. Configure it to authorize live workspace index queries.`,
+          ? `Drive link connected: ${workspaceUrl || "Default Root Google Drive"}.`
+          : `Drive link is not configured. Connect it to load live data.`,
         retrievedCount: driveFiles.length,
         filesList: driveFiles.slice(0, 4).map(f => f.name)
       });
@@ -1771,7 +1771,7 @@ export default function DashboardOverview({
       <div className="setup-card-shell bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4" id="dashboard-live-registry-source-status">
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
           <div className="space-y-1 min-w-0">
-            <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Registry readiness</div>
+            <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Data sources</div>
             <h2 className="text-base font-extrabold text-slate-900">{dashboardSourceState.sourceLabel}</h2>
             <div className="text-xs text-slate-500 break-words">
               {registryHealthSummary.connectedRegistries}/{registryHealthSummary.totalRegistries} registry sources ready
@@ -1799,8 +1799,8 @@ export default function DashboardOverview({
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
             <div>
-              <div className="text-[10px] uppercase tracking-wider font-mono text-slate-500 font-black">Registry status</div>
-              <h3 className="text-sm font-extrabold text-slate-900">Connection state and next action</h3>
+              <div className="text-[10px] uppercase tracking-wider font-mono text-slate-500 font-black">Connection status</div>
+              <h3 className="text-sm font-extrabold text-slate-900">Current status and next step</h3>
             </div>
             <span className="text-[10px] font-sans font-black rounded-full bg-white text-slate-700 border border-slate-200 px-2 py-1">
               {registryHealthSummary.connectedRegistries}/{registryHealthSummary.totalRegistries} connected
@@ -5209,8 +5209,8 @@ export default function DashboardOverview({
     <div className="setup-card-shell bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4" id="dashboard-live-only-overview">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Admin Registry Detail</div>
-                <h2 className="text-base font-extrabold text-slate-900">Registry-derived overview</h2>
+                <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Data sources</div>
+                <h2 className="text-base font-extrabold text-slate-900">Overview</h2>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-mono bg-blue-50 text-blue-700 px-2 py-1 rounded-md font-bold uppercase">

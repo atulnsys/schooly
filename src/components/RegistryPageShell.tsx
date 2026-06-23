@@ -72,10 +72,8 @@ function renderRegistryHeader(
   currentRole: string,
   summary: RegistryHeaderSummary,
   showCapabilityMetadata: boolean,
-  sourceDisplayLabel?: string | null,
   sourceLastSyncedAt?: string | null,
   sourceLastCheckedAt?: string | null,
-  sourceStatus?: SchoolRegistrySourceStatus | null,
 ) {
   const Icon = entry.iconComponent;
   const sourceStateClass = summary.sourceState === "Ready"
@@ -134,57 +132,22 @@ function renderRegistryHeader(
         </div>
       </div>
 
-      <div className="flex flex-wrap items-start gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
-        <Info size={14} className="text-blue-600 shrink-0 mt-0.5" />
-        <div className="space-y-2 min-w-0">
-          <p className="break-words">
-            Data source: <span className="font-mono font-bold text-slate-700">{entry.sourceLabel}</span>.
-            {entry.status === "deferred" ? ` ${entry.statusReason || entry.emptyStateDescription}` : " If this feed is empty, the registry will show the generic empty state instead of synthetic rows."}
-          </p>
-          {sourceDisplayLabel !== undefined && (
-            <p className="break-words">
-              Live source: <span className="font-mono font-bold text-slate-700">{sourceDisplayLabel}</span>.
-            </p>
-          )}
-          {sourceStatus && (
-            <p className="break-words">
-              Current state: <span className="font-mono font-bold text-slate-700">{sourceStatus === "stale" ? "stale" : sourceStatus.replace(/_/g, " ")}</span>.
-            </p>
-          )}
-          {(sourceDisplayLabel !== undefined || sourceLastSyncedAt !== undefined || sourceLastCheckedAt !== undefined) && (
-            <div className="flex flex-wrap gap-2">
-              <span className="text-[10px] font-black px-2 py-1 rounded-lg border bg-emerald-50 text-emerald-700 border-emerald-100">
-                Last successful sync: {formatRegistryTimestamp(sourceLastSyncedAt)}
-              </span>
-              {sourceLastCheckedAt && (
-                <span className="text-[10px] font-black px-2 py-1 rounded-lg border bg-slate-50 text-slate-600 border-slate-200">
-                  Last checked: {formatRegistryTimestamp(sourceLastCheckedAt)}
-                </span>
-              )}
-            </div>
-          )}
-          <div className="flex flex-wrap gap-2">
-            <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${mandatoryStateClass}`}>
-              {summary.mandatoryFieldLabel}
-            </span>
-            <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${validationStateClass}`}>
-              {summary.validationLabel}
-            </span>
-          </div>
-          {summary.guidance && (
-            <p className="text-[10px] text-slate-500 break-words">
-              {summary.guidance}
-            </p>
-          )}
-          {entry.capabilityMetadata && (
-            <p className="text-[10px] text-slate-500">
-              {entry.capabilityMetadata.derivedFromRegistryId
-                ? `Derived from ${entry.capabilityMetadata.derivedFromRegistryId}. `
-                : `Canonical source: ${entry.capabilityMetadata.displayName}. `}
-              {entry.capabilityMetadata.discoveryNotes}
-            </p>
-          )}
-        </div>
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+        <Info size={14} className="text-blue-600 shrink-0" />
+        <span className="font-semibold">{summary.rowCountLabel}</span>
+        <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${sourceStateClass}`}>{summary.sourceState}</span>
+        <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${mandatoryStateClass}`}>{summary.mandatoryFieldLabel}</span>
+        <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${validationStateClass}`}>{summary.validationLabel}</span>
+        {sourceLastSyncedAt && (
+          <span className="text-[10px] font-black px-2 py-1 rounded-lg border bg-emerald-50 text-emerald-700 border-emerald-100">
+            Last synced: {formatRegistryTimestamp(sourceLastSyncedAt)}
+          </span>
+        )}
+        {sourceLastCheckedAt && (
+          <span className="text-[10px] font-black px-2 py-1 rounded-lg border bg-slate-50 text-slate-600 border-slate-200">
+            Checked: {formatRegistryTimestamp(sourceLastCheckedAt)}
+          </span>
+        )}
       </div>
       {showCapabilityMetadata && entry.capabilityMetadata && (
         <CapabilityMetadataStrip metadata={entry.capabilityMetadata} />
@@ -521,7 +484,7 @@ export default function RegistryPageShell<T extends object>({
 
   return (
     <div className="space-y-6 animate-fade-in outline-none" id={`${registryId}-registry-page`} data-testid={`${registryId}-registry-page`} tabIndex={-1} aria-busy={isLoading}>
-      {renderRegistryHeader(entry, currentRole, summary, showCapabilityMetadata, sourceDisplayLabel, sourceLastSyncedAt, sourceLastCheckedAt, sourceStatus)}
+      {renderRegistryHeader(entry, currentRole, summary, showCapabilityMetadata, sourceLastSyncedAt, sourceLastCheckedAt)}
 
       {errorMessage && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">

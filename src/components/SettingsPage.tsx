@@ -344,10 +344,11 @@ export default function SettingsPage({
 
   const sectionButtons: Array<{ id: SettingsSection; label: string }> = [
     { id: "organization", label: "Organization" },
-    { id: "registry", label: "Registry connection" },
+    { id: "registry", label: "Data connections" },
     { id: "application", label: "Application" },
     { id: "advanced", label: "Advanced" }
   ];
+  const activeSectionLabel = sectionButtons.find((section) => section.id === activeSection)?.label ?? "Organization";
 
   const registrySourceDiscovery = useMemo(() => discoverRegistrySources(files), [files]);
   const registryCatalogSummary = useMemo(() => getRegistryExplorerSummary(), []);
@@ -825,9 +826,14 @@ export default function SettingsPage({
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-1">
             <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Settings</div>
-            <h1 className="text-xl font-black text-slate-900">Central Schooly Settings</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-black text-slate-900">Settings</h1>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600">
+                {activeSectionLabel}
+              </span>
+            </div>
             <p className="text-sm text-slate-600 max-w-3xl">
-              Keep organization details, registry connection hints, and app configuration in one simple page. Dashboard pages stay focused on operational work.
+              Manage organization details, data connections, and app access from one place.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -940,8 +946,8 @@ export default function SettingsPage({
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4" id={getSettingsSectionId("registry")} tabIndex={-1} aria-busy={testingConnection}>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Registry Connection</div>
-            <h2 className="text-base font-extrabold text-slate-900">Registry Access Google Account and source link</h2>
+            <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Data connections</div>
+            <h2 className="text-base font-extrabold text-slate-900">Registry access and source link</h2>
             <p className="text-xs text-slate-600 mt-1">The account field is only a login hint and comparison target. It is not a password or token.</p>
           </div>
           <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-wider">

@@ -441,7 +441,7 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
               if (onRefreshData) onRefreshData();
             } else {
               setJobProgress(currentProg);
-              setJobStepText(currentProg === 40 ? "Running high fidelity PDF OCR..." : currentProg === 60 ? "Structuring chapter hierarchy..." : "Writing to Drive Workspace files...");
+              setJobStepText(currentProg === 40 ? "Running high fidelity PDF OCR..." : currentProg === 60 ? "Structuring chapter hierarchy..." : "Saving lesson files...");
             }
           }, 400);
         } else {
@@ -819,10 +819,10 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
         <div>
           <h1 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <span className="p-1.5 bg-blue-50 text-blue-600 rounded-lg"><BookOpen size={18} /></span>
-            NCERT Syllabus Ingestor & Curriculum Alignment
+            Textbooks
           </h1>
           <p className="text-xs text-slate-500 mt-1 font-sans">
-            Input textbook chapters via direct NCERT URL lookup, full PDF files, screenshot analysis, or manually. Synchronize the extracted outcomes instantly as editable, pre-audited lesson files in Google Drive.
+            Import chapters from NCERT sources, map lessons, and save the results to Drive or Classroom.
           </p>
           {setActiveTab && (
             <button
@@ -831,7 +831,7 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
               className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[10.5px] font-bold text-slate-700 transition-colors hover:bg-slate-100 cursor-pointer"
             >
               <ExternalLink size={11} />
-              Open resource library
+              Open resources
             </button>
           )}
         </div>
@@ -938,7 +938,7 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
             className="w-full lg:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 h-9 rounded-lg transition-all text-xs cursor-pointer shadow-xs flex items-center justify-center gap-1.5 disabled:opacity-50"
           >
             {discovering ? <RefreshCw size={12} className="animate-spin" /> : <Search size={12} />}
-            Discover E-Book Mappings
+            Find chapters
           </button>
         </div>
       </div>
@@ -1270,7 +1270,7 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
                   className="w-full bg-slate-900 hover:bg-slate-950 text-white font-bold py-3.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md disabled:opacity-40 animate-fadeIn"
                 >
                   <Cloud size={14} />
-                  Extract Syllabus & Sync to Google Drive
+                  Build lesson set
                 </button>
               </div>
             </div>
@@ -1288,7 +1288,7 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
               <div>
                 <h2 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
                   <span className="p-1 bg-emerald-50 text-emerald-600 rounded-md"><FolderCheck size={14} /></span>
-                  Syllabus & Lesson Plans Registry
+                  Lesson plan registry
                 </h2>
                 <p className="text-[11px] text-slate-500 font-sans mt-0.5">
                   Synchronized with Google Drive | Showing items matching <strong>{classId} | {subjectId}</strong>
@@ -1301,7 +1301,7 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
             {(!classId || !subjectId) ? (
               <div className="h-44 bg-slate-50/50 rounded-xl flex flex-col justify-center items-center text-center p-6 text-slate-400 text-xs gap-2 border border-dashed border-slate-200 animate-fadeIn" id="unselected-filters-notifier">
                 <Info size={24} className="text-slate-350" />
-                <span className="font-sans font-bold text-slate-650 text-[11.5px]">Syllabus & Lesson Plans Registry is locked.</span>
+                <span className="font-sans font-bold text-slate-650 text-[11.5px]">Choose a class and subject to view saved rows.</span>
                 <span className="max-w-md text-[10.5px] text-slate-400 leading-relaxed font-sans">
                   Please select Class and Subject above to filter the synchronized syllabus files and active reviews.
                 </span>
@@ -1311,7 +1311,7 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
                 <AlertCircle size={28} className="text-slate-300" />
                 <span className="font-sans font-semibold text-slate-600 text-[11.5px]">No plan records located inside workspace Drive subdirectory for this selection.</span>
                 <span className="max-w-md text-[10.5px] text-slate-400 leading-relaxed font-sans">
-                  Click "Discover E-Book Mappings" followed by "Extract Syllabus & Sync to Google Drive" above to extract chapters and automatically map new lessons!
+                  Find chapters above, then build the lesson set to add matching rows.
                 </span>
               </div>
             ) : (
@@ -1505,15 +1505,15 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-200 pb-3">
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs bg-slate-900 text-white font-mono font-bold px-2 py-0.5 rounded">CBSE SYLLABUS PACKAGE</span>
+                <span className="text-xs bg-slate-900 text-white font-mono font-bold px-2 py-0.5 rounded">Lesson pack</span>
                 <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5 animate-pulse">
                   <Sparkles size={9} className="text-amber-500" />
-                  12 resources loaded
+                  12 items
                 </span>
               </div>
               <h2 className="text-md font-bold text-slate-800 leading-snug mt-1 flex items-center gap-1.5">
                 <Sparkles size={15} className="text-amber-500 shrink-0" />
-                pedagogical asset list: "{selectedChapterForPack}"
+                Chapter pack: "{selectedChapterForPack}"
               </h2>
             </div>
             
@@ -1534,10 +1534,10 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
               <div className="bg-white border border-slate-200 p-4 rounded-xl space-y-2">
                 <div className="font-bold text-slate-800 text-[11.5px] flex items-center gap-1.5">
                   <FolderCheck size={14} className="text-blue-600" />
-                  Storage Sync Outputs
+                  Save outputs
                 </div>
                 <div className="text-[10.5px] text-slate-500 leading-relaxed font-sans">
-                  The generated lesson outlines and supportive activities are indexed inside the user's school folder stream!
+                  The generated lesson outlines and support materials are saved in the school Drive folder.
                 </div>
                 <div className="flex gap-2 pt-1 flex-wrap">
                   <button 
@@ -1555,11 +1555,11 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
               <div className="border border-slate-200 bg-white p-4 rounded-xl space-y-3 text-xs font-sans">
                 <div className="font-bold text-slate-800 text-[11.5px] flex items-center gap-1">
                   <BookOpen size={13} className="text-blue-600" />
-                  Google Classroom Integration
+                  Google Classroom
                 </div>
                 <div className="space-y-2">
                   <div>
-                    <label className="block text-[10px] text-slate-500 mb-1 font-bold">Target active classroom course</label>
+                    <label className="block text-[10px] text-slate-500 mb-1 font-bold">Target course</label>
                     <select
                       value={classroomCourseId}
                       onChange={(e) => setClassroomCourseId(e.target.value)}
@@ -1577,7 +1577,7 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
                     className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold py-1.5 rounded text-[10px] flex items-center justify-center gap-1 cursor-pointer transition-all"
                   >
                     <CheckCircle2 size={11} />
-                    {publishingClassroom ? "Syncing..." : "Publish Lesson to Google Classroom"}
+                    {publishingClassroom ? "Syncing..." : "Send to Google Classroom"}
                   </button>
                 </div>
               </div>
@@ -1630,9 +1630,9 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
             {/* Right pre-rendered reader of documents */}
             <div className="lg:col-span-8 flex flex-col h-[525px] border border-slate-200 rounded-xl overflow-hidden bg-white shadow-inner" id="pack-viewer-canvas">
               <div className="bg-slate-100 border-b border-slate-200 px-3 py-2 flex items-center justify-between text-[10px] font-mono text-slate-600 shrink-0">
-                <span className="truncate font-bold">viewer file: {selectedArtifactDoc}</span>
+                <span className="truncate font-bold">Previewing: {selectedArtifactDoc}</span>
                 <span className="text-emerald-600 font-bold flex items-center gap-0.5">
-                  <CheckCircle size={10} /> Fully Aligned
+                  <CheckCircle size={10} /> Ready
                 </span>
               </div>
               

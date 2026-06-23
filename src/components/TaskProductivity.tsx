@@ -200,7 +200,7 @@ export default function TaskProductivity({
           className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-sm shrink-0 md:self-end xl:self-auto"
         >
           <Plus size={14} />
-          {showAddForm ? "Hide Task Form" : "Create Workspace Task"}
+          {showAddForm ? "Hide task form" : "Add task"}
         </button>
       </div>
 
@@ -341,7 +341,7 @@ export default function TaskProductivity({
                 type="submit"
                 className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold tracking-wide transition-colors cursor-pointer shadow-xs"
               >
-                Insert Task
+                Add task
               </button>
             </div>
           </div>
@@ -474,7 +474,7 @@ export default function TaskProductivity({
                           onClick={() => handleMoveTask(task.id, task.status)}
                           className="px-2.5 py-1 bg-slate-50 hover:bg-slate-100 rounded-lg text-[10px] font-bold border border-slate-200 transition-colors cursor-pointer text-slate-705"
                         >
-                          Convert State
+                          Change status
                         </button>
                         <button
                           onClick={() => onDeleteTask(task.id)}

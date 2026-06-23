@@ -247,12 +247,12 @@ export default function GenericEntityListView<T extends object>({
   const [announcement, setAnnouncement] = useState("");
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [viewsOpen, setViewsOpen] = useState(false);
+  const [viewOptionsOpen, setViewOptionsOpen] = useState(false);
   const [newViewName, setNewViewName] = useState("");
   const [renameDraft, setRenameDraft] = useState("");
   const [pendingDeleteViewId, setPendingDeleteViewId] = useState<string | null>(null);
 
-  const columnsButtonRef = useRef<HTMLButtonElement | null>(null);
-  const viewsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const viewOptionsButtonRef = useRef<HTMLButtonElement | null>(null);
   const lastAnnouncementRef = useRef("");
 
   const activeSearch = resolveControlValue(searchValue ?? state?.searchValue, localSearch);
@@ -760,7 +760,7 @@ export default function GenericEntityListView<T extends object>({
         title="Columns"
         description="Show or hide optional columns, move them with keyboard-friendly buttons, and set compact or comfortable density."
         closeLabel="Close columns dialog"
-        returnFocusRef={columnsButtonRef}
+        returnFocusRef={viewOptionsButtonRef}
         maxWidthClassName="max-w-4xl"
         bodyClassName="px-5 py-4 space-y-5"
         footerClassName="px-5 py-4"
@@ -960,7 +960,7 @@ export default function GenericEntityListView<T extends object>({
         title="Views"
         description="Saved views live in this browser only. They preserve search, filters, sort, page size, density, and column settings for this entity."
         closeLabel="Close views dialog"
-        returnFocusRef={viewsButtonRef}
+        returnFocusRef={viewOptionsButtonRef}
         maxWidthClassName="max-w-4xl"
         bodyClassName="px-5 py-4 space-y-5"
         footerClassName="px-5 py-4"
@@ -1296,18 +1296,18 @@ export default function GenericEntityListView<T extends object>({
       <div className="p-4 border-b border-slate-100 bg-slate-50/75 space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="min-w-0">
-            <h3 className="font-bold text-slate-900 text-sm">
+            <h3 className="text-sm font-bold text-slate-900">
               {definition.entityNamePlural}
             </h3>
             {definition.description && (
-              <p className="text-[10.5px] text-slate-500 font-sans leading-normal mt-0.5">
+              <p className="mt-0.5 text-[11px] leading-normal text-slate-500">
                 {definition.description}
               </p>
             )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="text-[10px] text-slate-500 font-mono font-bold uppercase">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
               Showing {visibleRows.length} of {rows.length}
               {activeFilterCount > 0 && ` · ${activeFilterCount} filter${activeFilterCount === 1 ? "" : "s"} active`}
             </div>
@@ -1319,34 +1319,6 @@ export default function GenericEntityListView<T extends object>({
             )}
 
             {renderToolbarActions?.()}
-
-            {state && (
-              <>
-                <button
-                  type="button"
-                  ref={columnsButtonRef}
-                  onClick={() => setColumnsOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[10.5px] font-bold text-slate-700 hover:bg-slate-50"
-                  aria-label="Columns"
-                >
-                  <LayoutGrid size={13} />
-                  Choose columns
-                </button>
-                <button
-                  type="button"
-                  ref={viewsButtonRef}
-                  onClick={() => {
-                    setRenameDraft(activeSavedView?.name || "");
-                    setViewsOpen(true);
-                  }}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[10.5px] font-bold text-slate-700 hover:bg-slate-50"
-                  aria-label="Views"
-                >
-                  <ChevronLeft size={13} className="rotate-180" />
-                  Saved views
-                </button>
-              </>
-            )}
 
             {showDisplayModeToggle && (
               <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5">
@@ -1370,6 +1342,57 @@ export default function GenericEntityListView<T extends object>({
                 >
                   <List size={13} />
                 </button>
+              </div>
+            )}
+
+            {state && (
+              <div className="relative">
+                <button
+                  type="button"
+                  ref={viewOptionsButtonRef}
+                  onClick={() => setViewOptionsOpen((current) => !current)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10.5px] font-bold text-slate-700 hover:bg-slate-50"
+                  aria-haspopup="menu"
+                  aria-expanded={viewOptionsOpen}
+                  aria-controls="generic-view-options-menu"
+                >
+                  <ChevronDown size={13} />
+                  View options
+                </button>
+
+                {viewOptionsOpen && (
+                  <div
+                    id="generic-view-options-menu"
+                    role="menu"
+                    className="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-52 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl"
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setColumnsOpen(true);
+                        setViewOptionsOpen(false);
+                      }}
+                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      <LayoutGrid size={14} />
+                      Choose columns
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setRenameDraft(activeSavedView?.name || "");
+                        setViewsOpen(true);
+                        setViewOptionsOpen(false);
+                      }}
+                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      <ChevronLeft size={14} className="rotate-180" />
+                      Saved views
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
