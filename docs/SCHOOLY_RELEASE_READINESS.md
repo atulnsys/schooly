@@ -25,13 +25,13 @@
 | Screen reader | Not tested in this session |
 | Realistic volume | Not fully verified in-browser this wave |
 | External provider | Code reviewed; live provider interaction not re-run in this wave |
-| Storage safety | Passed: the auth helper no longer persists Google Workspace access tokens; browser storage now keeps only non-sensitive metadata |
+| Storage safety | Passed by code inspection: the auth helper no longer persists Google Workspace access tokens; live authenticated browser storage verification remains pending |
 
 ## Critical Workflows
 
 | Workflow | Status | Evidence | Remaining limitation | Release impact |
 | --- | --- | --- | --- | --- |
-| Settings | Conditioned | Shared settings/auth code reviewed in `src/components/SettingsPage.tsx`, `src/lib/googleWorkspaceAuth.ts`, and `src/lib/googleSheetRead.ts`; route smoke passed; token persistence was removed from browser storage in `src/lib/googleWorkspaceAuth.ts`. | No trusted browser run for edit/save/reconnect and no keyboard-only pass. | Release-safe if browser follow-up confirms the save and connection matrix. |
+| Settings | Conditioned | Shared settings/auth code reviewed in `src/components/SettingsPage.tsx`, `src/lib/googleWorkspaceAuth.ts`, and `src/lib/googleSheetRead.ts`; route smoke passed; code inspection confirmed the token-persistence fix in `src/lib/googleWorkspaceAuth.ts`, but authenticated browser storage inspection remains pending. | No trusted browser run for edit/save/reconnect and no keyboard-only pass. | Release-safe if browser follow-up confirms the save and connection matrix. |
 | Registries | Conditioned | Shared registry shell and generic list/detail foundations reviewed in `src/components/RegistryPageShell.tsx`, `src/components/GenericRegistryDataPage.tsx`, `src/components/generic/GenericEntityPage.tsx`, and `src/components/generic/GenericEntityListView.tsx`; route smoke passed. | No browser pass for search, filters, sort, views, back/forward, or detail close/reopen. | Release-safe if the browser matrix remains stable. |
 | Resources | Conditioned | Source-state and filter overlay paths reviewed in `src/components/AcademicResourceLibraryPage.tsx`; route smoke passed. | No browser verification of the modal, filter overlay, and responsive layout this wave. | Release-safe if the existing overlay behavior holds in-browser. |
 | Lesson Planner | Conditioned | Custom workflow remained intact in `src/components/LessonPlanner.tsx`; route smoke passed. | No browser verification of approval, duplicate-submit prevention, or failure retention this wave. | Release-safe with a follow-up browser pass. |
@@ -43,7 +43,7 @@
 
 | Severity | Affected route or workflow | Requirement IDs | Evidence | Impact | Likelihood | Mitigation | Release decision | Follow-up role |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| HIGH | Browser verification for critical workflows | `ACCEPT-11`, `ACCEPT-12`, `ACCEPT-13`, `SAFE-15`, `SAFE-16`, `A11Y-18` | Route smoke, lint, typecheck, build, and code review passed; browser control was unavailable. | READY cannot be claimed from HTTP smoke alone. | High, because the required browser tool was unavailable in this session. | Run the manual fallback matrix in a trusted browser and complete the keyboard and screen-reader checks. | `CONDITIONALLY READY` | UI QA / browser verification |
+| HIGH | Browser verification for critical workflows | `ACCEPT-11`, `ACCEPT-12`, `ACCEPT-13`, `ACCEPT-15`, `SAFE-15`, `SAFE-16`, `A11Y-18` | Route smoke, lint, typecheck, build, and code review passed; browser control was unavailable, so the end-to-end final acceptance workflow remains pending. | READY cannot be claimed from HTTP smoke alone. | High, because the required browser tool was unavailable in this session. | Run the manual fallback matrix in a trusted browser and complete the keyboard and screen-reader checks. | `CONDITIONALLY READY` | UI QA / browser verification |
 | HIGH | Accessibility acceptance | `ACCEPT-12`, `A11Y-18` | No real keyboard-only or screen-reader pass was possible. | Accessibility cannot be declared complete. | High. | Use a trusted browser with a screen reader and record the workflow. | `CONDITIONALLY READY` | Accessibility QA |
 | MEDIUM | Realistic data volume | `SAFE-16`, `ACCEPT-13`, `PERF-10` | Build and code review succeeded, but no live volume pass ran. | Large lists could still hide a layout or interaction issue. | Medium. | Exercise the largest legitimate datasets later. | `CONDITIONALLY READY` | UI QA |
 | MEDIUM | External provider flows | `ACCEPT-02`, `ACCEPT-05`, `ACCEPT-10` | Auth and sheet-read helpers were reviewed, but live Google Workspace interaction was not repeated. | Provider-specific failures could still surface only in-browser. | Medium. | Re-run the provider-backed flows in a trusted browser when available. | `CONDITIONALLY READY` | Integration QA |
@@ -56,6 +56,7 @@
 - Browser control was not available in this session.
 - Screen-reader verification was not available in this session.
 - Realistic-volume browser testing was not available in this session.
+- Authenticated browser storage inspection remains mandatory.
 - The build still emits the existing Vite chunk-size warning.
 - Route smoke confirms availability only and does not prove workflow correctness.
 
@@ -68,6 +69,7 @@
 
 - Desktop, 1024px, 768px, 390px portrait, mobile landscape, and 200% zoom browser checks remain open.
 - Back/Forward, focus management, keyboard-only flows, and modal interaction remain open.
+- The end-to-end final acceptance workflow remains open.
 
 ## Accessibility-Verification Gaps
 
@@ -95,4 +97,4 @@
 
 `CONDITIONALLY READY`
 
-The application build, lint, typecheck, route smoke, code review, and the storage-safety fix all support release continuation, but the lack of trusted browser control, keyboard-only evidence, screen-reader evidence, and realistic-volume browser evidence means the release cannot be called `READY` yet.
+The application build, lint, typecheck, route smoke, code review, and the storage-safety fix all support release continuation, but the lack of trusted browser control, authenticated browser storage inspection, keyboard-only evidence, screen-reader evidence, and realistic-volume browser evidence means the release cannot be called `READY` yet.

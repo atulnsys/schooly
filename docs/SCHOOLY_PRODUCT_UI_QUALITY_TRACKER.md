@@ -10,7 +10,7 @@
 | Audit date | `2026-06-22` |
 | Baseline commit | `ca4f4fe` |
 | Reviewed through commit | `227e652` |
-| Verification performed | Lint passed: `npm run lint` (`tsc --noEmit`); `package.json` has no test script; TypeScript typecheck passed: `npx tsc --noEmit --pretty false`; build passed: `npm run build`; `git diff --check` passed; route smoke passed on `/`, `/registries`, `/registers`, `/staff`, `/teachers`, `/resources`, `/lesson-plans`, `/textbooks`, `/classroom`, `/students`, `/courses`, `/assignments`, `/search`, and `/settings`; the narrow auth-storage fix removed Google Workspace access-token persistence from browser storage; trusted browser control and screen-reader verification were unavailable in this session, so `docs/WAVE_10_FINAL_ACCEPTANCE_MANUAL.md` records the manual fallback matrix. |
+| Verification performed | Lint passed: `npm run lint` (`tsc --noEmit`); `package.json` has no test script; TypeScript typecheck passed: `npx tsc --noEmit --pretty false`; build passed: `npm run build`; `git diff --check` passed; route smoke passed on `/`, `/registries`, `/registers`, `/staff`, `/teachers`, `/resources`, `/lesson-plans`, `/textbooks`, `/classroom`, `/students`, `/courses`, `/assignments`, `/search`, and `/settings`; code inspection confirmed the narrow auth-storage fix removed Google Workspace access-token persistence from the browser-storage code path, while live authenticated browser storage verification remains pending; trusted browser control and screen-reader verification were unavailable in this session, so `docs/WAVE_10_FINAL_ACCEPTANCE_MANUAL.md` records the manual fallback matrix. |
 
 ## Wave 7 Note
 
@@ -51,8 +51,8 @@ Wave 10 combines a narrow auth-storage security fix with the final acceptance pa
 
 | Status | Count |
 | --- | --- |
-| PASS | 48 |
-| PARTIAL | 135 |
+| PASS | 47 |
+| PARTIAL | 136 |
 | FAIL | 0 |
 | BLOCKED | 2 |
 | NOT TESTED | 151 |
@@ -423,7 +423,7 @@ DATA-05 | `/settings`, `/registries`, `/staff`, `/resources` | Settings, Registr
 | `ACCEPT-12` | Final | Keyboard, focus, labels, contrast, and screen-reader behaviour are acceptable. | NOT TESTED | No real keyboard-only or screen-reader pass was possible in this session. | Keyboard and screen-reader evidence missing. | Run keyboard-only and screen-reader checks in a trusted browser. | Not run; browser control unavailable locally. | `e1f118d` | `2026-06-22` |
 | `ACCEPT-13` | Final | Long content and realistic data volumes do not break the page. | PARTIAL | The build completed and the current shell/layout code remains in place, but no realistic-volume browser run was possible. | No large-dataset browser proof. | Validate the largest legitimate datasets in browser. | Build plus route smoke; browser control unavailable locally. | `e1f118d` | `2026-06-22` |
 | `ACCEPT-14` | Final | No unrelated functionality or styling changed. | PASS | Wave 10 introduced one narrow auth-storage fix and docs; no unrelated application functionality or styling changed. | None. | Keep future evidence passes code-neutral unless a defect requires change. | Repo diff review plus clean build and route smoke. | `227e652` | `2026-06-22` |
-| `ACCEPT-15` | Final | The affected workflow was verified end to end. | PASS | The previously verified Settings -> Registry Explorer and Resources workflow still has route availability and unchanged application code on this branch. | No new browser pass this wave. | Keep using end-to-end validation for future UI changes. | Current route smoke plus prior wave browser smoke and route evidence. | `e1f118d` | `2026-06-22` |
+| `ACCEPT-15` | Final | The affected workflow was verified end to end. | PARTIAL | Implementation and route availability were reviewed, and the Wave 10 security fix remains in place; however, this pass did not include a trusted end-to-end browser workflow run. | Critical end-to-end browser workflows remain pending. | Complete the trusted-browser workflow matrix before promoting this requirement to PASS. | Code review and route smoke only; browser workflow evidence remains pending. | `e1f118d` | `2026-06-22` |
 
 ## Notes
 
@@ -431,5 +431,5 @@ DATA-05 | `/settings`, `/registries`, `/staff`, `/resources` | Settings, Registr
 - `NOT TESTED` means the requirement is still unreviewed in this pass, not that it is compliant or non-compliant.
 - The repository is currently on `codex-ui-quality-wave-10` for Wave 10 authoring, and the publication target remains `import/enhanced-codebase`.
 - Wave 10 documentation includes `docs/WAVE_10_FINAL_ACCEPTANCE_MANUAL.md` because trusted browser control and screen-reader verification were unavailable in this session.
-- Wave 10 includes one narrow auth-storage security fix in `src/lib/googleWorkspaceAuth.ts` that removed Google Workspace access-token persistence from browser storage.
+- Wave 10 includes one narrow auth-storage security fix in `src/lib/googleWorkspaceAuth.ts` that removed Google Workspace access-token persistence from the browser-storage code path by inspection.
 - Wave 10 now reviews the corrected implementation at `227e652`.
