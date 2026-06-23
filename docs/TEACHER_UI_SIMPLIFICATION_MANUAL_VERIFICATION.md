@@ -1,56 +1,62 @@
 # Teacher UI Simplification Manual Verification
 
-This repository pass completed the code changes, build, lint, TypeScript, and route-availability smoke checks.
+Date: 2026-06-23
 
-Trusted browser verification was not available in this session, so the responsive and interaction checks below still need a live browser pass.
+## Scope
 
-## Already verified
+Browser verification was completed against the local app at `http://127.0.0.1:3001` using Chrome on Windows.
 
-- `npm run lint`
-- `npx tsc --noEmit --pretty false`
-- `npm run build`
-- `git diff --check`
-- HTTP 200 route availability for:
-  - `/`
-  - `/search`
-  - `/ai-assistant`
-  - `/tasks`
-  - `/lesson-plans`
-  - `/resources`
-  - `/classroom`
-  - `/students`
-  - `/courses`
-  - `/assignments`
-  - `/textbooks`
-  - `/registries`
-  - `/settings`
-  - `/setup-registries`
-  - `/school-setup`
+## Roles checked
 
-## Still needs trusted browser verification
+- Teacher
+- Principal / admin preview
 
-- 3840px or comparable ultra-wide desktop
-- 1920px desktop
-- 1440px laptop
-- 1024px tablet / compact desktop
-- 768px tablet
-- 390px mobile portrait
-- mobile landscape
-- 200% browser zoom
-- Teacher role navigation and layout
-- Principal or administrator role navigation and layout
-- Sidebar width, readability, and grouping
-- Mobile drawer open/close behavior
-- Escape-to-close behavior
-- Back navigation from detail views
-- Search / filter / selection preservation
-- Split-pane behavior on registry-style pages
-- Any horizontal scrolling regressions
+## Viewports checked
 
-## Notes for the browser pass
+- 3840 x 1400
+- 1920 x 1200
+- 1440 x 1200
+- 390 x 844
+- 844 x 390
+- 1440 x 1200 at 2x device scale emulation for the closest available 200% zoom proxy in this runtime
 
-- Confirm the ultra-wide workspace no longer leaves a large blank center area.
-- Confirm the Registry Explorer opens detail content only after selection.
-- Confirm Settings legacy routes still land in the Settings sections.
-- Confirm teacher-facing navigation no longer exposes dense setup or role-simulation controls.
-- Confirm list/detail pages still preserve query, filters, and selection when drilling in and back out.
+## Routes checked
+
+- `/`
+- `/search`
+- `/ai-assistant`
+- `/tasks`
+- `/lesson-plans`
+- `/resources`
+- `/classroom`
+- `/students`
+- `/courses`
+- `/assignments`
+- `/textbooks`
+- `/registries`
+- `/settings`
+- `/setup-registries`
+- `/school-setup`
+
+## Results
+
+- Teacher navigation no longer exposes `Registry Explorer` or `Staff`.
+- Principal/admin preview still exposes `Registry Explorer` and `Staff`.
+- Dashboard, Search, Tasks, Lesson Plans, Resources, Classroom Sync, Students, Classroom Courses, Assignments, Textbooks, and Settings all rendered with the expected compact teacher-facing layout.
+- Resources uses a visible `Back to Resources` action in the detail pane and returns cleanly to the list.
+- Registry Explorer uses a visible `Back to Registry Explorer` action in the detail pane and returns cleanly to the list.
+- Browser Back and Forward preserved the Registry Explorer list/detail state correctly.
+- `/setup-registries` and `/school-setup` both resolve to the Settings surface, matching the consolidation intent.
+- No page-level horizontal overflow was observed in the verified layouts.
+- The mobile checks kept the teacher nav and page content usable at 390 x 844 and 844 x 390.
+
+## Defects found and fixed
+
+- Teacher sidebar incorrectly exposed `Staff` for the teacher role. Fixed in `src/App.tsx`.
+- Resource detail panes used a close affordance instead of a visible back action. Fixed in `src/components/generic/GenericEntityDetailView.tsx` and `src/components/AcademicResourceLibraryPage.tsx`.
+
+## Console notes
+
+- Vite websocket warnings were present in the browser console during the dev-session verification path.
+- A `Failed to fetch` debug message appeared while the app tried to reach unavailable source data.
+- These did not block the UI checks above.
