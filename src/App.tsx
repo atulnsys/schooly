@@ -1234,6 +1234,9 @@ export default function App() {
     const items = compiled
       .map(item => {
         if (item.id === "teachers" || item.id === "registers") return null;
+        if (item.id === "staff" && !(currentRole === "Principal" || currentRole === "School Admin" || currentRole === "HR" || activeCapabilities.includes("Administration") || activeCapabilities.includes("Governance"))) {
+          return null;
+        }
 
         const normalizedParentGroup =
           item.id === "ai-assistant" || item.id === "role-cards"

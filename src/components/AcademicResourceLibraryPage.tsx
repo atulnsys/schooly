@@ -1503,6 +1503,7 @@ export default function AcademicResourceLibraryPage({
         stateNamespace="academic-resources"
         storageContext={storageContext}
         permissionContext={permissionContext}
+        backLabel="Back to Resources"
         detailContext={{
           displayMode: "read-only",
           stateLabel: "Evidence map",
