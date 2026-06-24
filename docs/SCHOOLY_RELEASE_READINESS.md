@@ -19,11 +19,11 @@
 | TypeScript | Passed: `npx tsc --noEmit --pretty false` |
 | Build | Passed: `npm run build` |
 | Route smoke | Passed on `/`, `/settings`, `/registries`, `/registers`, `/staff`, `/teachers`, `/resources`, `/lesson-plans`, `/textbooks`, `/classroom`, `/students`, `/courses`, `/assignments`, and `/search` |
-| Browser | Trusted Chrome verification completed on the teacher-facing flows in this release pass |
-| Responsive | Verified across 3840x1400, 1920x1200, 1440x1200, 390x844, and 844x390; exact native 200% browser zoom remains open |
-| Keyboard | Not fully verified in-browser in this pass |
+| Browser | Trusted Chrome verification completed on the teacher-facing flows plus representative keyboard, overlay, and registry-volume checks in this release pass |
+| Responsive | Verified across 3840x1400, 1920x1200, 1440x1200, 390x844, and 844x390; exact native 200% browser zoom was attempted twice and remains open |
+| Keyboard | Representative critical flows verified; full settings section navigation still incomplete |
 | Screen reader | Not tested in this session |
-| Realistic volume | Not fully verified in-browser in this pass |
+| Realistic volume | Verified on Registry Explorer with 79 live entries and pagination/search/filter response |
 | External provider | Code reviewed; live provider interaction was not re-run in this pass |
 | Storage safety | Passed by code inspection: the auth helper no longer persists Google Workspace access tokens; live authenticated browser storage verification remains pending |
 
@@ -37,8 +37,8 @@
 | Roles verified | Teacher preview, plus principal/admin preview for the retained admin surfaces. |
 | Routes verified | `/`, `/search`, `/ai-assistant`, `/tasks`, `/lesson-plans`, `/resources`, `/classroom`, `/students`, `/courses`, `/assignments`, `/textbooks`, `/registries`, `/settings`, `/setup-registries`, and `/school-setup`. |
 | Viewports verified | 3840x1400, 1920x1200, 1440x1200, 390x844, 844x390, plus 1440x1200 at 2x device-scale as a zoom proxy. |
-| Verified outcomes | Teacher navigation hides `Staff` and `Registry Explorer`; principal/admin preview retains them; contextual Back actions work on Resources and Registry Explorer; browser Back and Forward preserve Registry Explorer list/detail state; legacy `/setup-registries` and `/school-setup` resolve to Settings; no page-level horizontal overflow was observed in the tested layouts. |
-| Remaining gaps | Exact native 200% browser zoom, screen-reader coverage, provider-backed mutations, realistic-volume browser runs, and authenticated browser storage inspection remain open. |
+| Verified outcomes | Teacher navigation hides `Staff` and `Registry Explorer`; principal/admin preview retains them; contextual Back actions work on Resources and Registry Explorer; browser Back and Forward preserve Registry Explorer list/detail state; legacy `/setup-registries` and `/school-setup` resolve to Settings; the Search skip link, Resources filter overlay, Resources overflow menu, Registry Explorer detail/back path, and Registry Explorer pagination/search/filter path all worked in the browser. |
+| Remaining gaps | Exact native 200% browser zoom, screen-reader coverage, provider-backed mutations, authenticated browser storage inspection, and full settings section-button navigation remain open. |
 
 ## Critical Workflows
 
@@ -51,6 +51,17 @@
 | Textbook Ingestor | Conditioned | Custom workflow remained intact in `src/components/TextbookIngestor.tsx`; route smoke passed. | No browser verification of preview/approval/execution boundaries or failure retention this wave. | Release-safe with a follow-up browser pass. |
 | Search | Conditioned | Search route remained available; route smoke passed. | No browser verification of grouping, stale-response handling, or keyboard flow this wave. | Release-safe if interactive search behavior remains unchanged. |
 | Classroom | Conditioned | Classroom route remained available; route smoke passed. | No browser drill-through or mobile verification this wave. | Release-safe if classroom consistency remains intact. |
+
+## Validation Closure Pass
+
+| Area | Evidence | Status |
+| --- | --- | --- |
+| Exact native zoom | Chrome shortcut attempts were made twice; `window.devicePixelRatio` stayed at `1`, so exact native `200%` browser zoom could not be confirmed here. | Blocked |
+| Keyboard-only representative flows | Search skip link and search field, Resources filter overlay, Resources overflow menu, Registry Explorer list/detail/back, and Registry Explorer history preservation were verified from the keyboard. | Partially verified |
+| Realistic volume | Registry Explorer showed `79` entries, `Page 1 of 4`, and a live filtered result of `17 of 79` after search. | Verified for the representative dataset |
+| Provider-backed workflows | Not attempted in this pass because no safe connected mutation path or writable test destination was confirmed. | Not attempted |
+| Authenticated storage | Not attempted because browser-storage inspection is not available in this runtime. | Not attempted |
+| Screen reader | Not completed. | Not completed |
 
 ## Risk Register
 
@@ -66,9 +77,9 @@
 
 ## Accepted Limitations
 
-- Exact native 200% browser zoom was not verified; a 2x device-scale proxy was used instead.
+- Exact native 200% browser zoom was attempted twice and remained at `window.devicePixelRatio = 1`.
 - Screen-reader verification was not available in this session.
-- Realistic-volume browser testing was not available in this session.
+- Realistic-volume browser testing was partially verified on Registry Explorer, but not on every source-backed surface.
 - Authenticated browser storage inspection remains mandatory.
 - The build still emits the existing Vite chunk-size warning.
 - Route smoke confirms availability only and does not prove workflow correctness.
@@ -80,8 +91,8 @@
 
 ## Browser-Verification Gaps
 
-- Exact native 200% zoom, focus management, keyboard-only flows, and modal interaction remain open.
-- Browser Back/Forward, responsive layout, and teacher role navigation were verified in the trusted Chrome pass.
+- Exact native 200% zoom, screen-reader coverage, authenticated browser storage inspection, provider-backed mutations, and full settings section navigation remain open.
+- Browser Back/Forward, responsive layout, teacher role navigation, keyboard-only representative flows, and the registry-explorer volume pass were verified in the trusted Chrome pass.
 - The end-to-end final acceptance workflow remains open.
 
 ## Accessibility-Verification Gaps

@@ -10,7 +10,7 @@
 | Audit date | `2026-06-24` |
 | Baseline commit | `ca4f4fe` |
 | Reviewed through commit | `5f14734` |
-| Verification performed | Lint passed: `npm run lint` (`tsc --noEmit`); `package.json` has no test script; TypeScript typecheck passed: `npx tsc --noEmit --pretty false`; build passed: `npm run build`; `git diff --check` passed; route smoke passed on `/`, `/registries`, `/registers`, `/staff`, `/teachers`, `/resources`, `/lesson-plans`, `/textbooks`, `/classroom`, `/students`, `/courses`, `/assignments`, `/search`, and `/settings`; trusted Chrome browser verification covered `/`, `/search`, `/ai-assistant`, `/tasks`, `/lesson-plans`, `/resources`, `/classroom`, `/students`, `/courses`, `/assignments`, `/textbooks`, `/registries`, `/settings`, `/setup-registries`, and `/school-setup`; code inspection confirmed the narrow auth-storage fix removed Google Workspace access-token persistence from the browser-storage code path, while live authenticated browser storage verification remains pending; exact native 200% zoom, screen-reader verification, and realistic-volume browser verification remain open. |
+| Verification performed | Lint passed: `npm run lint` (`tsc --noEmit`); `package.json` has no test script; TypeScript typecheck passed: `npx tsc --noEmit --pretty false`; build passed: `npm run build`; `git diff --check` passed; route smoke passed on `/`, `/registries`, `/registers`, `/staff`, `/teachers`, `/resources`, `/lesson-plans`, `/textbooks`, `/classroom`, `/students`, `/courses`, `/assignments`, `/search`, and `/settings`; trusted Chrome browser verification covered the teacher-facing flows plus Search skip-link and result-count behavior, Resources filter overlay and overflow menu, Registry Explorer detail/back/history, lesson-plan edit entry, and Registry Explorer pagination/search/filter response; exact native 200% browser zoom was attempted twice and remained at `window.devicePixelRatio = 1`; code inspection confirmed the narrow auth-storage fix removed Google Workspace access-token persistence from the browser-storage code path, while live authenticated browser storage verification remains pending. |
 
 ## Wave 7 Note
 
@@ -31,6 +31,10 @@ Wave 10 combines a narrow auth-storage security fix with the final acceptance pa
 ## Wave 11 Note
 
 Wave 11 reconciles the teacher-facing simplification pass with trusted browser evidence. The shared shell remains intact, teacher navigation now hides `Staff` and `Registry Explorer`, principal/admin preview keeps those admin surfaces, contextual Back actions and browser Back/Forward state retention were verified, the legacy setup routes now consolidate into Settings, and the release-readiness note now reflects the remaining exact zoom, keyboard, screen-reader, and provider-backed gaps instead of pretending the browser pass is complete.
+
+## Wave 12 Note
+
+Wave 12 closes the current validation pass without broad remediation. Exact native 200% zoom remained blocked after two Chrome shortcut attempts, but the live browser pass did verify the Search skip link and result count, the Resources filter overlay and overflow menu, the Registry Explorer detail/back/history path, the lesson-plan edit entry, and registry-volume behavior on the 79-row explorer dataset. Screen-reader, authenticated-storage, and provider-backed mutation evidence remain open.
 
 ## Coverage Summary
 
