@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { TaskItem, WorkspaceFile } from "../types";
 import { schoolyFetch } from "../lib/safeFetch";
+import { StandardMetricGrid, StandardPageLayout } from "./common/StandardPageSurface";
 import { 
   Plus, 
   Trash2, 
@@ -141,7 +142,24 @@ export default function TaskProductivity({
   const doneTasks = filteredTasks.filter(t => t.status === "done");
 
   return (
-    <div className="space-y-6" id="tasks-productivity-workspace">
+    <StandardPageLayout
+      pageId="tasks-productivity-workspace"
+      eyebrow="Tasks"
+      title="Task productivity workspace"
+      description="Track priority work, attach source files, and switch between board and table views without leaving the shared task surface."
+      metrics={(
+        <StandardMetricGrid
+          className="lg:grid-cols-4"
+          items={[
+            { label: "Visible tasks", value: filteredTasks.length, tone: "blue" },
+            { label: "Backlog", value: todoTasks.length, tone: "amber" },
+            { label: "In progress", value: inProgressTasks.length, tone: "violet" },
+            { label: "Completed", value: doneTasks.length, tone: "emerald" },
+          ]}
+        />
+      )}
+      contentClassName="space-y-6"
+    >
       
       {/* Top action bar */}
       <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
@@ -491,7 +509,7 @@ export default function TaskProductivity({
           </div>
         </div>
       )}
-    </div>
+    </StandardPageLayout>
   );
 }
 

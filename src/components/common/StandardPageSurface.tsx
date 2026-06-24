@@ -13,6 +13,23 @@ interface StandardPageHeaderProps {
   className?: string;
 }
 
+interface StandardPageLayoutProps {
+  pageId: string;
+  eyebrow?: string;
+  title: string;
+  description?: string;
+  backHref?: string;
+  backLabel?: string;
+  badges?: React.ReactNode;
+  actions?: React.ReactNode;
+  metrics?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+  headerClassName?: string;
+  contentClassName?: string;
+  dataTestId?: string;
+}
+
 interface StandardMetricCardProps {
   label: string;
   value: string | number | null | undefined;
@@ -36,6 +53,7 @@ function getMetricToneClasses(tone: MetricTone | undefined): string {
 }
 
 export function StandardPageHeader({
+  eyebrow,
   title,
   description,
   backHref = "/",
@@ -45,9 +63,14 @@ export function StandardPageHeader({
   className = "",
 }: StandardPageHeaderProps) {
   return (
-    <section className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ${className}`}>
+    <section className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ${className}`} data-schooly-page-header="true">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-2 min-w-0">
+          {eyebrow && (
+            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-700">
+              {eyebrow}
+            </div>
+          )}
           <a
             href={backHref}
             className="inline-flex w-fit items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-blue-700 transition-colors hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-300"
@@ -74,6 +97,55 @@ export function StandardPageHeader({
   );
 }
 
+export function StandardPageLayout({
+  pageId,
+  eyebrow,
+  title,
+  description,
+  backHref,
+  backLabel,
+  badges,
+  actions,
+  metrics,
+  children,
+  className = "",
+  headerClassName = "",
+  contentClassName = "",
+  dataTestId,
+}: StandardPageLayoutProps) {
+  return (
+    <section
+      id={pageId}
+      data-testid={dataTestId ?? `${pageId}-page`}
+      data-schooly-page={pageId}
+      data-schooly-page-layout="true"
+      tabIndex={-1}
+      className={`space-y-6 outline-none ${className}`}
+    >
+      <StandardPageHeader
+        eyebrow={eyebrow}
+        title={title}
+        description={description}
+        backHref={backHref}
+        backLabel={backLabel}
+        badges={badges}
+        actions={actions}
+        className={headerClassName}
+      />
+
+      {metrics && (
+        <div data-schooly-page-metrics="true">
+          {metrics}
+        </div>
+      )}
+
+      <div data-schooly-page-content="true" className={contentClassName}>
+        {children}
+      </div>
+    </section>
+  );
+}
+
 export function StandardMetricCard({
   label,
   value,
@@ -84,7 +156,7 @@ export function StandardMetricCard({
   const resolvedValue = value === null || value === undefined || value === "" ? "—" : value;
 
   return (
-    <div className={`rounded-2xl border p-3 shadow-sm ${getMetricToneClasses(tone)} ${className}`}>
+    <div className={`rounded-2xl border p-3 shadow-sm ${getMetricToneClasses(tone)} ${className}`} data-schooly-metric-card="true">
       <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
         {label}
       </div>
@@ -102,9 +174,17 @@ export function StandardMetricCard({
 
 export function StandardMetricGrid({ items, className = "" }: StandardMetricGridProps) {
   return (
-    <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 ${className}`}>
+    <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 ${className}`} data-schooly-metric-grid="true">
       {items.map((item) => (
-        <StandardMetricCard label={item.label} value={item.value} description={item.description} tone={item.tone} className={item.className} />
+        <div key={item.label}>
+          <StandardMetricCard
+            label={item.label}
+            value={item.value}
+            description={item.description}
+            tone={item.tone}
+            className={item.className}
+          />
+        </div>
       ))}
     </div>
   );

@@ -67,7 +67,7 @@ export default function ClassroomManager({
   const isClassroomMock = classroomConfig.mode === "mock";
 
   return (
-    <div className="space-y-6" id="classroom-intelligence-platform">
+    <div className="space-y-6" id="classroom-intelligence-platform" data-schooly-page="classroom-page" data-schooly-page-layout="true">
       {isClassroomMock && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex gap-3.5 items-start text-left animate-fade-in" id="classroom-fallback-banner">
           <div className="p-2 bg-amber-100 text-amber-700 rounded-xl mt-0.5 shrink-0 shadow-2xs select-none">

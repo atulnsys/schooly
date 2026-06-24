@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import GenericEntityPage from "./generic/GenericEntityPage";
 import type { GenericEntityStorageContext } from "../lib/genericEntityTableState";
 import { formatSchoolyDate } from "../lib/schoolyFormatting";
-import { StandardMetricGrid, StandardPageHeader } from "./common/StandardPageSurface";
+import { StandardMetricGrid, StandardPageLayout } from "./common/StandardPageSurface";
 import {
   createRegistryExplorerEntityDefinition,
   getRegistryExplorerRows,
@@ -106,36 +106,36 @@ export default function RegistryExplorerPage({
   };
 
   return (
-    <div id="registries-registry-page" data-testid="registries-registry-page" tabIndex={-1} className="outline-none">
-      <StandardPageHeader
-        eyebrow="Registry Explorer"
-        title="Registry Explorer"
-        description="Review available school registers and data sources."
-        badges={(
-          <>
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">
-              {summary.totalEntries} entries
-            </span>
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Canonical {summary.canonicalPageEntries}</span>
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Derived {summary.derivedViewEntries}</span>
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Relationships {summary.relationshipEntries}</span>
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Schema tabs {summary.registryTabEntries}</span>
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Embedded {summary.embeddedSurfaceEntries}</span>
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Unavailable {summary.sourceUnavailableEntries}</span>
-          </>
-        )}
-      />
-
-      <StandardMetricGrid
-        className="mb-6"
-        items={[
-          { label: "Canonical entries", value: summary.canonicalPageEntries, tone: "blue" },
-          { label: "Derived views", value: summary.derivedViewEntries, tone: "violet" },
-          { label: "Relationships", value: summary.relationshipEntries, tone: "emerald" },
-          { label: "Unavailable sources", value: summary.sourceUnavailableEntries, tone: "amber" },
-        ]}
-      />
-
+    <StandardPageLayout
+      pageId="registries-registry-page"
+      eyebrow="Registry Explorer"
+      title="Registry Explorer"
+      description="Review available school registers and data sources."
+      badges={(
+        <>
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">
+            {summary.totalEntries} entries
+          </span>
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Canonical {summary.canonicalPageEntries}</span>
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Derived {summary.derivedViewEntries}</span>
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Relationships {summary.relationshipEntries}</span>
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Schema tabs {summary.registryTabEntries}</span>
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Embedded {summary.embeddedSurfaceEntries}</span>
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Unavailable {summary.sourceUnavailableEntries}</span>
+        </>
+      )}
+      metrics={(
+        <StandardMetricGrid
+          items={[
+            { label: "Canonical entries", value: summary.canonicalPageEntries, tone: "blue" },
+            { label: "Derived views", value: summary.derivedViewEntries, tone: "violet" },
+            { label: "Relationships", value: summary.relationshipEntries, tone: "emerald" },
+            { label: "Unavailable sources", value: summary.sourceUnavailableEntries, tone: "amber" },
+          ]}
+        />
+      )}
+      contentClassName="space-y-6"
+    >
       {liveRegisterCards && liveRegisterCards.length > 0 && (
         <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between gap-3">
@@ -207,6 +207,6 @@ export default function RegistryExplorerPage({
         }}
         backLabel="Back to Registry Explorer"
       />
-    </div>
+    </StandardPageLayout>
   );
 }

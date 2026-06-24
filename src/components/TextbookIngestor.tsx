@@ -813,7 +813,7 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto" id="textbook-ingestion-workspace">
+    <div className="space-y-6 max-w-7xl mx-auto" id="textbook-ingestion-workspace" data-schooly-page="textbooks-page" data-schooly-page-layout="true">
       
       <StandardPageHeader
         eyebrow="Textbooks"

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { StandardPageHeader } from "./common/StandardPageSurface";
+import { StandardPageLayout, StandardPageHeader } from "./common/StandardPageSurface";
 import GenericEntityPage from "./generic/GenericEntityPage";
 import type { GenericEntityDefinition, GenericEntityPermissionContext } from "../lib/genericEntityView";
 import type { GenericEntityStorageContext } from "../lib/genericEntityTableState";
@@ -451,12 +451,40 @@ export default function RegistryPageShell<T extends object>({
   };
 
   return (
-    <div className="space-y-6 animate-fade-in outline-none" id={`${registryId}-registry-page`} data-testid={`${registryId}-registry-page`} tabIndex={-1} aria-busy={isLoading}>
-      {renderRegistryHeader(
-        entry,
-        summary,
-        canOpenInfoPanel,
-        canOpenInfoPanel ? () => setInfoPanelOpen(true) : undefined,
+    <StandardPageLayout
+      pageId={`${registryId}-registry-page`}
+      title={entry.label}
+      description={entry.description}
+      badges={(
+        <>
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">
+            {summary.sourceState}
+          </span>
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">
+            {summary.rowCountLabel}
+          </span>
+        </>
+      )}
+      actions={canOpenInfoPanel ? (
+        <button
+          type="button"
+          onClick={() => setInfoPanelOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[10.5px] font-black uppercase tracking-wider text-blue-700 hover:bg-blue-50"
+          aria-label={`Open ${entry.label} information`}
+          aria-haspopup="dialog"
+        >
+          <Info size={12} />
+          Info
+        </button>
+      ) : undefined}
+      className="animate-fade-in"
+      contentClassName="space-y-6"
+      dataTestId={`${registryId}-registry-page`}
+    >
+      {summary.sourceState !== "Ready" && (
+        <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          <span className="font-semibold">{getRegistrySurfaceMessage(entry.label, summary.sourceState)}</span>
+        </div>
       )}
 
       {errorMessage && (
@@ -550,7 +578,7 @@ export default function RegistryPageShell<T extends object>({
           </>
         )}
       />
-    </div>
+    </StandardPageLayout>
   );
 }
 

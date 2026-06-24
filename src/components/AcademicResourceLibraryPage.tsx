@@ -1385,7 +1385,7 @@ export default function AcademicResourceLibraryPage({
   );
 
   return (
-    <div className="space-y-4" id="academic-resource-library-page">
+    <div className="space-y-4" id="resources-page" data-schooly-page="resources-page" data-schooly-page-layout="true">
       <StandardPageHeader
         eyebrow="Academic Resource Library"
         title="Lesson-linked resources and evidence mapping"
