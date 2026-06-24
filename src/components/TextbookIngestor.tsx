@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import FeedbackBanner from "./common/FeedbackBanner";
 import OverlaySurface from "./common/OverlaySurface";
+import { StandardPageHeader } from "./common/StandardPageSurface";
 
 export const getTeacherFriendlyName = (identifier: string) => {
   if (!identifier) return "Ms. Emily Montgomery";
@@ -814,28 +815,21 @@ export default function TextbookIngestor({ files = [], courses, currentUser, cur
   return (
     <div className="space-y-6 max-w-7xl mx-auto" id="textbook-ingestion-workspace">
       
-      {/* Header Panel */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xs">
-        <div>
-          <h1 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            <span className="p-1.5 bg-blue-50 text-blue-600 rounded-lg"><BookOpen size={18} /></span>
-            Textbooks
-          </h1>
-          <p className="text-xs text-slate-500 mt-1 font-sans">
-            Import chapters from NCERT sources, map lessons, and save the results to Drive or Classroom.
-          </p>
-          {setActiveTab && (
-            <button
-              type="button"
-              onClick={openResourceLibrary}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[10.5px] font-bold text-slate-700 transition-colors hover:bg-slate-100 cursor-pointer"
-            >
-              <ExternalLink size={11} />
-              Open resources
-            </button>
-          )}
-        </div>
-      </div>
+      <StandardPageHeader
+        eyebrow="Textbooks"
+        title="Textbooks"
+        description="Import chapters from NCERT sources, map lessons, and save the results to Drive or Classroom."
+        actions={setActiveTab ? (
+          <button
+            type="button"
+            onClick={openResourceLibrary}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 py-2 text-[10.5px] font-bold text-blue-700 shadow-sm transition-colors hover:bg-blue-50 cursor-pointer"
+          >
+            <ExternalLink size={11} />
+            Open resources
+          </button>
+        ) : null}
+      />
 
       {/* Global Feedback Notifications */}
       {feedbackMsg && (

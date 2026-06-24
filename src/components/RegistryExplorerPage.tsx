@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import GenericEntityPage from "./generic/GenericEntityPage";
 import type { GenericEntityStorageContext } from "../lib/genericEntityTableState";
 import { formatSchoolyDate } from "../lib/schoolyFormatting";
+import { StandardMetricGrid, StandardPageHeader } from "./common/StandardPageSurface";
 import {
   createRegistryExplorerEntityDefinition,
   getRegistryExplorerRows,
@@ -106,40 +107,43 @@ export default function RegistryExplorerPage({
 
   return (
     <div id="registries-registry-page" data-testid="registries-registry-page" tabIndex={-1} className="outline-none">
-      <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
-        <div className="space-y-1.5">
-          <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">
-            Registry Explorer
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-extrabold text-slate-900">Registry Explorer</h2>
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600">
+      <StandardPageHeader
+        eyebrow="Registry Explorer"
+        title="Registry Explorer"
+        description="Review available school registers and data sources."
+        badges={(
+          <>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">
               {summary.totalEntries} entries
             </span>
-          </div>
-          <p className="text-xs text-slate-600 max-w-3xl">
-            Review available school registers and data sources.
-          </p>
-        </div>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Canonical {summary.canonicalPageEntries}</span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Derived {summary.derivedViewEntries}</span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Relationships {summary.relationshipEntries}</span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Schema tabs {summary.registryTabEntries}</span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Embedded {summary.embeddedSurfaceEntries}</span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Unavailable {summary.sourceUnavailableEntries}</span>
+          </>
+        )}
+      />
 
-        <div className="flex flex-wrap gap-2">
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600">Canonical {summary.canonicalPageEntries}</span>
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600">Derived {summary.derivedViewEntries}</span>
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600">Relationships {summary.relationshipEntries}</span>
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600">Schema tabs {summary.registryTabEntries}</span>
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600">Embedded {summary.embeddedSurfaceEntries}</span>
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600">Unavailable {summary.sourceUnavailableEntries}</span>
-        </div>
-      </div>
+      <StandardMetricGrid
+        className="mb-6"
+        items={[
+          { label: "Canonical entries", value: summary.canonicalPageEntries, tone: "blue" },
+          { label: "Derived views", value: summary.derivedViewEntries, tone: "violet" },
+          { label: "Relationships", value: summary.relationshipEntries, tone: "emerald" },
+          { label: "Unavailable sources", value: summary.sourceUnavailableEntries, tone: "amber" },
+        ]}
+      />
 
       {liveRegisterCards && liveRegisterCards.length > 0 && (
         <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between gap-3">
             <div className="space-y-1">
-              <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">
+              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-700 font-mono">
                 School registers
               </div>
-              <h3 className="text-base font-extrabold text-slate-900">School registers</h3>
+              <h3 className="text-base font-black tracking-tight text-slate-950">School registers</h3>
             </div>
             <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600">
               {liveRegisterCards.length} registers
@@ -189,6 +193,7 @@ export default function RegistryExplorerPage({
         stateNamespace="registry-explorer"
         storageContext={storageContext}
         permissionContext={{ currentRole }}
+        showListHeader={false}
         showSearch={true}
         showFilters={true}
         showSort={true}

@@ -29,6 +29,7 @@ import {
   type RegistryConnectionValidationSnapshot
 } from "../lib/registryConnectionValidation";
 import LiveDataReconciliationPanel from "./LiveDataReconciliationPanel";
+import { StandardMetricGrid, StandardPageHeader } from "./common/StandardPageSurface";
 
 type SettingsSection = "organization" | "registry" | "application" | "advanced";
 const SETTINGS_SECTION_VALUES = new Set<SettingsSection>(["organization", "registry", "application", "advanced"]);
@@ -822,21 +823,21 @@ export default function SettingsPage({
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-1">
-            <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">Settings</div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-black text-slate-900">Settings</h1>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600">
-                {activeSectionLabel}
-              </span>
-            </div>
-            <p className="text-sm text-slate-600 max-w-3xl">
-              Manage organization details, data connections, and app access from one place.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
+      <StandardPageHeader
+        eyebrow="Settings"
+        title="Settings"
+        description="Manage organization details, data connections, and app access from one place."
+        badges={(
+          <>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">
+              {activeSectionLabel}
+            </span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Role {currentRole}</span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">User {currentUser}</span>
+          </>
+        )}
+        actions={(
+          <>
             {sectionButtons.map((section) => (
               <button
                 key={section.id}
@@ -850,23 +851,18 @@ export default function SettingsPage({
                 {section.label}
               </button>
             ))}
-          </div>
-        </div>
+          </>
+        )}
+      />
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            ["Current role", currentRole],
-            ["Current user", currentUser],
-            ["Workspace", registryLocationLabel],
-            ["Account", googleAccountStatus]
-          ].map(([label, value]) => (
-            <div key={String(label)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-              <div className="text-[10px] uppercase tracking-wider font-mono text-slate-400 font-bold">{label}</div>
-              <div className="mt-1 text-sm font-bold text-slate-900 truncate">{String(value)}</div>
-            </div>
-          ))}
-        </div>
-      </section>
+      <StandardMetricGrid
+        items={[
+          { label: "Current role", value: currentRole, tone: "blue" },
+          { label: "Current user", value: currentUser },
+          { label: "Workspace", value: registryLocationLabel, tone: "emerald" },
+          { label: "Account", value: googleAccountStatus, tone: "violet" },
+        ]}
+      />
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4" id={getSettingsSectionId("organization")} tabIndex={-1}>
         <div className="flex items-start justify-between gap-3">

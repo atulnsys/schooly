@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, ExternalLink, Filter, LibraryBig, Search } from "lucide-react";
+import { BookOpen, ExternalLink, Filter, Search } from "lucide-react";
 import GenericEntityPage from "./generic/GenericEntityPage";
 import type { GenericEntityDefinition } from "../lib/genericEntityView";
 import type { GenericEntityStorageContext } from "../lib/genericEntityTableState";
@@ -22,6 +22,7 @@ import type { AcademicResourceSourceFamily } from "../lib/academicResourceTypes"
 import type { SchoolRegistryState } from "../lib/schoolRegistry";
 import type { WorkspaceFile } from "../types";
 import OverlaySurface from "./common/OverlaySurface";
+import { StandardMetricGrid, StandardPageHeader } from "./common/StandardPageSurface";
 
 interface AcademicResourceLibraryPageProps {
   files: WorkspaceFile[];
@@ -388,24 +389,6 @@ function buildResourceStatusFilter(row: AcademicResourceRow): ResourceStatusFilt
   if (countEvidenceSignals(row) > 0) filters.push("evidenceMapped");
 
   return filters;
-}
-
-function StatCard({
-  label,
-  value,
-  description,
-}: {
-  label: string;
-  value: string | number;
-  description: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-blue-100 bg-white/80 p-3 shadow-sm">
-      <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">{label}</div>
-      <div className="mt-1 text-xl font-black tracking-tight text-slate-950">{value}</div>
-      <div className="mt-1 text-[10.5px] leading-relaxed text-slate-500">{description}</div>
-    </div>
-  );
 }
 
 function FilterChip({
@@ -1403,94 +1386,94 @@ export default function AcademicResourceLibraryPage({
 
   return (
     <div className="space-y-4" id="academic-resource-library-page">
-      <div className="rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-sky-50 p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-2 min-w-0">
-            <div className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-blue-700">
-              <LibraryBig size={13} />
-              Academic Resource Library
-            </div>
-            <h1 className="text-xl font-black tracking-tight text-slate-950">Lesson-linked resources and evidence mapping</h1>
-            <p className="max-w-3xl text-xs leading-relaxed text-slate-600">
-              Browse read-only academic resources derived from existing Workspace files and archived lesson-plan rows. This surface keeps the lesson-planning and NCERT workspaces intact while exposing source notes, evidence tags, and safe drill-throughs.
-            </p>
-            <div className="flex flex-wrap gap-2 text-[10px] font-semibold text-slate-500">
-              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">Read-only surface</span>
-              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">Evidence mapped from existing metadata</span>
-              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">Safe drill-through only</span>
-            </div>
-          </div>
+      <StandardPageHeader
+        eyebrow="Academic Resource Library"
+        title="Lesson-linked resources and evidence mapping"
+        description="Browse read-only academic resources derived from existing Workspace files and archived lesson-plan rows. This surface keeps the lesson-planning and NCERT workspaces intact while exposing source notes, evidence tags, and safe drill-throughs."
+        badges={(
+          <>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Read-only surface</span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Evidence mapped from existing metadata</span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Safe drill-through only</span>
+          </>
+        )}
+        actions={setActiveTab && (
+          <>
+            <button
+              type="button"
+              onClick={() => setActiveTab("lesson-plans")}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 py-2 text-[10.5px] font-bold text-blue-700 shadow-sm transition-colors hover:bg-blue-50 cursor-pointer"
+            >
+              <BookOpen size={12} />
+              Open Lesson Plans
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("textbooks")}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 py-2 text-[10.5px] font-bold text-blue-700 shadow-sm transition-colors hover:bg-blue-50 cursor-pointer"
+            >
+              <BookOpen size={12} />
+              Open Textbooks
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("search")}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 py-2 text-[10.5px] font-bold text-blue-700 shadow-sm transition-colors hover:bg-blue-50 cursor-pointer"
+            >
+              <Search size={12} />
+              Open Search
+            </button>
+          </>
+        )}
+      />
 
-          <div className="flex flex-wrap items-center gap-2">
-            {setActiveTab && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("lesson-plans")}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 py-2 text-[10.5px] font-bold text-blue-700 shadow-sm transition-colors hover:bg-blue-50 cursor-pointer"
-                >
-                  <BookOpen size={12} />
-                  Open Lesson Plans
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("textbooks")}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 py-2 text-[10.5px] font-bold text-blue-700 shadow-sm transition-colors hover:bg-blue-50 cursor-pointer"
-                >
-                  <BookOpen size={12} />
-                  Open Textbooks
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("search")}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 py-2 text-[10.5px] font-bold text-blue-700 shadow-sm transition-colors hover:bg-blue-50 cursor-pointer"
-                >
-                  <Search size={12} />
-                  Open Search
-                </button>
-              </>
-            )}
-          </div>
-        </div>
+      <StandardMetricGrid
+        items={[
+          {
+            label: "Visible resources",
+            value: filteredSummary.totalResources,
+            description: `Showing ${filteredSummary.totalResources} of ${summary.totalResources} workspace-backed items.`,
+            tone: "blue",
+          },
+          {
+            label: "Resource types represented",
+            value: filteredSummary.resourceTypesRepresented,
+            description: "Distinct lesson, assessment, communication, and evidence types currently visible.",
+          },
+          {
+            label: "Drive linked",
+            value: filteredSummary.driveLinkedResources,
+            description: "Resources with a live Workspace or Drive link available.",
+            tone: "emerald",
+          },
+          {
+            label: "Classroom linked",
+            value: filteredSummary.classroomLinkedResources,
+            description: "Resources that still point at a Classroom-backed copy or surface.",
+            tone: "violet",
+          },
+          {
+            label: "Evidence mapped",
+            value: filteredSummary.evidenceMappedResources,
+            description: "Rows with SQAA, CBSE, NCERT, or mapping tags detected.",
+            tone: "emerald",
+          },
+          {
+            label: "Source unavailable",
+            value: filteredSummary.sourceUnavailableResources,
+            description: "Rows without a live Drive or Classroom link.",
+            tone: "amber",
+          },
+          {
+            label: "Low-confidence / inferred",
+            value: filteredSummary.lowConfidenceMappings,
+            description: "Rows inferred from metadata rather than live source links.",
+            tone: "amber",
+          },
+        ]}
+        className="xl:grid-cols-4"
+      />
 
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <StatCard
-            label="Visible resources"
-            value={filteredSummary.totalResources}
-            description={`Showing ${filteredSummary.totalResources} of ${summary.totalResources} workspace-backed items.`}
-          />
-          <StatCard
-            label="Resource types represented"
-            value={filteredSummary.resourceTypesRepresented}
-            description="Distinct lesson, assessment, communication, and evidence types currently visible."
-          />
-          <StatCard
-            label="Drive linked"
-            value={filteredSummary.driveLinkedResources}
-            description="Resources with a live Workspace or Drive link available."
-          />
-          <StatCard
-            label="Classroom linked"
-            value={filteredSummary.classroomLinkedResources}
-            description="Resources that still point at a Classroom-backed copy or surface."
-          />
-          <StatCard
-            label="Evidence mapped"
-            value={filteredSummary.evidenceMappedResources}
-            description="Rows with SQAA, CBSE, NCERT, or mapping tags detected."
-          />
-          <StatCard
-            label="Source unavailable"
-            value={filteredSummary.sourceUnavailableResources}
-            description="Rows without a live Drive or Classroom link."
-          />
-          <StatCard
-            label="Low-confidence / inferred"
-            value={filteredSummary.lowConfidenceMappings}
-            description="Rows inferred from metadata rather than live source links."
-          />
-        </div>
-      </div>
       {resourceRows.length > 0 && filteredRows.length === 0 && (
         <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-[11px] leading-relaxed text-amber-900 shadow-sm">
           No academic resources matched the current filters or query context. Clear the filters above or search with a broader term to widen the view.
@@ -1503,6 +1486,7 @@ export default function AcademicResourceLibraryPage({
         stateNamespace="academic-resources"
         storageContext={storageContext}
         permissionContext={permissionContext}
+        showListHeader={false}
         backLabel="Back to Resources"
         detailContext={{
           displayMode: "read-only",

@@ -83,6 +83,7 @@ interface GenericEntityListViewProps<T extends object> {
   onDisplayModeChange?: (mode: GenericEntityDisplayMode) => void;
 
   className?: string;
+  showListHeader?: boolean;
   maxVisibleFields?: number;
 }
 
@@ -230,6 +231,7 @@ export default function GenericEntityListView<T extends object>({
   pageSize: controlledPageSize,
   onPageSizeChange,
   className = "",
+  showListHeader = true,
   maxVisibleFields = 5,
 }: GenericEntityListViewProps<T>) {
   const [localSearch, setLocalSearch] = useState("");
@@ -1295,16 +1297,20 @@ export default function GenericEntityListView<T extends object>({
     <div className={`bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm ${className}`}>
       <div className="p-4 border-b border-slate-100 bg-slate-50/75 space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="min-w-0">
-            <h3 className="text-sm font-bold text-slate-900">
-              {definition.entityNamePlural}
-            </h3>
-            {definition.description && (
-              <p className="mt-0.5 text-[11px] leading-normal text-slate-500">
-                {definition.description}
-              </p>
-            )}
-          </div>
+          {showListHeader ? (
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-slate-900">
+                {definition.entityNamePlural}
+              </h3>
+              {definition.description && (
+                <p className="mt-0.5 text-[11px] leading-normal text-slate-500">
+                  {definition.description}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="min-w-0" aria-hidden="true" />
+          )}
 
           <div className="flex flex-wrap items-center gap-2">
             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">

@@ -1,10 +1,12 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
+import { StandardPageHeader } from "./common/StandardPageSurface";
 import GenericEntityPage from "./generic/GenericEntityPage";
 import type { GenericEntityDefinition, GenericEntityPermissionContext } from "../lib/genericEntityView";
 import type { GenericEntityStorageContext } from "../lib/genericEntityTableState";
 import {
   getAllGenericRowIssues,
   getGenericFieldValue,
+  hasGenericPermission,
   isGenericValueEmpty,
 } from "../lib/genericEntityView";
 import { formatSchoolyDate } from "../lib/schoolyFormatting";
@@ -15,6 +17,7 @@ import {
   type RegistryCatalogEntry,
 } from "../lib/registryCatalog";
 import { Info } from "lucide-react";
+import OverlaySurface from "./common/OverlaySurface";
 
 interface RegistryPageShellProps<T extends object> {
   registryId: string;
@@ -29,6 +32,8 @@ interface RegistryPageShellProps<T extends object> {
   showDisplayModeToggle?: boolean;
   showPagination?: boolean;
   showCapabilityMetadata?: boolean;
+  showListHeader?: boolean;
+  renderAboveList?: () => React.ReactNode;
   isLoading?: boolean;
   errorMessage?: string | null;
   sourceDisplayLabel?: string | null;
@@ -67,90 +72,45 @@ function formatSchoolRegistrySourceStatus(status?: SchoolRegistrySourceStatus | 
   return status;
 }
 
+function getRegistrySurfaceMessage(entryLabel: string, sourceState: RegistrySourceState): string | null {
+  if (sourceState === "Ready") return null;
+  if (sourceState === "Empty") return `${entryLabel} are not available yet.`;
+  if (sourceState === "Missing") return `${entryLabel} are unavailable right now.`;
+  if (sourceState === "Incomplete") return `${entryLabel} setup is incomplete.`;
+  if (sourceState === "Fallback") return `Showing previously loaded ${entryLabel.toLowerCase()} while the source is refreshed.`;
+  if (sourceState === "Stale") return `Showing previously loaded ${entryLabel.toLowerCase()} while the latest refresh is checked.`;
+  return `Status for ${entryLabel.toLowerCase()} is not available yet.`;
+}
+
 function renderRegistryHeader(
   entry: RegistryCatalogEntry,
-  currentRole: string,
   summary: RegistryHeaderSummary,
-  showCapabilityMetadata: boolean,
-  sourceLastSyncedAt?: string | null,
-  sourceLastCheckedAt?: string | null,
+  canOpenInfoPanel: boolean,
+  onOpenInfoPanel?: () => void,
 ) {
-  const Icon = entry.iconComponent;
-  const sourceStateClass = summary.sourceState === "Ready"
-    ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-    : summary.sourceState === "Empty"
-      ? "bg-slate-50 text-slate-700 border-slate-200"
-      : summary.sourceState === "Missing"
-        ? "bg-amber-50 text-amber-700 border-amber-100"
-        : summary.sourceState === "Incomplete"
-          ? "bg-orange-50 text-orange-700 border-orange-100"
-          : summary.sourceState === "Fallback"
-            ? "bg-violet-50 text-violet-700 border-violet-100"
-            : summary.sourceState === "Stale"
-              ? "bg-amber-50 text-amber-700 border-amber-100"
-            : summary.sourceState === "Unknown"
-              ? "bg-slate-50 text-slate-600 border-slate-200"
-              : "bg-slate-50 text-slate-600 border-slate-200";
-  const mandatoryStateClass = summary.mandatoryFieldLabel === "Mandatory field metadata unavailable"
-    ? "bg-slate-50 text-slate-600 border-slate-200"
-    : summary.mandatoryFieldLabel.startsWith("Mandatory fields defined")
-      || summary.mandatoryFieldLabel.startsWith("Mandatory values missing")
-      ? "bg-amber-50 text-amber-700 border-amber-100"
-      : "bg-emerald-50 text-emerald-700 border-emerald-100";
-  const validationStateClass = summary.validationLabel === "Validation metadata not available from this source yet"
-    ? "bg-slate-50 text-slate-600 border-slate-200"
-    : summary.validationLabel === "Validation metadata available"
-      ? "bg-blue-50 text-blue-700 border-blue-100"
-      : "bg-amber-50 text-amber-700 border-amber-100";
-
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-1.5 min-w-0">
-          <div className="text-[10px] uppercase tracking-wider font-mono text-blue-600 font-bold">
-            {entry.navLabel}
-          </div>
-          <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2 min-w-0">
-            <Icon size={18} className="text-blue-600 shrink-0" />
-            <span className="break-words">{entry.label}</span>
-          </h2>
-          <p className="text-xs text-slate-600 max-w-3xl">
-            {entry.description}
-          </p>
-        </div>
+    <div className="space-y-3">
+      <StandardPageHeader
+        title={entry.label}
+        description={entry.description}
+        actions={canOpenInfoPanel && onOpenInfoPanel ? (
+          <button
+            type="button"
+            onClick={onOpenInfoPanel}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-[10.5px] font-black uppercase tracking-wider text-blue-700 hover:bg-blue-50"
+            aria-label={`Open ${entry.label} information`}
+            aria-haspopup="dialog"
+          >
+            <Info size={12} />
+            Info
+          </button>
+        ) : undefined}
+      />
 
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-sans font-black px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-100">
-            {summary.rowCountLabel}
-          </span>
-          <span className={`text-[10px] font-sans font-black px-2.5 py-1 rounded-lg border ${sourceStateClass}`}>
-            {summary.sourceState}
-          </span>
-          <span className="text-[10px] font-sans font-black px-2.5 py-1 rounded-lg bg-slate-50 text-slate-600 border border-slate-200">
-            Role: {currentRole}
-          </span>
+      {summary.sourceState !== "Ready" && (
+        <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          <span className="font-semibold">{getRegistrySurfaceMessage(entry.label, summary.sourceState)}</span>
         </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
-        <Info size={14} className="text-blue-600 shrink-0" />
-        <span className="font-semibold">{summary.rowCountLabel}</span>
-        <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${sourceStateClass}`}>{summary.sourceState}</span>
-        <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${mandatoryStateClass}`}>{summary.mandatoryFieldLabel}</span>
-        <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${validationStateClass}`}>{summary.validationLabel}</span>
-        {sourceLastSyncedAt && (
-          <span className="text-[10px] font-black px-2 py-1 rounded-lg border bg-emerald-50 text-emerald-700 border-emerald-100">
-            Last synced: {formatRegistryTimestamp(sourceLastSyncedAt)}
-          </span>
-        )}
-        {sourceLastCheckedAt && (
-          <span className="text-[10px] font-black px-2 py-1 rounded-lg border bg-slate-50 text-slate-600 border-slate-200">
-            Checked: {formatRegistryTimestamp(sourceLastCheckedAt)}
-          </span>
-        )}
-      </div>
-      {showCapabilityMetadata && entry.capabilityMetadata && (
-        <CapabilityMetadataStrip metadata={entry.capabilityMetadata} />
       )}
     </div>
   );
@@ -349,6 +309,8 @@ export default function RegistryPageShell<T extends object>({
   showDisplayModeToggle,
   showPagination,
   showCapabilityMetadata = true,
+  showListHeader = true,
+  renderAboveList,
   isLoading = false,
   errorMessage = null,
   sourceDisplayLabel,
@@ -357,6 +319,7 @@ export default function RegistryPageShell<T extends object>({
   sourceStatus,
 }: RegistryPageShellProps<T>) {
   const entry = useMemo(() => getRegistryCatalogEntry(registryId), [registryId]);
+  const [infoPanelOpen, setInfoPanelOpen] = useState(false);
   const definition = useMemo(
     () => entry?.createEntityDefinition?.() as GenericEntityDefinition<T> | undefined,
     [entry],
@@ -371,6 +334,11 @@ export default function RegistryPageShell<T extends object>({
 
   const requiredFieldCount = definition.fields.filter((field) => field.required).length;
   const sourceState = getRegistrySourceState(entry, rows.length, isLoading, errorMessage, sourceStatus);
+  const effectivePermissionContext = permissionContext ?? { currentRole };
+  const canOpenInfoPanel = hasGenericPermission(
+    { roles: entry.allowedRoles, capabilities: entry.allowedCapabilities },
+    effectivePermissionContext,
+  );
   const summary: RegistryHeaderSummary = {
     sourceState,
     rowCountLabel:
@@ -470,7 +438,7 @@ export default function RegistryPageShell<T extends object>({
     sourceLastSyncedAt,
     sourceLastCheckedAt,
     readOnlyReason:
-      summary.guidance ||
+      getRegistrySurfaceMessage(entry.label, sourceState) ||
       `${entry.label} rows are read-only snapshots in this view.`,
   } satisfies {
     displayMode?: "read-only" | "editable" | "restricted" | "unavailable";
@@ -484,7 +452,12 @@ export default function RegistryPageShell<T extends object>({
 
   return (
     <div className="space-y-6 animate-fade-in outline-none" id={`${registryId}-registry-page`} data-testid={`${registryId}-registry-page`} tabIndex={-1} aria-busy={isLoading}>
-      {renderRegistryHeader(entry, currentRole, summary, showCapabilityMetadata, sourceLastSyncedAt, sourceLastCheckedAt)}
+      {renderRegistryHeader(
+        entry,
+        summary,
+        canOpenInfoPanel,
+        canOpenInfoPanel ? () => setInfoPanelOpen(true) : undefined,
+      )}
 
       {errorMessage && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
@@ -497,22 +470,116 @@ export default function RegistryPageShell<T extends object>({
           Loading {entry.label.toLowerCase()}...
         </div>
       ) : (
-        <GenericEntityPage
-          definition={viewDefinition}
-          rows={rows}
-          stateNamespace={registryId}
-          storageContext={storageContext}
-          permissionContext={permissionContext ?? { currentRole }}
-          showSearch={controls.showSearch}
-          showFilters={controls.showFilters}
-          showSort={controls.showSort}
-          showDisplayModeToggle={controls.showDisplayModeToggle}
-          showPagination={controls.showPagination}
-          renderDetailBeforeSections={(row) => renderRegistryDetailSummary(row, definition)}
-          detailContext={detailContext}
-          className={className}
-        />
+        <>
+          {renderAboveList?.()}
+          <GenericEntityPage
+            definition={viewDefinition}
+            rows={rows}
+            stateNamespace={registryId}
+            storageContext={storageContext}
+            permissionContext={effectivePermissionContext}
+            showSearch={controls.showSearch}
+            showFilters={controls.showFilters}
+            showSort={controls.showSort}
+            showDisplayModeToggle={controls.showDisplayModeToggle}
+            showPagination={controls.showPagination}
+            showListHeader={showListHeader}
+            renderDetailBeforeSections={(row) => renderRegistryDetailSummary(row, definition)}
+            detailContext={detailContext}
+            className={className}
+          />
+        </>
       )}
+
+      <OverlaySurface
+        open={infoPanelOpen}
+        onClose={() => setInfoPanelOpen(false)}
+        title={`${entry.label} information`}
+        description="Registry status, validation, and capability metadata."
+        maxWidthClassName="max-w-4xl"
+        bodyClassName="px-5 py-5 space-y-4"
+        body={(
+          <>
+            <InfoSection
+              title="Source and connection"
+              items={[
+                { label: "Source label", value: sourceDisplayLabel ?? entry.sourceLabel },
+                { label: "Connection status", value: formatSchoolRegistrySourceStatus(sourceStatus) },
+                { label: "Source availability", value: summary.sourceState },
+                { label: "Source type", value: entry.navLabel },
+                { label: "Configured scope", value: entry.capabilityMetadata?.scope },
+                { label: "Last successful sync", value: sourceLastSyncedAt ? formatRegistryTimestamp(sourceLastSyncedAt) : null },
+                { label: "Last checked", value: sourceLastCheckedAt ? formatRegistryTimestamp(sourceLastCheckedAt) : null },
+              ]}
+            />
+
+            <InfoSection
+              title="Freshness"
+              items={[
+                { label: "Current state", value: summary.sourceState },
+                { label: "Freshness note", value: summary.guidance },
+              ]}
+            />
+
+            <InfoSection
+              title="Validation"
+              items={[
+                { label: "Mandatory fields", value: summary.mandatoryFieldLabel },
+                { label: "Validation metadata", value: summary.validationLabel },
+              ]}
+            />
+
+            <InfoSection
+              title="Access and permissions"
+              items={[
+                { label: "Current role", value: currentRole },
+                { label: "Read-only reason", value: detailContext.readOnlyReason },
+              ]}
+            />
+
+            <InfoSection
+              title="Diagnostics and recovery"
+              items={[
+                { label: "Current state", value: summary.sourceState },
+              ]}
+            >
+              {showCapabilityMetadata && entry.capabilityMetadata && (
+                <CapabilityMetadataStrip metadata={entry.capabilityMetadata} />
+              )}
+            </InfoSection>
+          </>
+        )}
+      />
     </div>
+  );
+}
+
+function InfoSection({
+  title,
+  items,
+  children,
+}: {
+  title: string;
+  items?: Array<{ label: string; value: string | null | undefined }>;
+  children?: React.ReactNode;
+}) {
+  const visibleItems = (items || []).filter((item) => item.value !== null && item.value !== undefined && String(item.value).trim() !== "");
+  if (visibleItems.length === 0 && !children) return null;
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
+      <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">{title}</div>
+      {visibleItems.length > 0 && (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {visibleItems.map((item) => (
+            <div key={item.label} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+              <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">{item.label}</div>
+              <div className="mt-0.5 text-[11px] font-semibold text-slate-700 break-words">{item.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {children}
+    </section>
   );
 }

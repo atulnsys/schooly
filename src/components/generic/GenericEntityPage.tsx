@@ -23,6 +23,7 @@ interface GenericEntityPageProps<T extends object> {
   showSort?: boolean;
   showDisplayModeToggle?: boolean;
   showPagination?: boolean;
+  showListHeader?: boolean;
   renderToolbarActions?: () => React.ReactNode;
 
   renderDetailBeforeSections?: (row: T) => React.ReactNode;
@@ -51,6 +52,7 @@ export default function GenericEntityPage<T extends object>({
   showSort = true,
   showDisplayModeToggle = true,
   showPagination = true,
+  showListHeader = true,
   renderToolbarActions,
   renderDetailBeforeSections,
   renderDetailAfterSections,
@@ -137,6 +139,7 @@ export default function GenericEntityPage<T extends object>({
           showSort={showSort}
           showDisplayModeToggle={showDisplayModeToggle}
           showPagination={showPagination}
+          showListHeader={showListHeader}
           renderToolbarActions={renderToolbarActions}
           displayMode={listState.displayMode}
           onDisplayModeChange={listState.setDisplayMode}

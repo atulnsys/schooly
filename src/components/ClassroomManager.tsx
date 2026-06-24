@@ -5,6 +5,7 @@ import GenericEntityListView from "./generic/GenericEntityListView";
 import { createClassroomCourseEntityDefinition } from "../lib/classroomCourseEntityDefinition";
 import { createClassroomAssignmentEntityDefinition } from "../lib/classroomAssignmentEntityDefinition";
 import { createClassroomStudentEntityDefinition } from "../lib/classroomStudentEntityDefinition";
+import { StandardMetricGrid, StandardPageHeader } from "./common/StandardPageSurface";
 import { 
   BookOpen, 
   AlertTriangle, 
@@ -83,22 +84,37 @@ export default function ClassroomManager({
         </div>
       )}
 
-      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col md:flex-row gap-3 items-start md:items-center justify-between text-left font-sans">
-        <div className="space-y-1">
-          <h4 className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5 uppercase font-mono tracking-wide">
-            <Info size={14} className="text-blue-600 uppercase" />
-            Classroom sync
-          </h4>
-          <p className="text-[11px] text-slate-500 leading-relaxed max-w-2xl">
-            Google Classroom stays connected to the shared course list so teachers can review announcements, assignments, and student progress in one place.
-          </p>
-        </div>
-        <div className="text-[10px] font-mono text-slate-450 bg-white border border-slate-150 rounded-xl p-2 font-medium space-y-0.5 shrink-0">
-          <div><strong className="text-slate-700">Topics:</strong> admin-owned</div>
-          <div><strong className="text-slate-700">Teacher access:</strong> Post and review</div>
-          <div><strong className="text-slate-700">Source:</strong> Academic repository</div>
-        </div>
-      </div>
+      <StandardPageHeader
+        eyebrow="Classroom Sync"
+        title="Classroom sync and course roster"
+        description="Google Classroom stays connected to the shared course list so teachers can review announcements, assignments, and student progress in one place."
+        badges={(
+          <>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Topics: admin-owned</span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Teacher access: Post and review</span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600">Source: Academic repository</span>
+          </>
+        )}
+        actions={onOpenStudents ? (
+          <button
+            type="button"
+            onClick={onOpenStudents}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 py-2 text-[10.5px] font-bold text-blue-700 shadow-sm transition-colors hover:bg-blue-50 cursor-pointer"
+          >
+            Open students
+          </button>
+        ) : null}
+      />
+
+      <StandardMetricGrid
+        className="lg:grid-cols-4"
+        items={[
+          { label: "Courses", value: courses.length, tone: "blue" },
+          { label: "Assignments in course", value: courseAssignments.length, tone: "amber" },
+          { label: "Students in course", value: activeStudents.length, tone: "emerald" },
+          { label: "Teachers", value: teachers.length, tone: "violet" },
+        ]}
+      />
 
       {/* Course Selector */}
       <div id="courses-tabs-bar">

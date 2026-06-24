@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { WorkspaceFile, ClassroomCourse } from "../types";
 import FeedbackBanner from "./common/FeedbackBanner";
 import OverlaySurface from "./common/OverlaySurface";
+import { StandardPageHeader } from "./common/StandardPageSurface";
 import { 
   BookOpen, 
   Sparkles, 
@@ -1889,28 +1890,21 @@ export default function LessonPlanner({
   return (
     <div className="flex-1 min-h-screen bg-slate-50/50 p-4 md:p-6 flex flex-col gap-6" id="lesson-plan-workspace">
       
-      {/* 1. Header gradient with linear banner */}
-      <header className="bg-gradient-to-r from-[#173b9c] to-[#3568e8] text-white p-6 md:p-8 rounded-[18px] shadow-md relative overflow-hidden" id="workspace-banner">
-        <div className="absolute inset-0 bg-grid-white/[0.05] bg-[size:20px_20px]" />
-        <div className="relative max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div className="space-y-1">
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight mt-1">Lesson Plans</h1>
-            <p className="text-xs text-white/80 max-w-3xl leading-relaxed">
-              Plan lessons, review checkpoints, and edit classroom materials in one place.
-            </p>
-            {setActiveTab && (
-              <button
-                type="button"
-                onClick={openResourceLibrary}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-[10.5px] font-bold text-white transition-colors hover:bg-white/20 cursor-pointer"
-              >
-                <ExternalLink size={12} />
-                Open Resources
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
+      <StandardPageHeader
+        eyebrow="Lesson Plans"
+        title="Lesson plans"
+        description="Plan lessons, review checkpoints, and edit classroom materials in one place."
+        actions={setActiveTab ? (
+          <button
+            type="button"
+            onClick={openResourceLibrary}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 py-2 text-[10.5px] font-bold text-blue-700 shadow-sm transition-colors hover:bg-blue-50 cursor-pointer"
+          >
+            <ExternalLink size={12} />
+            Open Resources
+          </button>
+        ) : null}
+      />
 
       {feedbackMsg && (
         <FeedbackBanner

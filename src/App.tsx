@@ -1475,7 +1475,7 @@ export default function App() {
   const renderRegistryDataSurface = (registryId: string) => {
     switch (registryId) {
       case "students":
-        return <StudentsRegistryPage students={students} currentRole={currentRole} storageContext={genericEntityStorageContext} />;
+        return <StudentsRegistryPage students={students} currentRole={currentRole} storageContext={genericEntityStorageContext} activeCapabilities={activeCapabilities} />;
       case "teachers":
         return (
           <TeachersRegistryPage
@@ -1491,6 +1491,7 @@ export default function App() {
             staffRows={schoolRegistry?.staffDirectory || []}
             currentRole={currentRole}
             storageContext={genericEntityStorageContext}
+            activeCapabilities={activeCapabilities}
             sourceDisplayLabel={schoolRegistry?.sourceLabel || "Live master data registry"}
             sourceLastSyncedAt={schoolRegistry?.lastSuccessfulSyncAt || schoolRegistry?.loadedAt || null}
             sourceLastCheckedAt={schoolRegistry?.lastCheckedAt || schoolRegistry?.tabDiagnostics?.Staff_Directory?.checkedAt || null}
@@ -1498,9 +1499,9 @@ export default function App() {
           />
         );
       case "courses":
-        return <ClassroomCoursesRegistryPage courses={courses} currentRole={currentRole} storageContext={genericEntityStorageContext} />;
+        return <ClassroomCoursesRegistryPage courses={courses} currentRole={currentRole} storageContext={genericEntityStorageContext} activeCapabilities={activeCapabilities} />;
       case "assignments":
-        return <ClassroomAssignmentsRegistryPage assignments={assignments} currentRole={currentRole} storageContext={genericEntityStorageContext} />;
+        return <ClassroomAssignmentsRegistryPage assignments={assignments} currentRole={currentRole} storageContext={genericEntityStorageContext} activeCapabilities={activeCapabilities} />;
       default:
         return (
           <GenericRegistryDataPage
@@ -1891,6 +1892,7 @@ export default function App() {
             students={students}
             currentRole={currentRole}
             storageContext={genericEntityStorageContext}
+            activeCapabilities={activeCapabilities}
           />
         )}
 
@@ -1911,6 +1913,7 @@ export default function App() {
             sourceLastSyncedAt={schoolRegistry?.lastSuccessfulSyncAt || schoolRegistry?.loadedAt || null}
             sourceLastCheckedAt={schoolRegistry?.lastCheckedAt || schoolRegistry?.tabDiagnostics?.Staff_Directory?.checkedAt || null}
             sourceStatus={schoolRegistry?.sourceStatus || null}
+            activeCapabilities={activeCapabilities}
           />
         )}
 
@@ -1919,6 +1922,7 @@ export default function App() {
             courses={courses}
             currentRole={currentRole}
             storageContext={genericEntityStorageContext}
+            activeCapabilities={activeCapabilities}
           />
         )}
 
@@ -1927,6 +1931,7 @@ export default function App() {
             assignments={assignments}
             currentRole={currentRole}
             storageContext={genericEntityStorageContext}
+            activeCapabilities={activeCapabilities}
           />
         )}
 

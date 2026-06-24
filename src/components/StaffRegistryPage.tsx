@@ -3,11 +3,13 @@ import type { StaffDirectoryRow } from "../lib/schoolRegistry";
 import RegistryPageShell from "./RegistryPageShell";
 import { isActiveValue, isTeacherStaffRow } from "../lib/liveSchoolEntityBuilders";
 import type { GenericEntityStorageContext } from "../lib/genericEntityTableState";
+import { StandardMetricGrid } from "./common/StandardPageSurface";
 
 interface StaffRegistryPageProps {
   staffRows: StaffDirectoryRow[];
   currentRole: string;
   storageContext?: GenericEntityStorageContext | null;
+  activeCapabilities?: string[];
   sourceDisplayLabel?: string | null;
   sourceLastSyncedAt?: string | null;
   sourceLastCheckedAt?: string | null;
@@ -22,16 +24,7 @@ function getStaffIdentity(row: StaffDirectoryRow): string {
   return String(row.staff_id || row.email || row.staff_name || "").trim();
 }
 
-function StaffKpiCard({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-      <div className="text-[10px] uppercase tracking-wider font-mono text-slate-400 font-bold">{label}</div>
-      <div className="mt-1 text-xl font-black tracking-tight text-slate-950">{value}</div>
-    </div>
-  );
-}
-
-export default function StaffRegistryPage({ staffRows, currentRole, storageContext, sourceDisplayLabel, sourceLastSyncedAt, sourceLastCheckedAt, sourceStatus }: StaffRegistryPageProps) {
+export default function StaffRegistryPage({ staffRows, currentRole, storageContext, activeCapabilities, sourceDisplayLabel, sourceLastSyncedAt, sourceLastCheckedAt, sourceStatus }: StaffRegistryPageProps) {
   const staffKpis = useMemo(() => {
     const uniqueRows = new Map<string, StaffDirectoryRow>();
     staffRows.forEach((row) => {
@@ -60,28 +53,36 @@ export default function StaffRegistryPage({ staffRows, currentRole, storageConte
     };
   }, [staffRows]);
 
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <StaffKpiCard label="Total staff" value={staffKpis.totalStaff} />
-        <StaffKpiCard label="Active staff" value={staffKpis.activeStaff} />
-        <StaffKpiCard label="Teaching staff" value={staffKpis.teachingStaff} />
-        <StaffKpiCard label="Non-teaching staff" value={staffKpis.nonTeachingStaff} />
-        <StaffKpiCard label="Departments" value={staffKpis.departments} />
-      </div>
+  const canShowStaffCounts =
+    sourceStatus === "ready" ||
+    sourceStatus === "empty" ||
+    sourceStatus === "filtered_empty";
 
-      <RegistryPageShell
+  return (
+    <RegistryPageShell
       registryId="staff"
       rows={staffRows}
       currentRole={currentRole}
       storageContext={storageContext}
-      permissionContext={{ currentRole }}
-        showCapabilityMetadata={false}
-        sourceDisplayLabel={sourceDisplayLabel}
-        sourceLastSyncedAt={sourceLastSyncedAt}
-        sourceLastCheckedAt={sourceLastCheckedAt}
-        sourceStatus={sourceStatus}
-      />
-    </div>
+      permissionContext={{ currentRole, activeCapabilities }}
+      showCapabilityMetadata={false}
+      showListHeader={false}
+      renderAboveList={() => (
+        <StandardMetricGrid
+          className="lg:grid-cols-5"
+          items={[
+            { label: "Total staff", value: canShowStaffCounts ? staffKpis.totalStaff : null, tone: "blue" },
+            { label: "Active staff", value: canShowStaffCounts ? staffKpis.activeStaff : null, tone: "emerald" },
+            { label: "Teaching staff", value: canShowStaffCounts ? staffKpis.teachingStaff : null },
+            { label: "Non-teaching staff", value: canShowStaffCounts ? staffKpis.nonTeachingStaff : null, tone: "amber" },
+            { label: "Departments", value: canShowStaffCounts ? staffKpis.departments : null, tone: "violet" },
+          ]}
+        />
+      )}
+      sourceDisplayLabel={sourceDisplayLabel}
+      sourceLastSyncedAt={sourceLastSyncedAt}
+      sourceLastCheckedAt={sourceLastCheckedAt}
+      sourceStatus={sourceStatus}
+    />
   );
 }

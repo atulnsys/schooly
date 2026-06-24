@@ -7,16 +7,18 @@ interface ClassroomCoursesRegistryPageProps {
   courses: ClassroomCourse[];
   currentRole: string;
   storageContext?: GenericEntityStorageContext | null;
+  activeCapabilities?: string[];
 }
 
-export default function ClassroomCoursesRegistryPage({ courses, currentRole, storageContext }: ClassroomCoursesRegistryPageProps) {
+export default function ClassroomCoursesRegistryPage({ courses, currentRole, storageContext, activeCapabilities }: ClassroomCoursesRegistryPageProps) {
   return (
     <RegistryPageShell
       registryId="courses"
       rows={courses}
       currentRole={currentRole}
       storageContext={storageContext}
-      permissionContext={{ currentRole }}
+      permissionContext={{ currentRole, activeCapabilities }}
+      showListHeader={false}
     />
   );
 }
