@@ -5,10 +5,10 @@
 | Field | Value |
 | --- | --- |
 | Product | Schooly UI |
-| Branch | `codex-ui-quality-wave-10` |
-| Release candidate commit | `227e652` |
-| Audit date | `2026-06-22` |
-| Reviewed through commit | `227e652` |
+| Branch | `teacher-ui-release-evidence` |
+| Release candidate commit | `5f14734` |
+| Audit date | `2026-06-24` |
+| Reviewed through commit | `2cc84b8` |
 | Documentation commit placeholder | pending final docs commit |
 
 ## Verification Summary
@@ -19,13 +19,26 @@
 | TypeScript | Passed: `npx tsc --noEmit --pretty false` |
 | Build | Passed: `npm run build` |
 | Route smoke | Passed on `/`, `/settings`, `/registries`, `/registers`, `/staff`, `/teachers`, `/resources`, `/lesson-plans`, `/textbooks`, `/classroom`, `/students`, `/courses`, `/assignments`, and `/search` |
-| Browser | Not available in this session |
-| Responsive | Not fully verified in-browser this wave |
-| Keyboard | Not fully verified in-browser this wave |
+| Browser | Trusted Chrome verification completed on the teacher-facing flows in this release pass |
+| Responsive | Verified across 3840x1400, 1920x1200, 1440x1200, 390x844, and 844x390; exact native 200% browser zoom remains open |
+| Keyboard | Not fully verified in-browser in this pass |
 | Screen reader | Not tested in this session |
-| Realistic volume | Not fully verified in-browser this wave |
-| External provider | Code reviewed; live provider interaction not re-run in this wave |
+| Realistic volume | Not fully verified in-browser in this pass |
+| External provider | Code reviewed; live provider interaction was not re-run in this pass |
 | Storage safety | Passed by code inspection: the auth helper no longer persists Google Workspace access tokens; live authenticated browser storage verification remains pending |
+
+## Teacher-Facing UI Simplification and Browser Verification
+
+| Scope | Evidence |
+| --- | --- |
+| Application commits | `aa00162` simplified the teacher-facing pages, and `5f14734` fixed the teacher UI verification defects. |
+| Evidence commit | `2cc84b8` records the trusted browser verification pass. |
+| Browser and OS | Chrome on Windows. |
+| Roles verified | Teacher preview, plus principal/admin preview for the retained admin surfaces. |
+| Routes verified | `/`, `/search`, `/ai-assistant`, `/tasks`, `/lesson-plans`, `/resources`, `/classroom`, `/students`, `/courses`, `/assignments`, `/textbooks`, `/registries`, `/settings`, `/setup-registries`, and `/school-setup`. |
+| Viewports verified | 3840x1400, 1920x1200, 1440x1200, 390x844, 844x390, plus 1440x1200 at 2x device-scale as a zoom proxy. |
+| Verified outcomes | Teacher navigation hides `Staff` and `Registry Explorer`; principal/admin preview retains them; contextual Back actions work on Resources and Registry Explorer; browser Back and Forward preserve Registry Explorer list/detail state; legacy `/setup-registries` and `/school-setup` resolve to Settings; no page-level horizontal overflow was observed in the tested layouts. |
+| Remaining gaps | Exact native 200% browser zoom, screen-reader coverage, provider-backed mutations, realistic-volume browser runs, and authenticated browser storage inspection remain open. |
 
 ## Critical Workflows
 
@@ -43,8 +56,8 @@
 
 | Severity | Affected route or workflow | Requirement IDs | Evidence | Impact | Likelihood | Mitigation | Release decision | Follow-up role |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| HIGH | Browser verification for critical workflows | `ACCEPT-11`, `ACCEPT-12`, `ACCEPT-13`, `ACCEPT-15`, `SAFE-15`, `SAFE-16`, `A11Y-18` | Route smoke, lint, typecheck, build, and code review passed; browser control was unavailable, so the end-to-end final acceptance workflow remains pending. | READY cannot be claimed from HTTP smoke alone. | High, because the required browser tool was unavailable in this session. | Run the manual fallback matrix in a trusted browser and complete the keyboard and screen-reader checks. | `CONDITIONALLY READY` | UI QA / browser verification |
-| HIGH | Accessibility acceptance | `ACCEPT-12`, `A11Y-18` | No real keyboard-only or screen-reader pass was possible. | Accessibility cannot be declared complete. | High. | Use a trusted browser with a screen reader and record the workflow. | `CONDITIONALLY READY` | Accessibility QA |
+| HIGH | Browser verification for critical workflows | `ACCEPT-11`, `ACCEPT-12`, `ACCEPT-13`, `ACCEPT-15`, `SAFE-15`, `SAFE-16`, `A11Y-18` | Route smoke, lint, typecheck, build, and code review passed; trusted Chrome verification now covers the teacher-facing navigation and responsive matrix, but exact native 200% zoom and some workflow evidence remain pending. | READY cannot be claimed from partial browser coverage alone. | High, because the remaining browser gaps are still workflow-relevant. | Run the remaining keyboard, screen-reader, zoom, and provider-backed checks in a trusted browser. | `CONDITIONALLY READY` | UI QA / browser verification |
+| HIGH | Accessibility acceptance | `ACCEPT-12`, `A11Y-18` | No real keyboard-only or screen-reader pass was completed. | Accessibility cannot be declared complete. | High. | Use a trusted browser with a screen reader and record the workflow. | `CONDITIONALLY READY` | Accessibility QA |
 | MEDIUM | Realistic data volume | `SAFE-16`, `ACCEPT-13`, `PERF-10` | Build and code review succeeded, but no live volume pass ran. | Large lists could still hide a layout or interaction issue. | Medium. | Exercise the largest legitimate datasets later. | `CONDITIONALLY READY` | UI QA |
 | MEDIUM | External provider flows | `ACCEPT-02`, `ACCEPT-05`, `ACCEPT-10` | Auth and sheet-read helpers were reviewed, but live Google Workspace interaction was not repeated. | Provider-specific failures could still surface only in-browser. | Medium. | Re-run the provider-backed flows in a trusted browser when available. | `CONDITIONALLY READY` | Integration QA |
 | MEDIUM | Context preservation | `ACCEPT-07`, `OPS-11` | Shared list-state and detail-shell code was reviewed; route smoke passed. | Back/Forward and filter persistence remain browser-dependent. | Medium. | Run the history and context-preservation scenarios manually. | `CONDITIONALLY READY` | UI QA |
@@ -53,7 +66,7 @@
 
 ## Accepted Limitations
 
-- Browser control was not available in this session.
+- Exact native 200% browser zoom was not verified; a 2x device-scale proxy was used instead.
 - Screen-reader verification was not available in this session.
 - Realistic-volume browser testing was not available in this session.
 - Authenticated browser storage inspection remains mandatory.
@@ -67,8 +80,8 @@
 
 ## Browser-Verification Gaps
 
-- Desktop, 1024px, 768px, 390px portrait, mobile landscape, and 200% zoom browser checks remain open.
-- Back/Forward, focus management, keyboard-only flows, and modal interaction remain open.
+- Exact native 200% zoom, focus management, keyboard-only flows, and modal interaction remain open.
+- Browser Back/Forward, responsive layout, and teacher role navigation were verified in the trusted Chrome pass.
 - The end-to-end final acceptance workflow remains open.
 
 ## Accessibility-Verification Gaps
@@ -89,12 +102,12 @@
 
 ## Rollback Considerations
 
-- A narrow application fix changed `src/lib/googleWorkspaceAuth.ts`; rollback would be to revert `227e652` if needed.
-- If a later browser pass finds a regression, the app state still corresponds to the reviewed implementation at `227e652`.
+- A narrow application fix changed `src/lib/googleWorkspaceAuth.ts`; rollback would be to revert `5f14734` if needed.
+- If a later browser pass finds a regression, the app state still corresponds to the reviewed implementation at `5f14734`.
 - The documentation commit can be reverted independently if needed.
 
 ## Final Recommendation
 
 `CONDITIONALLY READY`
 
-The application build, lint, typecheck, route smoke, code review, and the storage-safety fix all support release continuation, but the lack of trusted browser control, authenticated browser storage inspection, keyboard-only evidence, screen-reader evidence, and realistic-volume browser evidence means the release cannot be called `READY` yet.
+The application build, lint, typecheck, route smoke, code review, and the storage-safety fix all support release continuation, but the remaining exact native 200% zoom gap, authenticated browser storage inspection, keyboard-only evidence, screen-reader evidence, and realistic-volume browser evidence mean the release cannot be called `READY` yet.
